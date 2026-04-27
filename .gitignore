@@ -1,0 +1,20 @@
+# Local Claude artifacts
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+
+# Node (in case any tool drops them)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Reference assets that don't belong in the repo
+apex-akina-smoke.png
