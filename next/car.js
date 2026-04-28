@@ -74,13 +74,18 @@ const COUNTERSTEER_ASSIST = 0.35;  // 0..1 strength
 const PERFECT_LAUNCH_WINDOW = 0.28;
 const PERFECT_LAUNCH_BONUS = 0.55;
 
+// Car proportions — tuned for sleek JDM silhouettes.
+//   width   = max body width
+//   height  = body box height; lower = slammed/aggressive (was 0.7-0.8 → 0.50-0.55 now)
+//   length  = total length
+//   cabin   = greenhouse dimensions; smaller h ratio + steeper slope = more aggressive
 export const CAR_SHAPES = {
   gt: {
     label: "GT Coupe",
     description: "Smooth top-end weapon, planted in long sweepers.",
     body: 0xfbfdff, stripe: 0xff315c,
-    width: 1.8, height: 0.7, length: 4.0,
-    cabin: { w: 1.55, h: 0.55, l: 2.0, z: -0.2 },
+    width: 1.92, height: 0.52, length: 4.30,
+    cabin: { w: 1.52, h: 0.48, l: 2.05, z: -0.25 },
     stats: { top: 1.04, accel: 1.0, handling: 1.0, grip: 1.05 },
     spoiler: "ducktail"
   },
@@ -88,8 +93,8 @@ export const CAR_SHAPES = {
     label: "Drift Coupe",
     description: "Loose rear, snappy steering. Slides easy.",
     body: 0xffe156, stripe: 0x101525,
-    width: 1.7, height: 0.75, length: 3.8,
-    cabin: { w: 1.45, h: 0.6, l: 1.8, z: 0 },
+    width: 1.84, height: 0.55, length: 4.10,
+    cabin: { w: 1.46, h: 0.52, l: 1.85, z: -0.05 },
     stats: { top: 0.94, accel: 1.05, handling: 1.18, grip: 0.78 },
     spoiler: "lip"
   },
@@ -97,8 +102,8 @@ export const CAR_SHAPES = {
     label: "Rally Sedan",
     description: "AWD-ish grip. Punches out of corners and brakes hard.",
     body: 0xff315c, stripe: 0xffd166,
-    width: 1.85, height: 0.8, length: 4.2,
-    cabin: { w: 1.6, h: 0.65, l: 2.1, z: -0.1 },
+    width: 1.88, height: 0.62, length: 4.40,
+    cabin: { w: 1.58, h: 0.58, l: 2.20, z: -0.15 },
     stats: { top: 0.98, accel: 1.04, handling: 0.98, grip: 1.18 },
     spoiler: "wing"
   },
@@ -106,8 +111,8 @@ export const CAR_SHAPES = {
     label: "Wedge Super",
     description: "Top of the food chain. Massive top end.",
     body: 0xa66cff, stripe: 0xfbfdff,
-    width: 1.95, height: 0.55, length: 4.4,
-    cabin: { w: 1.5, h: 0.42, l: 1.7, z: -0.3 },
+    width: 2.02, height: 0.46, length: 4.55,         // very low + wide
+    cabin: { w: 1.46, h: 0.36, l: 1.65, z: -0.35 },
     stats: { top: 1.10, accel: 1.06, handling: 0.92, grip: 1.10 },
     spoiler: "deck"
   },
@@ -116,8 +121,8 @@ export const CAR_SHAPES = {
     label: "Kei Sport",
     description: "Tiny featherweight. Diabolical grip + razor handling.",
     body: 0x3cff9b, stripe: 0x101525,
-    width: 1.55, height: 0.85, length: 3.4,
-    cabin: { w: 1.30, h: 0.62, l: 1.6, z: 0 },
+    width: 1.62, height: 0.66, length: 3.55,
+    cabin: { w: 1.34, h: 0.56, l: 1.65, z: -0.05 },
     stats: { top: 0.86, accel: 1.10, handling: 1.28, grip: 1.20 },
     spoiler: "ducktail"
   },
@@ -126,8 +131,8 @@ export const CAR_SHAPES = {
     label: "Hyper GT",
     description: "Brutal acceleration, momentum-based corner approach.",
     body: 0x141828, stripe: 0xff315c,
-    width: 2.05, height: 0.62, length: 4.6,
-    cabin: { w: 1.62, h: 0.50, l: 1.85, z: -0.15 },
+    width: 2.10, height: 0.54, length: 4.75,
+    cabin: { w: 1.62, h: 0.46, l: 1.95, z: -0.20 },
     stats: { top: 1.14, accel: 1.10, handling: 0.86, grip: 0.96 },
     spoiler: "wing"
   }
@@ -139,9 +144,11 @@ function pbr(color, metalness = 0.4, roughness = 0.5) {
 }
 
 // Build a tapered cabin (sloped windshield + sloped rear glass) using a custom
-// 8-vertex BufferGeometry. Front top and rear top are pulled inward along Z so
-// the silhouette reads like a real coupe rather than a stacked box.
-export function buildSlopedCabin(w, h, l, zCenter, slopeFront = 0.30, slopeRear = 0.25) {
+// 8-vertex BufferGeometry. Front top and rear top are pulled inward along Z
+// so the silhouette reads like a real coupe rather than a stacked box.
+// Default slopes are now MORE aggressive (0.45 front, 0.35 rear) for a sleek
+// JDM fastback profile.
+export function buildSlopedCabin(w, h, l, zCenter, slopeFront = 0.45, slopeRear = 0.35) {
   // 8 corners: bottom (b) and top (t), with front/rear and left/right.
   const halfW = w * 0.5;
   const halfWTopFront = halfW * 0.86;     // narrow the roof slightly
@@ -313,10 +320,69 @@ function buildBody(shape) {
 
   // Rounded nose wedge — wraps the front bumper down toward a thin lip.
   const noseMat = pbr(shape.body, 0.4, 0.5);
-  const noseGeo = buildNoseWedge(shape.width * 0.96, shape.height * 0.6, shape.length * 0.22);
+  const noseGeo = buildNoseWedge(shape.width * 0.96, shape.height * 0.55, shape.length * 0.22);
   const nose = new THREE.Mesh(noseGeo, noseMat);
-  nose.position.set(0, shape.height * 0.45, shape.length * 0.40);
+  nose.position.set(0, shape.height * 0.40, shape.length * 0.40);
   group.add(nose);
+
+  // Front splitter — thin lip below the nose, sticks slightly forward.
+  const splitter = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.width * 0.94, 0.04, 0.20),
+    pbr(0x0a0d18, 0.4, 0.6)
+  );
+  splitter.position.set(0, shape.height * 0.16, shape.length * 0.50);
+  group.add(splitter);
+
+  // Side skirts — flat strakes along the lower edge, just above ground.
+  const skirtMat = pbr(0x0a0d18, 0.3, 0.6);
+  for (const side of [-1, 1]) {
+    const skirt = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.10, shape.length * 0.62),
+      skirtMat
+    );
+    skirt.position.set(side * shape.width * 0.50, shape.height * 0.20, 0);
+    group.add(skirt);
+  }
+
+  // Fender flares — subtle bulges over each wheel for a wide-body look.
+  const flareMat = pbr(shape.body, 0.4, 0.5);
+  const flareGeo = new THREE.BoxGeometry(0.18, shape.height * 0.45, 0.66);
+  const wxFlare = shape.width * 0.50;
+  for (const z of [shape.length * 0.35, -shape.length * 0.36]) {
+    for (const side of [-1, 1]) {
+      const flare = new THREE.Mesh(flareGeo, flareMat);
+      flare.position.set(side * wxFlare, shape.height * 0.55, z);
+      group.add(flare);
+    }
+  }
+
+  // Rear diffuser — angled fins under the rear bumper.
+  const diffMat = pbr(0x0a0d18, 0.3, 0.6);
+  for (let i = 0; i < 4; i++) {
+    const xOff = (i - 1.5) * 0.30;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.40), diffMat);
+    fin.position.set(xOff, shape.height * 0.20, -shape.length * 0.46);
+    group.add(fin);
+  }
+
+  // Hood vents — on aggressive cars (drift, super, muscle, kei), small slits.
+  if (["drift", "super", "muscle", "kei"].includes(shape.label?.toLowerCase()?.split(" ")[0] || "") || true) {
+    const ventMat = pbr(0x05070d, 0.4, 0.7);
+    for (const side of [-1, 1]) {
+      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.04, 0.22), ventMat);
+      vent.position.set(side * 0.30, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.20);
+      group.add(vent);
+    }
+  }
+
+  // Exhaust tips — twin chrome cylinders at the rear.
+  const exhaustMat = pbr(0xc8d4e6, 0.85, 0.18);
+  for (const side of [-1, 1]) {
+    const exh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.18, 10), exhaustMat);
+    exh.rotation.x = Math.PI / 2;
+    exh.position.set(side * shape.width * 0.30, shape.height * 0.32, -shape.length * 0.51);
+    group.add(exh);
+  }
 
   // Front grille — dark panel under the headlights.
   const grilleMat = pbr(0x05070d, 0.3, 0.7);

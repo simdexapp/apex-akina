@@ -1077,34 +1077,96 @@ body.is-drafting .game-frame::after {
   .track-preview { height: 50px; max-width: 100%; }
 }
 
-/* Phone portrait — drop dense overlays, keep core HUD legible. */
+/* Phone portrait — strict non-overlapping zones. Guarantees no element
+   collides with another on iPhone 16 Pro Max (430×932) and similar.
+
+   Layout zones:
+     - TOP-LEFT     (8..160 px wide):  Lap/Pos/Time stats
+     - TOP-RIGHT    (8..130 px wide):  Mute/Pause/HUD-toggle action buttons
+     - ROW 2 (top: 56px): combo/draft pills (centered)
+     - ROW 3 (top: 96px): live lap delta (centered)
+     - BOTTOM-LEFT  (200×200): steer pad
+     - BOTTOM-RIGHT (140 wide × 260 tall): throttle/brake stack
+     - MID-RIGHT (right: 18px, bottom: 280px): boost/drift cluster
+*/
 @media (max-width: 540px) {
-  .hud-stack { padding: 2px 6px; min-width: 40px; }
+  /* TOP-LEFT: lap stats — auto-wrap if too wide. */
+  .hud {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    right: 132px;                   /* reserve for top-right action group */
+    flex-wrap: wrap;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .hud-stack { padding: 2px 6px; min-width: 36px; max-width: 70px; }
   .hud strong { font-size: 12px; }
   .label { font-size: 8px; }
-  .speedo { display: none; }                       /* speedo overlaps steer pad on phone */
-  .leaderboard { display: none; }
-  .minimap { display: none; }
+  .hud-top .hud-stack:nth-child(4) { display: none; }   /* hide "Best" */
+
+  /* TOP-RIGHT: action buttons — fixed slot. */
+  .hud-actions {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    gap: 4px;
+  }
+  .hud-actions a.back-link { display: none; }
+  .hud-actions .back-link { padding: 4px 8px; font-size: 12px; min-height: 28px; }
+
+  /* ROW 2: combo + draft pills BELOW the top strip. */
+  .hud-pills {
+    top: calc(max(8px, env(safe-area-inset-top)) + 42px);
+    gap: 4px;
+  }
   .hud-pill { padding: 3px 8px; font-size: 10px; }
   .hud-pill strong { font-size: 11px; }
-  .grip-bar { display: none; }
-  .lap-delta { top: 50px; padding: 3px 10px; }
+
+  /* ROW 3: lap-delta below the pills. */
+  .lap-delta {
+    top: calc(max(8px, env(safe-area-inset-top)) + 80px);
+    padding: 3px 10px;
+  }
   .lap-delta strong { font-size: 13px; }
+
+  /* Hide secondary HUD that crowds the screen. */
+  .speedo { display: none; }
+  .leaderboard { display: none; }
+  .minimap { display: none; }
+  .grip-bar { display: none; }
   .sectors { display: none; }
   .rival-labels { display: none; }
-  /* Hide back link; tighter pause/mute. */
-  .hud-actions a.back-link { display: none; }
-  .hud-actions .back-link { padding: 3px 8px; font-size: 13px; min-height: 30px; }
-  /* Top strip stays one line. */
-  .hud-top { gap: 4px; }
-  .hud-top .hud-stack { padding: 2px 6px; min-width: 36px; }
-  .hud-top .hud-stack:nth-child(4) { display: none; }    /* hide "Best" on tiny screens */
-  .hud-pills { top: 4px; gap: 4px; }
-  /* Touch buttons stay BIG on phone — same sizes as desktop touch but
-     with safe-area insets so notch / home-bar gestures don't clip. */
-  .touch-pad { bottom: max(80px, calc(80px + env(safe-area-inset-bottom))); }
-  .touch-steer { left: max(18px, env(safe-area-inset-left)); }
-  .touch-right { right: max(18px, env(safe-area-inset-right)); }
+
+  /* Touch buttons — sized to leave a clear central play area. */
+  .touch-steer {
+    left: max(14px, env(safe-area-inset-left));
+    bottom: max(60px, calc(60px + env(safe-area-inset-bottom)));
+  }
+  .steer-track { width: 160px; height: 160px; }
+  .steer-knob { width: 70px; height: 70px; left: 45px; top: 45px; }
+
+  .touch-right {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(60px, calc(60px + env(safe-area-inset-bottom)));
+    gap: 12px;
+  }
+  .touch-throttle { width: 110px; height: 110px; font-size: 32px; }
+  .touch-brake { width: 110px; height: 90px; font-size: 30px; }
+
+  .touch-extras {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(280px, calc(280px + env(safe-area-inset-bottom)));
+    gap: 10px;
+  }
+  .touch-btn { width: 72px; height: 72px; font-size: 24px; }
+}
+
+/* Very narrow phones (≤ 380px width) — tighten further. */
+@media (max-width: 380px) {
+  .hud-top .hud-stack:nth-child(3) { display: none; }   /* also hide Time */
+  .steer-track { width: 140px; height: 140px; }
+  .steer-knob { width: 60px; height: 60px; left: 40px; top: 40px; }
+  .touch-throttle { width: 100px; height: 100px; }
+  .touch-brake { width: 100px; height: 80px; }
 }
 
 /* Phone landscape — pull touch pads toward edges, slim HUD. */
