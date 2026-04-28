@@ -26,6 +26,28 @@ body {
 
 .shell { height: 100%; display: grid; place-items: center; padding: clamp(8px, 2vw, 24px); }
 
+/* Victory confetti — pure CSS, position fixed to viewport. Active when
+   body has .is-victory. Strips of color sweep down + rotate. */
+body.is-victory::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 24px, rgba(46,233,255,0.18) 24px 28px),
+    repeating-linear-gradient(-45deg, transparent 0 28px, rgba(255,49,92,0.16) 28px 32px),
+    repeating-linear-gradient(0deg, transparent 0 16px, rgba(255,209,102,0.14) 16px 20px);
+  animation: victory-flash 4s ease-out forwards;
+}
+
+@keyframes victory-flash {
+  0%   { opacity: 0; transform: translateY(-20px); }
+  10%  { opacity: 1; transform: translateY(0); }
+  90%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
 /* Splash screen */
 .splash {
   position: fixed;
@@ -1105,6 +1127,20 @@ body.is-photo-mode::after {
   border: 1px solid var(--line);
   border-radius: 999px;
   z-index: 10;
+}
+
+/* Track preview SVG inside the picker card */
+.track-preview {
+  width: 100%;
+  max-width: 110px;
+  height: 36px;
+  margin: 4px 0;
+  display: block;
+  opacity: 0.85;
+}
+
+.track-card[aria-checked="true"] .track-preview {
+  opacity: 1;
 }
 
 /* Achievement toasts */

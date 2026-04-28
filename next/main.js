@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=6";
-import { buildScenery } from "./scenery.js?v=6";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=6";
-import { createInput, initTouchControls } from "./input.js?v=6";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=6";
+import { buildTrack, getTrackList } from "./track.js?v=7";
+import { buildScenery } from "./scenery.js?v=7";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=7";
+import { createInput, initTouchControls } from "./input.js?v=7";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=7";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=6";
-import { MUSIC_PROFILES } from "./tracks-data.js?v=6";
-import { createGhost, createGhostMesh } from "./ghost.js?v=6";
-import { createReplay } from "./replay.js?v=6";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=6";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=6";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=7";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=7";
+import { createGhost, createGhostMesh } from "./ghost.js?v=7";
+import { createReplay } from "./replay.js?v=7";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=7";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=7";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=6";
+} from "./profile.js?v=7";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1063,6 +1063,11 @@ let finishShown = false;
 function showFinish(standings) {
   const overlay = document.getElementById("finish-overlay");
   document.getElementById("finish-title").textContent = standings.place === 1 ? "Victory" : "Race Complete";
+  // Victory flourish — body class drives a CSS confetti animation.
+  if (standings.place === 1) {
+    document.body.classList.add("is-victory");
+    setTimeout(() => document.body.classList.remove("is-victory"), 4000);
+  }
   const best = bestLapPerTrack[track.id];
   let extra = "";
   if (gameMode === "career") {
@@ -1238,6 +1243,38 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---- Track picker ----
+// Build a small SVG path showing the track's centerline outline. Used in
+// the track picker so each card has a unique visual silhouette.
+function trackPreviewSvg(trackId) {
+  const data = TRACKS[trackId];
+  if (!data) return "";
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of data.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  const w = maxX - minX, h = maxZ - minZ;
+  const pad = 6;
+  const W = 80, H = 40;
+  const sx = (W - pad * 2) / Math.max(1, w);
+  const sz = (H - pad * 2) / Math.max(1, h);
+  const s = Math.min(sx, sz);
+  const cx = (x) => pad + (x - minX) * s;
+  const cz = (z) => pad + (z - minZ) * s;
+  let d = "";
+  for (let i = 0; i < data.points.length; i++) {
+    const p = data.points[i];
+    d += (i === 0 ? "M " : "L ") + cx(p.x).toFixed(1) + " " + cz(p.z).toFixed(1) + " ";
+  }
+  d += "Z";
+  return `<svg viewBox="0 0 ${W} ${H}" class="track-preview" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="rgba(46,233,255,0.55)" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="0.8" stroke-linejoin="round"/>
+  </svg>`;
+}
+
 function renderTrackPicker() {
   const wrap = document.getElementById("track-picker");
   if (!wrap) return;
@@ -1252,6 +1289,7 @@ function renderTrackPicker() {
       btn.innerHTML = `
         <span class="name">${t.name}</span>
         <p class="desc">${t.description}</p>
+        ${trackPreviewSvg(t.id)}
         <div class="swatch" aria-hidden="true">
           <span style="background:${t.palette.sky.top}"></span>
           <span style="background:${t.palette.sky.mid}"></span>

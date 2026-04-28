@@ -115,25 +115,34 @@ function makeRivalMesh(variant) {
 const ROW_SPACING = 6;
 const COL_OFFSET = 3;
 
+// AI personality archetypes. Each affects how aggressively the rival defends
+// position, how late they brake, and how often they take wide racing lines.
+const PERSONALITIES = [
+  { id: "aggressive",  brakeBoldness: 1.20, blockChance: 0.65, laneJitter: 0.40, paceVariance: 0.05 },
+  { id: "smooth",      brakeBoldness: 0.90, blockChance: 0.20, laneJitter: 0.10, paceVariance: 0.02 },
+  { id: "consistent",  brakeBoldness: 1.00, blockChance: 0.35, laneJitter: 0.18, paceVariance: 0.01 },
+  { id: "wildcard",    brakeBoldness: 1.10, blockChance: 0.50, laneJitter: 0.55, paceVariance: 0.10 }
+];
+
 export function createRivals(track, count = 14) {
   const rivals = [];
   for (let i = 0; i < count; i++) {
     const variant = RIVAL_VARIANTS[i % RIVAL_VARIANTS.length];
+    const personality = PERSONALITIES[i % PERSONALITIES.length];
     const mesh = makeRivalMesh(variant);
     // Grid placement.
-    const row = Math.floor(i / 2) + 1;       // row 0 = player; rivals start from row 1
-    const col = i % 2 === 0 ? -1 : 1;        // alternate left/right
+    const row = Math.floor(i / 2) + 1;
+    const col = i % 2 === 0 ? -1 : 1;
     const gridS = -row * ROW_SPACING;
     const gridLane = col * COL_OFFSET;
-    // Race home lane is independent — pull toward a small offset off the centerline so they spread once underway.
     const homeLane = ((i % 5) - 2) * 1.6;
     rivals.push({
       name: variant.name,
       mesh,
+      personality,
       s: gridS,
       lane: gridLane,
       homeLane,
-      // Tiered target speeds. Front tier 78-84 closely matches the player base of 78-86.
       targetSpeed: i < 4 ? 78 + Math.random() * 6
                   : i < 9 ? 70 + Math.random() * 6
                   : 60 + Math.random() * 6,
@@ -261,11 +270,16 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     const cornerDrag = Math.min(0.55, curveSeverity * 6.0);
     let pace = r.targetSpeed * (1 - cornerDrag);
     if (blockerSpeed != null) pace = Math.min(pace, blockerSpeed * 0.96);
-    // Approaching a sharp upcoming turn? Brake harder than the steady drag.
+    // Approaching a sharp upcoming turn? Brake harder than steady drag.
+    // Personality: aggressive drivers brake later (lower urgency threshold).
+    const personality = r.personality || PERSONALITIES[0];
     const brakeUrgency = Math.min(1, c2 * 12.0);
-    if (brakeUrgency > 0.45 && r.speed > pace) {
+    const brakeThreshold = 0.55 / personality.brakeBoldness;
+    if (brakeUrgency > brakeThreshold && r.speed > pace) {
       r.speed -= dt * 18 * brakeUrgency;
     }
+    // Lane jitter — wildcards weave a bit, smooth drivers hold a tight line.
+    r.lane += Math.sin(performance.now() * 0.001 + r.s * 0.05) * personality.laneJitter * dt * 0.4;
     r.speed += (pace - r.speed) * Math.min(1, dt * 2.4);
 
     // Advance arclength. Don't modulo while still on the negative-s grid —
