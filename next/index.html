@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=22">
     <script type="importmap">
       {
         "imports": {
@@ -100,14 +100,22 @@
           <div class="speedlines"></div>
         </div>
 
-        <!-- Mobile touch controls (only visible on coarse-pointer devices) -->
-        <div class="touch-pad touch-left" id="touch-left" hidden>
-          <button class="touch-btn" id="touch-steer-l" aria-label="Steer left">◀</button>
-          <button class="touch-btn" id="touch-steer-r" aria-label="Steer right">▶</button>
+        <!-- Mobile touch controls (only visible on coarse-pointer devices).
+             Left: analog drag-pad for steering (touch-and-drag). Knob slides
+             with finger; steer value = (knob.x - center) / radius, clamped.
+             Right: stacked throttle / brake. Boost + drift fly out from a
+             secondary cluster top-right. -->
+        <div class="touch-pad touch-steer" id="touch-steer" hidden>
+          <div class="steer-track" id="steer-track">
+            <div class="steer-knob" id="steer-knob"></div>
+            <span class="steer-hint">Drag</span>
+          </div>
         </div>
         <div class="touch-pad touch-right" id="touch-right" hidden>
           <button class="touch-btn touch-throttle" id="touch-throttle" aria-label="Throttle">▲</button>
           <button class="touch-btn touch-brake" id="touch-brake" aria-label="Brake">▼</button>
+        </div>
+        <div class="touch-pad touch-extras" id="touch-extras" hidden>
           <button class="touch-btn touch-boost" id="touch-boost" aria-label="Boost">⚡</button>
           <button class="touch-btn touch-drift" id="touch-drift" aria-label="Drift">↺</button>
         </div>
@@ -335,6 +343,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=21"></script>
+    <script type="module" src="main.js?v=22"></script>
   </body>
 </html>
