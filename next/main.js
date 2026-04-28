@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=35";
-import { buildScenery, tickAmbient } from "./scenery.js?v=35";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=35";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=35";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=35";
+import { buildTrack, getTrackList } from "./track.js?v=36";
+import { buildScenery, tickAmbient } from "./scenery.js?v=36";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=36";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=36";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=36";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=35";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=35";
-import { createGhost, createGhostMesh } from "./ghost.js?v=35";
-import { createReplay } from "./replay.js?v=35";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=35";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=35";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=35";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=35";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=36";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=36";
+import { createGhost, createGhostMesh } from "./ghost.js?v=36";
+import { createReplay } from "./replay.js?v=36";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=36";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=36";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=36";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=36";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=35";
+} from "./profile.js?v=36";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -277,9 +277,15 @@ function loadTrack(id) {
   moonLight.color.setHex(track.palette.moonLight);
   fillRed.color.setHex(track.palette.fillRed);
   fillCyan.color.setHex(track.palette.fillCyan);
-  // Reset rivals.
+  // Reset rivals. Career mode rounds can flag a boss race; slot 0 then
+  // becomes a named boss with stronger pace + signature livery.
   for (const r of rivals) scene.remove(r.mesh);
-  rivals = createRivals(track, 14);
+  const careerRound = (gameMode === "career") ? currentRound() : null;
+  const bossIdx = (careerRound && typeof careerRound.boss === "number") ? careerRound.boss : null;
+  rivals = createRivals(track, 14, bossIdx != null ? { boss: bossIdx } : {});
+  if (bossIdx != null) {
+    setTimeout(() => flashCallout(`Boss: ${rivals[0].name}`, 2200), 1200);
+  }
   for (const r of rivals) {
     scene.add(r.mesh);
     applyShadows(r.mesh, { cast: true, receive: false });
@@ -1088,11 +1094,26 @@ function computeStandings() {
   return { place, entries };
 }
 
+// Slow-mo for the final 12% of the last lap — racing-game classic. Defaults
+// to 1.0; the lap-detection block ramps to 0.55 when player crosses the
+// final-lap "slow zone" line.
+let slowMoFactor = 1.0;
+
 function loop(now) {
   const dt = Math.min(0.25, (now - lastTime) / 1000);
   lastTime = now;
   if (running && !paused) {
-    acc += dt;
+    // Final-lap slow-mo: when on the last lap and past the start of sector 3,
+    // ramp slowMoFactor toward 0.55 for cinematic finish.
+    if (running && lap === lapsTotal() && track) {
+      const proj = track.project(car.group.position);
+      const finalZone = proj.s >= track.length * 0.88;
+      const target = finalZone ? 0.55 : 1.0;
+      slowMoFactor += (target - slowMoFactor) * Math.min(1, dt * 4);
+    } else {
+      slowMoFactor += (1.0 - slowMoFactor) * Math.min(1, dt * 6);
+    }
+    acc += dt * slowMoFactor;
     while (acc >= FIXED_DT) {
       tick(FIXED_DT);
       acc -= FIXED_DT;

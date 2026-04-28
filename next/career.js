@@ -33,14 +33,15 @@ export const CHAMPIONSHIPS = {
   },
   pro2: {
     name: "Master Championship",
-    description: "All tracks, brutal AI, 4 laps each.",
+    description: "All tracks, brutal AI, 4 laps each. Three boss races.",
     difficulty: "hard",
     rounds: [
-      { trackId: "mountainpass", laps: 4 },
+      { trackId: "mountainpass", laps: 4, boss: 0 },        // Akagi Ace defends his pass
       { trackId: "city", laps: 4 },
-      { trackId: "neon", laps: 4 },
+      { trackId: "neon", laps: 4, boss: 1 },                // Neon King in his element
       { trackId: "bayside", laps: 4 },
       { trackId: "highway", laps: 4 },
+      { trackId: "drift", laps: 4, boss: 2 },               // Daikoku God on home turf
       { trackId: "lakeside", laps: 4 }
     ]
   }

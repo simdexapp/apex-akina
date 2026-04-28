@@ -25,6 +25,15 @@ const RIVAL_VARIANTS = [
   { name: "Daichi",body: 0x0d2240, stripe: 0x2ee9ff, w: 1.80, h: 0.70, l: 4.00, spoiler: "ducktail" }
 ];
 
+// Boss rivals — special named drivers reserved for career-mode hard cups.
+// Higher base pace, signature liveries, and a `boss: true` flag so the UI
+// can mark them out (HP bar gold, name pill brighter).
+export const BOSS_VARIANTS = [
+  { name: "AKAGI ACE",   body: 0xff0033, stripe: 0xfbfdff, w: 1.98, h: 0.55, l: 4.45, spoiler: "wing", boss: true, basePace: 88 },
+  { name: "NEON KING",   body: 0x9f00ff, stripe: 0x4ce8ff, w: 2.02, h: 0.46, l: 4.55, spoiler: "deck", boss: true, basePace: 90 },
+  { name: "DAIKOKU GOD", body: 0x141828, stripe: 0xff315c, w: 2.10, h: 0.54, l: 4.75, spoiler: "wing", boss: true, basePace: 86 }
+];
+
 function makeRivalMesh(variant) {
   const group = new THREE.Group();
   // Apply sleek-JDM proportions: lower stance, wider stance.
@@ -167,10 +176,12 @@ const PERSONALITIES = [
   { id: "wildcard",    brakeBoldness: 1.10, blockChance: 0.50, laneJitter: 0.55, paceVariance: 0.10 }
 ];
 
-export function createRivals(track, count = 14) {
+export function createRivals(track, count = 14, opts = {}) {
   const rivals = [];
+  const bossVariant = opts.boss ? BOSS_VARIANTS[opts.boss] : null;
   for (let i = 0; i < count; i++) {
-    const variant = RIVAL_VARIANTS[i % RIVAL_VARIANTS.length];
+    // Boss takes slot 0 (front of grid) when present.
+    const variant = (i === 0 && bossVariant) ? bossVariant : RIVAL_VARIANTS[i % RIVAL_VARIANTS.length];
     const personality = PERSONALITIES[i % PERSONALITIES.length];
     const mesh = makeRivalMesh(variant);
     // Grid placement.
@@ -179,25 +190,26 @@ export function createRivals(track, count = 14) {
     const gridS = -row * ROW_SPACING;
     const gridLane = col * COL_OFFSET;
     const homeLane = ((i % 5) - 2) * 1.6;
+    const isBoss = !!variant.boss;
     rivals.push({
       name: variant.name,
       mesh,
       personality,
+      isBoss,
       s: gridS,
       lane: gridLane,
       homeLane,
-      targetSpeed: i < 4 ? 78 + Math.random() * 6
+      targetSpeed: isBoss ? variant.basePace + Math.random() * 4
+                  : i < 4 ? 78 + Math.random() * 6
                   : i < 9 ? 70 + Math.random() * 6
                   : 60 + Math.random() * 6,
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
       heading: 0,
-      // Health system — drops on collisions. Below 50%, rival drives slower.
-      // Below 20%, much slower. Recovers slowly.
-      hp: 100,
-      crashedT: 0,             // crashed-state timer (drives wobble visual)
-      crashSpinV: 0            // small extra rotation while recovering
+      hp: isBoss ? 140 : 100,    // bosses take more hits to kill
+      crashedT: 0,
+      crashSpinV: 0
     });
   }
   // Cache the base targetSpeed for rubber-band scaling later.
