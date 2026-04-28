@@ -509,26 +509,30 @@ function stepHeading(car, dt) {
 // direction snaps out cleanly. Reward scales with sustained duration.
 function stepDrift(car, input, dt) {
   const speedPctNow = Math.abs(car.speed) / car.maxSpeed;
-  // Entry threshold: need drift held + meaningful steering + decent speed.
-  const driftEligible = input.drift && Math.abs(car.steer) > 0.14 && car.speed > 16;
+  // Use raw input.steer for direction sense — car.steer carries an internal
+  // sign flip (see stepInput) so it would invert the drift direction.
+  const inputSteer = input.steer || 0;
+  const inputSign = Math.sign(inputSteer);
+  // Entry threshold: drift held + meaningful steering + decent speed.
+  const driftEligible = input.drift && Math.abs(inputSteer) > 0.18 && car.speed > 16;
 
   if (driftEligible && !car.driftActive) {
-    // Enter drift — lock in the direction the player kicked it.
+    // Enter drift — lock the slide into the direction the player kicked it.
+    // Player presses RIGHT (input.steer = +1) → driftDir = +1 → lateralV +ve
+    // (which moves the car +X, i.e. its right side in world space — correct).
     car.driftActive = true;
     car.driftDuration = 0;
     car.driftCharge = 0;
-    car.driftDir = Math.sign(car.steer || 1);
+    car.driftDir = inputSign || 1;
     // Stronger initial kick so the back end actually breaks loose.
     car.lateralV += car.driftDir * 8.5;
     // Mild speed dip on entry — like a Scandinavian flick.
     car.speed *= 0.97;
   } else if (car.driftActive) {
-    // While drifting, modulate the slide based on steer input direction.
-    const steerSign = Math.sign(car.steer);
-    const counterFlick = steerSign && steerSign !== car.driftDir && Math.abs(car.steer) > 0.55;
+    // While drifting, modulate the slide based on raw input direction.
+    const counterFlick = inputSign && inputSign !== car.driftDir && Math.abs(inputSteer) > 0.55;
     if (!input.drift || counterFlick) {
-      // Exit — counter-flick or release. Reward is proportional to duration
-      // (so rewarding a controlled slide, not a flick-and-release).
+      // Exit — counter-flick or release. Reward scales with duration.
       const minDur = 0.35;
       if (car.driftDuration > minDur) {
         const reward = Math.min(0.45, car.driftCharge * 0.55);
@@ -539,13 +543,10 @@ function stepDrift(car, input, dt) {
       car.driftDuration = 0;
       car.driftCharge = 0;
     } else {
-      // Continue the slide. Steer-with the drift extends slip; steer-against
-      // pulls it tighter.
-      const sameDir = steerSign === car.driftDir;
-      const angleHold = sameDir ? 1.0 : 0.55;     // less lateralV decay if pushing into the slide
-      // Push lateral velocity in the locked direction so the car keeps slipping.
-      car.lateralV += car.driftDir * angleHold * 14 * dt * Math.max(0.2, Math.abs(car.steer));
-      // Cap lateralV so it doesn't run away.
+      // Continue the slide. Steer-with extends slip; steer-against pulls tight.
+      const sameDir = inputSign === car.driftDir;
+      const angleHold = sameDir ? 1.0 : 0.55;
+      car.lateralV += car.driftDir * angleHold * 14 * dt * Math.max(0.2, Math.abs(inputSteer));
       const maxLateral = 22 * speedPctNow;
       if (Math.abs(car.lateralV) > maxLateral) car.lateralV = Math.sign(car.lateralV) * maxLateral;
     }
@@ -553,8 +554,7 @@ function stepDrift(car, input, dt) {
 
   if (car.driftActive) {
     car.driftDuration += dt;
-    // Charge accumulates more when holding clean angle (steer-with).
-    const sameDir = Math.sign(car.steer) === car.driftDir;
+    const sameDir = inputSign === car.driftDir;
     car.driftCharge = Math.min(1, car.driftCharge + dt * (sameDir ? 0.95 : 0.5));
   }
 }
@@ -604,15 +604,21 @@ function stepBody(car, dt) {
   const pitchTarget = -car._accelInput * 0.06 * Math.min(1, speedPct * 1.6);
   car.pitch += (pitchTarget - car.pitch) * Math.min(1, dt * 6);
 
-  // Roll: lean opposite to corner G; bigger during drift.
-  const rollTarget = car.steer * 0.10 * speedPct * (car.driftActive ? 1.6 : 1.0);
+  // Roll: lean opposite to corner G. car.steer carries the internal sign
+  // flip (steer +ve = LEFT turn), so positive car.steer should produce
+  // negative Z roll (lean right). Pass car.steer directly — three.js Z
+  // rotation negative = clockwise looking forward = right lean. The internal
+  // sign aligns this naturally with input direction.
+  const rollTarget = -car.steer * 0.10 * speedPct * (car.driftActive ? 1.6 : 1.0);
   car.roll += (rollTarget - car.roll) * Math.min(1, dt * 8);
 
-  // Drift slip-angle yaw: car visibly rotates relative to its motion direction.
-  // Direction = sign of lateral velocity (the rear washes out THAT direction).
+  // Drift slip-angle yaw: car visibly rotates so the front points INTO the
+  // corner while the rear washes outward. If lateralV is positive (sliding
+  // world +X i.e. car's right), the front should aim slightly LEFT of motion
+  // — which in three.js Y-rotation is +ve.
   let yawTarget = 0;
   if (car.driftActive) {
-    yawTarget = -Math.sign(car.lateralV) * Math.min(0.5, Math.abs(car.lateralV) * 0.045);
+    yawTarget = Math.sign(car.lateralV) * Math.min(0.5, Math.abs(car.lateralV) * 0.045);
   }
   car.bodyYaw += (yawTarget - car.bodyYaw) * Math.min(1, dt * 7);
 

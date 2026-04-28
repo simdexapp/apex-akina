@@ -2,16 +2,16 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js";
+import { buildTrack, getTrackList } from "./track.js?v=4";
 import { buildScenery } from "./scenery.js?v=4";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js";
-import { createInput, initTouchControls } from "./input.js";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=4";
+import { createInput, initTouchControls } from "./input.js?v=4";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=4";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile } from "./audio.js";
-import { MUSIC_PROFILES } from "./tracks-data.js";
-import { createGhost, createGhostMesh } from "./ghost.js";
-import { createReplay } from "./replay.js";
+import { MUSIC_PROFILES } from "./tracks-data.js?v=4";
+import { createGhost, createGhostMesh } from "./ghost.js?v=4";
+import { createReplay } from "./replay.js?v=4";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
@@ -390,13 +390,15 @@ function updateCamera(dt) {
 }
 
 // ---- Particle system (sparks + drift smoke) ----
-const PARTICLE_CAP = 80;
+// Per-quality particle cap. Overridden each tick by activeQualityPreset.
+const PARTICLE_CAP_DEFAULT = 80;
+function particleCap() { return activeQualityPreset?.particleCap ?? PARTICLE_CAP_DEFAULT; }
 const particles = [];
 const particlePool = new THREE.Group();
 scene.add(particlePool);
 
 function spawnSpark(x, y, z, side) {
-  if (particles.length >= PARTICLE_CAP) return;
+  if (particles.length >= particleCap()) return;
   const geo = new THREE.SphereGeometry(0.18, 4, 4);
   const mat = new THREE.MeshBasicMaterial({ color: Math.random() < 0.5 ? 0xffd166 : 0xff315c });
   const mesh = new THREE.Mesh(geo, mat);
@@ -413,7 +415,7 @@ function spawnSpark(x, y, z, side) {
 }
 
 function spawnSmoke(x, y, z) {
-  if (particles.length >= PARTICLE_CAP) return;
+  if (particles.length >= particleCap()) return;
   const geo = new THREE.SphereGeometry(0.5, 6, 6);
   const mat = new THREE.MeshBasicMaterial({ color: 0xeaeef5, transparent: true, opacity: 0.4 });
   const mesh = new THREE.Mesh(geo, mat);
@@ -1393,18 +1395,30 @@ function saveSettings(s) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
 }
 const settings = loadSettings();
+// Graphics quality presets — more impactful than just toggling shadows.
+// "ultra" cranks everything; "low" prioritises framerate.
+const QUALITY_PRESETS = {
+  ultra:  { shadows: true,  shadowSize: 2048, bloom: true,  bloomStrength: 0.65, pixelRatio: Math.min(window.devicePixelRatio, 2),    particleCap: 120, sceneryScale: 1.0 },
+  high:   { shadows: true,  shadowSize: 1024, bloom: true,  bloomStrength: 0.55, pixelRatio: Math.min(window.devicePixelRatio, 1.75), particleCap: 80,  sceneryScale: 1.0 },
+  medium: { shadows: false, shadowSize: 512,  bloom: true,  bloomStrength: 0.40, pixelRatio: Math.min(window.devicePixelRatio, 1.25), particleCap: 50,  sceneryScale: 0.6 },
+  low:    { shadows: false, shadowSize: 512,  bloom: false, bloomStrength: 0.0,  pixelRatio: 1.0,                                     particleCap: 25,  sceneryScale: 0.4 }
+};
+
+let activeQualityPreset = QUALITY_PRESETS.high;
+
 function applySettings() {
-  // Graphics quality.
-  if (settings.quality === "high") {
-    renderer.shadowMap.enabled = true;
-    bloomPass.enabled = true;
-  } else if (settings.quality === "medium") {
-    renderer.shadowMap.enabled = false;
-    bloomPass.enabled = true;
-  } else {
-    renderer.shadowMap.enabled = false;
-    bloomPass.enabled = false;
+  const q = settings.quality || "high";
+  const preset = QUALITY_PRESETS[q] || QUALITY_PRESETS.high;
+  activeQualityPreset = preset;
+  renderer.shadowMap.enabled = preset.shadows;
+  if (preset.shadows && moonLight.shadow.mapSize.x !== preset.shadowSize) {
+    moonLight.shadow.mapSize.set(preset.shadowSize, preset.shadowSize);
+    moonLight.shadow.map?.dispose?.();
+    moonLight.shadow.map = null;
   }
+  bloomPass.enabled = preset.bloom;
+  bloomPass.strength = preset.bloomStrength;
+  renderer.setPixelRatio(preset.pixelRatio);
   // Volume — pipe through audio module's master gain.
   setMasterVolume(settings.volume / 100);
   setAudioMuted(settings.volume === 0 || isAudioMuted());
