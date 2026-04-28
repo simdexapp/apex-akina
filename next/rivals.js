@@ -166,7 +166,12 @@ export function createRivals(track, count = 14) {
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
-      heading: 0
+      heading: 0,
+      // Health system — drops on collisions. Below 50%, rival drives slower.
+      // Below 20%, much slower. Recovers slowly.
+      hp: 100,
+      crashedT: 0,             // crashed-state timer (drives wobble visual)
+      crashSpinV: 0            // small extra rotation while recovering
     });
   }
   // Cache the base targetSpeed for rubber-band scaling later.
@@ -287,17 +292,38 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     const cornerDrag = Math.min(0.55, curveSeverity * 6.0);
     let pace = r.targetSpeed * (1 - cornerDrag);
     if (blockerSpeed != null) pace = Math.min(pace, blockerSpeed * 0.96);
-    // Approaching a sharp upcoming turn? Brake harder than steady drag.
-    // Personality: aggressive drivers brake later (lower urgency threshold).
+    // Health-based pace dampener. Below 50% HP rival drives 30% slower; below
+    // 20% it crawls and weaves. Hp recovers 4/sec when not crashed.
     const personality = r.personality || PERSONALITIES[0];
+    if (r.crashedT > 0) {
+      r.crashedT = Math.max(0, r.crashedT - dt);
+      r.hp = Math.min(100, (r.hp || 0) + dt * 4);   // slow recovery while crashed
+    } else {
+      r.hp = Math.min(100, (r.hp || 100) + dt * 6); // fast passive heal
+    }
+    let hpMul = 1.0;
+    if (r.hp < 20) hpMul = 0.42;
+    else if (r.hp < 50) hpMul = 0.7;
+    else if (r.hp < 80) hpMul = 0.92;
+    pace *= hpMul;
+    // Approaching a sharp upcoming turn? Brake harder than steady drag.
     const brakeUrgency = Math.min(1, c2 * 12.0);
     const brakeThreshold = 0.55 / personality.brakeBoldness;
     if (brakeUrgency > brakeThreshold && r.speed > pace) {
       r.speed -= dt * 18 * brakeUrgency;
     }
-    // Lane jitter — wildcards weave a bit, smooth drivers hold a tight line.
-    r.lane += Math.sin(performance.now() * 0.001 + r.s * 0.05) * personality.laneJitter * dt * 0.4;
+    // Lane jitter — wildcards weave a bit. Crashed rivals weave more.
+    const jitter = personality.laneJitter * (r.crashedT > 0 ? 2.5 : 1);
+    r.lane += Math.sin(performance.now() * 0.001 + r.s * 0.05) * jitter * dt * 0.4;
     r.speed += (pace - r.speed) * Math.min(1, dt * 2.4);
+
+    // Crash visual: wobble the mesh slightly while recovering.
+    if (r.crashedT > 0 && r.mesh) {
+      const wobble = Math.sin(performance.now() * 0.018) * 0.10 * (r.crashedT / 1.5);
+      r.mesh.rotation.z = wobble;
+    } else if (r.mesh) {
+      r.mesh.rotation.z = 0;
+    }
 
     // Advance arclength. Don't modulo while still on the negative-s grid —
     // only wrap once the rival has actually crossed the start line and the

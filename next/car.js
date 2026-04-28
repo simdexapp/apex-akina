@@ -19,18 +19,18 @@ import * as THREE from "three";
 // Tuning constants live up top so balance is in one place.
 // ============================================================
 
-// ---- Tuning knobs (rebalanced for faster overall feel) ----
-const BASE_MAX_SPEED = 78;       // m/s
-const ACCEL = 22;                // m/s² peak accel
-const BRAKE = 42;                // m/s²
-const DRAG = 4;                  // m/s² coast-down
-const OFF_ROAD_DRAG = 24;        // m/s² off-road
-const STEER_RATE = 2.7;          // rad/s lock rate
-const STEER_MAX = 0.7;           // rad max
-const GRIP = 12;                 // lateral velocity decay /s
-const DRIFT_GRIP = 4.5;          // grip while drifting
-const BOOST_MUL = 1.25;          // top-speed multiplier while boost engaged
-const STEER_AUTHORITY = 1.85;    // lateral kick coefficient
+// ---- Tuning knobs (realism-leaning, slower acceleration curve) ----
+const BASE_MAX_SPEED = 78;       // m/s top speed unchanged so chases still pop
+const ACCEL = 13;                // m/s² peak (was 22 — feels much heavier now)
+const BRAKE = 38;                // m/s² (was 42, slightly less so braking has weight)
+const DRAG = 5;                  // m/s² coast-down (was 4, so car bleeds speed if you stop accelerating)
+const OFF_ROAD_DRAG = 28;        // m/s² off-road (was 24, more punishing)
+const STEER_RATE = 2.5;          // rad/s lock rate (slightly slower for weighty feel)
+const STEER_MAX = 0.7;
+const GRIP = 12;
+const DRIFT_GRIP = 4.5;
+const BOOST_MUL = 1.25;
+const STEER_AUTHORITY = 1.85;
 
 // Engine heat.
 const HEAT_THRESHOLD = 0.97;
@@ -452,21 +452,47 @@ function buildBody(shape) {
     lens.position.set(side * shape.width * 0.32, 0.55, shape.length * 0.50);
     group.add(lens);
   }
-  // Tail lights — emissive intensity varies with brake state at runtime.
+  // Tail lights — modern full-width LED bar across the back. Two side blocks
+  // PLUS a thin connecting strip read like a 2020s GT taillight.
   const tailLights = [];
   for (const side of [-1, 1]) {
     const tailMat = new THREE.MeshStandardMaterial({
       color: 0xff315c,
       emissive: 0xff315c,
-      emissiveIntensity: 0.6
+      emissiveIntensity: 0.8
     });
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.15, 0.10), tailMat);
-    tail.position.set(side * shape.width * 0.30, 0.62, -shape.length * 0.50);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.10), tailMat);
+    tail.position.set(side * shape.width * 0.32, 0.62, -shape.length * 0.50);
     group.add(tail);
     tailLights.push(tailMat);
   }
-  // Stash on the group so the runtime can flick brake-light intensity.
+  // Center connecting LED bar.
+  const ledBarMat = new THREE.MeshStandardMaterial({
+    color: 0xff315c,
+    emissive: 0xff315c,
+    emissiveIntensity: 0.6
+  });
+  const ledBar = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.width * 0.55, 0.05, 0.06),
+    ledBarMat
+  );
+  ledBar.position.set(0, 0.62, -shape.length * 0.50);
+  group.add(ledBar);
+  tailLights.push(ledBarMat);
   group.userData.tailMats = tailLights;
+
+  // Side air vents — angled slits behind front wheels.
+  const vMat = pbr(0x05070d, 0.4, 0.7);
+  for (const side of [-1, 1]) {
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.10, 0.36), vMat);
+    vent.position.set(side * shape.width * 0.51, shape.height * 0.55, shape.length * 0.18);
+    vent.rotation.y = side * 0.15;
+    group.add(vent);
+    // Smaller secondary slit
+    const vent2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.22), vMat);
+    vent2.position.set(side * shape.width * 0.51, shape.height * 0.42, shape.length * 0.10);
+    group.add(vent2);
+  }
 
   // Brake calipers — small colored boxes inside each wheel for detail.
   const caliperMat = new THREE.MeshStandardMaterial({ color: 0xff4a3a, metalness: 0.5, roughness: 0.4 });

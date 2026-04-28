@@ -2,25 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=31";
-import { buildScenery, tickAmbient } from "./scenery.js?v=31";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=31";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=31";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=31";
+import { buildTrack, getTrackList } from "./track.js?v=32";
+import { buildScenery, tickAmbient } from "./scenery.js?v=32";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=32";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=32";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=32";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=31";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=31";
-import { createGhost, createGhostMesh } from "./ghost.js?v=31";
-import { createReplay } from "./replay.js?v=31";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=31";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=31";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=31";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=32";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=32";
+import { createGhost, createGhostMesh } from "./ghost.js?v=32";
+import { createReplay } from "./replay.js?v=32";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=32";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=32";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=32";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=31";
+} from "./profile.js?v=32";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -362,9 +362,11 @@ window.addEventListener("resize", resize);
 
 let cameraInitialised = false;
 const CAMERA_PRESETS = {
-  chase:   { offset: new THREE.Vector3(0, 3.2, -7.5), look: new THREE.Vector3(0, 1.2, 10) },
-  hood:    { offset: new THREE.Vector3(0, 1.4, 0.5), look: new THREE.Vector3(0, 1.4, 30) },
-  cinema:  { offset: new THREE.Vector3(-2.5, 2.0, -5.5), look: new THREE.Vector3(0, 1.0, 14) }
+  // Tighter chase — sits ~5.5m behind, 2.6m up, looking 8m ahead. Reads as
+  // a real "behind the spoiler" shot, not a drone follow.
+  chase:   { offset: new THREE.Vector3(0, 2.6, -5.5), look: new THREE.Vector3(0, 1.0, 8) },
+  hood:    { offset: new THREE.Vector3(0, 1.3, 0.5), look: new THREE.Vector3(0, 1.3, 30) },
+  cinema:  { offset: new THREE.Vector3(-2.0, 1.7, -4.5), look: new THREE.Vector3(0, 0.9, 12) }
 };
 let cameraMode = "chase";
 const cameraOffset = new THREE.Vector3();
@@ -909,19 +911,39 @@ function tick(dt) {
     const dist = Math.sqrt(distSq);
 
     if (distSq < 6.5) {
-      // Real collision.
+      // Real collision — momentum exchange: faster car loses less, slower
+      // car (or stationary AI) takes more of the hit. Apply damage to
+      // BOTH cars proportional to closing speed.
       const safeDist = Math.max(0.5, dist);
-      const push = 0.20 / safeDist;
+      const closingV = Math.abs(car.speed - r.speed);
+      const closingFactor = Math.max(0, closingV / 60);
+      // Player damage — bigger spread on hard hits.
+      const playerHitFactor = 0.18 + closingFactor * 0.30;
+      car.speed *= 1 - playerHitFactor;
+      // Push player slightly off-line, AI gets pushed harder.
+      const push = 0.22 / safeDist;
       car.group.position.x += dx * push;
       car.group.position.z += dz * push;
-      r.mesh.position.x -= dx * push * 0.6;
-      r.mesh.position.z -= dz * push * 0.6;
-      const closingFactor = Math.max(0, (car.speed - r.speed) / 60);
-      car.speed *= 1 - 0.20 * closingFactor;
+      r.mesh.position.x -= dx * push * 1.10;
+      r.mesh.position.z -= dz * push * 1.10;
+      // AI takes HP damage; rear-end > side-swipe.
+      const damage = 18 + closingV * 1.4;
+      r.hp = Math.max(0, (r.hp ?? 100) - damage);
+      r.crashedT = Math.max(r.crashedT || 0, 1.5);
+      r.speed *= 1 - 0.40 * closingFactor;     // AI bleeds more speed than player
+      // Player feedback.
+      cameraShake = Math.max(cameraShake, 0.55);
+      vibrate(0.95, 1.0, 320);
+      // Sparks.
       const px = (car.group.position.x + r.mesh.position.x) * 0.5;
       const py = car.group.position.y + 0.6;
       const pz = (car.group.position.z + r.mesh.position.z) * 0.5;
-      for (let k = 0; k < 4; k++) spawnSpark(px, py, pz, dx > 0 ? -1 : 1);
+      for (let k = 0; k < 8; k++) spawnSpark(px, py, pz, dx > 0 ? -1 : 1);
+      // Spawn smoke if AI is crippled.
+      if (r.hp < 20) {
+        for (let k = 0; k < 6; k++) spawnSmoke(r.mesh.position.x, 0.5, r.mesh.position.z);
+        flashCallout(`${r.name} is wrecked!`, 800);
+      }
       combo = 0;
       nearMissArmed.set(r, false);
     } else if (dist < NEAR_MISS_OUTER && dist > NEAR_MISS_INNER) {
