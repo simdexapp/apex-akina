@@ -2272,3 +2272,51 @@ body.is-photo-mode::after {
 @media (max-width: 540px) {
   .quick-actions { flex-direction: column; }
 }
+
+/* Stats dashboard bar charts */
+.stat-chart {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  font-family: ui-monospace, monospace;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 32px;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.stat-row .stat-label {
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.stat-row .stat-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.stat-row .stat-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--gold));
+  border-radius: 999px;
+  transition: width 360ms ease;
+}
+
+.stat-row .stat-value {
+  text-align: right;
+  color: var(--cyan);
+  font-size: 11px;
+}
+
+.stat-row.empty .stat-bar-fill { background: rgba(255, 255, 255, 0.10); }
+.stat-row.empty .stat-value { color: var(--muted); }

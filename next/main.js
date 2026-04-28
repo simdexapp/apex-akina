@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=41";
-import { buildScenery, tickAmbient } from "./scenery.js?v=41";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=41";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=41";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=41";
+import { buildTrack, getTrackList } from "./track.js?v=42";
+import { buildScenery, tickAmbient } from "./scenery.js?v=42";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=42";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=42";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=42";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=41";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=41";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=41";
-import { createReplay } from "./replay.js?v=41";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=41";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=41";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=41";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=41";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=42";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=42";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=42";
+import { createReplay } from "./replay.js?v=42";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=42";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=42";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=42";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=42";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=41";
+} from "./profile.js?v=42";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2299,7 +2299,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=41");
+  const mod = await import("./garagePreview.js?v=42");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2350,6 +2350,35 @@ function renderTrophyRoom() {
       html += `<div class="${cls}"><span>${t.name}</span><span>${display}</span></div>`;
     }
     recs.innerHTML = html;
+  }
+
+  // Bar chart: wins per car shape.
+  const carChart = document.getElementById("stat-chart-cars");
+  if (carChart) {
+    const carWins = Object.entries(profile.cars || {})
+      .map(([id, c]) => ({ id, name: CAR_SHAPES[id]?.label || id, wins: c.wins || 0, races: c.races || 0 }));
+    const maxWins = Math.max(1, ...carWins.map((c) => c.wins));
+    carChart.innerHTML = carWins.map((c) => {
+      const cls = c.wins > 0 ? "stat-row" : "stat-row empty";
+      const w = (c.wins / maxWins) * 100;
+      return `<div class="${cls}"><span class="stat-label">${c.name}</span><div class="stat-bar"><span class="stat-bar-fill" style="width:${w}%"></span></div><span class="stat-value">${c.wins}</span></div>`;
+    }).join("");
+  }
+
+  // Bar chart: races per track (proxy via best-lap presence — a real per-track
+  // counter could be added later).
+  const trackChart = document.getElementById("stat-chart-tracks");
+  if (trackChart) {
+    const trackData = TRACKS_LIST.map((t) => ({
+      name: t.name,
+      raced: bestLapPerTrack[t.id] ? 1 : 0
+    }));
+    trackChart.innerHTML = trackData.map((t) => {
+      const cls = t.raced > 0 ? "stat-row" : "stat-row empty";
+      const w = t.raced * 100;
+      const label = t.raced > 0 ? "✓" : "—";
+      return `<div class="${cls}"><span class="stat-label">${t.name}</span><div class="stat-bar"><span class="stat-bar-fill" style="width:${w}%"></span></div><span class="stat-value">${label}</span></div>`;
+    }).join("");
   }
 }
 
