@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=11";
-import { buildScenery } from "./scenery.js?v=11";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=11";
-import { createInput, initTouchControls } from "./input.js?v=11";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=11";
+import { buildTrack, getTrackList } from "./track.js?v=12";
+import { buildScenery } from "./scenery.js?v=12";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=12";
+import { createInput, initTouchControls } from "./input.js?v=12";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=12";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=11";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=11";
-import { createGhost, createGhostMesh } from "./ghost.js?v=11";
-import { createReplay } from "./replay.js?v=11";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=11";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=11";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=12";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=12";
+import { createGhost, createGhostMesh } from "./ghost.js?v=12";
+import { createReplay } from "./replay.js?v=12";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=12";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=12";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=11";
+} from "./profile.js?v=12";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -690,6 +690,7 @@ function tick(dt) {
     draft = bestDraft;
   }
   car.draftAmount = draft;
+  document.body.classList.toggle("is-drafting", draft > 0.5);
 
   // Race-live time for perfect-launch detection.
   if (running) {
@@ -1027,6 +1028,25 @@ function loop(now) {
   const lapBadge = document.getElementById("lap")?.parentElement;
   if (lapBadge) {
     lapBadge.classList.toggle("is-final", lap === lapsTotal() && running);
+  }
+  // Live lap-delta vs personal best — only meaningful from lap 2 onward.
+  const lapDeltaEl = document.getElementById("lap-delta");
+  if (lapDeltaEl) {
+    const pb = bestLapPerTrack[track.id];
+    if (running && pb && lap > 1) {
+      const lapElapsed = raceTime - lapStartTime;
+      // Predict full-lap time = current elapsed × (PB / current-fraction). Simpler:
+      // just show running delta — the elapsed minus the same-fraction of PB. For
+      // a clean signal, use sectorState.splits[i] vs best where available.
+      const delta = lapElapsed - pb;
+      lapDeltaEl.hidden = false;
+      const valEl = document.getElementById("lap-delta-value");
+      if (valEl) valEl.textContent = (delta >= 0 ? "+" : "") + delta.toFixed(2);
+      lapDeltaEl.classList.toggle("is-faster", delta < 0);
+      lapDeltaEl.classList.toggle("is-slower", delta >= 0);
+    } else {
+      lapDeltaEl.hidden = true;
+    }
   }
   // Engine heat HUD.
   const heatBar = document.getElementById("heat-bar");

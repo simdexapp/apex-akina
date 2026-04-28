@@ -14,12 +14,12 @@ let muted = false;
 let masterVolume = 0.4;
 
 const PROFILE = {
-  type1: "sawtooth", type2: "triangle",
-  idleHz: 64, redlineHz: 320,
-  detune2: 1200, gain2: 0.32,
-  lpfBase: 360, lpfTop: 2200,
-  pulseIdle: 6, pulseTop: 22, pulseDepth: 0.42,
-  body: 0.14
+  type1: "sawtooth", type2: "square",       // square gives more bite vs triangle
+  idleHz: 56, redlineHz: 360,                // deeper idle, taller redline
+  detune2: 1300, gain2: 0.42,                // beefier secondary osc
+  lpfBase: 320, lpfTop: 2600,                // wider sweep
+  pulseIdle: 6, pulseTop: 26, pulseDepth: 0.50,
+  body: 0.18
 };
 
 // Default music profile (replaced when a track is selected).

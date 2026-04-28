@@ -803,6 +803,23 @@ button:hover { filter: brightness(1.08); }
   100% { transform: scale(1); }
 }
 
+/* Slipstream FX — subtle cyan radial pulse when drafting. */
+body.is-drafting .game-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 38%, rgba(46,233,255,0.0) 35%, rgba(46,233,255,0.10) 60%, rgba(46,233,255,0.16) 100%);
+  z-index: 2;
+  mix-blend-mode: screen;
+  animation: drafting-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes drafting-pulse {
+  from { opacity: 0.6; }
+  to   { opacity: 1.0; }
+}
+
 /* ---- Boost FX overlay ---- */
 .boost-fx {
   position: absolute;
@@ -1216,6 +1233,41 @@ body.is-photo-mode::after {
 
 .rival-label.is-near { border-color: var(--cyan); }
 .rival-label.is-far  { opacity: 0.4; }
+
+/* Lap delta indicator (vs personal best) */
+.lap-delta {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 14px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.lap-delta .label {
+  font-size: 8px;
+  color: var(--muted);
+  letter-spacing: 0.10em;
+}
+
+.lap-delta strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 900;
+  font-family: ui-monospace, monospace;
+}
+
+.lap-delta.is-faster strong { color: #4adf80; }
+.lap-delta.is-slower strong { color: var(--hot); }
 
 /* Sector split panel */
 .sectors {
