@@ -119,13 +119,16 @@ function buildBillboard(color = 0xff315c) {
 // mesh per slot (or null to skip). Returns a Group.
 function decorateTrack(track, sideOffset, stride, decorate) {
   const group = new THREE.Group();
-  if (!track || !track.points) return group;
-  const SAMPLES = track.points.length;
+  if (!track || !track.points || !track.tangents) return group;
+  // Use the smaller of the two arrays so we never index a missing tangent.
+  // (CatmullRom getSpacedPoints(N) returns N+1 points but only N tangents.)
+  const SAMPLES = Math.min(track.points.length, track.tangents.length);
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3();
   for (let i = 0; i < SAMPLES; i += stride) {
     const p = track.points[i];
     const t = track.tangents[i];
+    if (!p || !t) continue;
     right.crossVectors(t, up).normalize();
     for (const side of [1, -1]) {
       const off = side * sideOffset;
