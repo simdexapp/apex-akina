@@ -101,6 +101,60 @@ export function createCar(shapeId = "gt") {
     group.add(w);
   }
 
+  // Side skirts — low panels running between the wheels.
+  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x0c1020, metalness: 0.3, roughness: 0.6 });
+  for (const side of [-1, 1]) {
+    const skirt = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 0.18, shape.length * 0.62),
+      skirtMat
+    );
+    skirt.position.set(side * (shape.width * 0.5 - 0.02), 0.32, 0);
+    group.add(skirt);
+  }
+
+  // Fender flares — small bulges above each wheel.
+  const flareMat = new THREE.MeshStandardMaterial({ color: shape.body, metalness: 0.4, roughness: 0.45 });
+  for (const sign of [-1, 1]) {
+    for (const z of [shape.length * 0.36, -shape.length * 0.36]) {
+      const flare = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.32, 0.7),
+        flareMat
+      );
+      flare.position.set(sign * (shape.width * 0.5 + 0.05), shape.height * 0.85, z);
+      group.add(flare);
+    }
+  }
+
+  // Hood detail per spoiler kind.
+  if (shape.spoiler === "wing" || shape.spoiler === "lip") {
+    // Hood scoop — small raised intake.
+    const scoopMat = new THREE.MeshStandardMaterial({ color: 0x05070d, metalness: 0.5, roughness: 0.6 });
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.5), scoopMat);
+    scoop.position.set(0, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.20);
+    group.add(scoop);
+  } else if (shape.spoiler === "deck") {
+    // Front hood vents — twin slits.
+    const ventMat = new THREE.MeshStandardMaterial({ color: 0x05070d });
+    for (const side of [-1, 1]) {
+      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.04, 0.18), ventMat);
+      vent.position.set(side * 0.3, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.30);
+      group.add(vent);
+    }
+  }
+
+  // Wheel rims — chrome ring on the hub for visible detail.
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0xbcc6d8, metalness: 0.85, roughness: 0.25 });
+  const rimGeo = new THREE.TorusGeometry(0.30, 0.04, 6, 12);
+  const wxR = shape.width * 0.5 - 0.06;
+  const wzFR = shape.length * 0.36;
+  const wzRR = -shape.length * 0.36;
+  for (const [x, z] of [[-wxR, wzFR], [wxR, wzFR], [-wxR, wzRR], [wxR, wzRR]]) {
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.y = Math.PI / 2;
+    rim.position.set(x, 0.40, z);
+    group.add(rim);
+  }
+
   // Spoiler per shape.
   if (shape.spoiler === "wing") {
     const wingMat = new THREE.MeshStandardMaterial({ color: 0x10131e, metalness: 0.4, roughness: 0.5 });

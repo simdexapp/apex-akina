@@ -7,7 +7,7 @@ const v = (x, y, z) => new THREE.Vector3(x, y, z);
 export const TRACKS = {
   akina: {
     name: "Akina Pass",
-    description: "Mountain hairpins. The classic touge battleground.",
+    description: "Mountain hairpins, dramatic climbs and dives.",
     palette: {
       sky: { top: "#0a0f2c", mid: "#3a1656", bottom: "#ff5f4c" },
       fog: 0x1a1240,
@@ -17,11 +17,25 @@ export const TRACKS = {
       fillRed: 0xff315c,
       fillCyan: 0x2ee9ff
     },
+    // Climbing right turn → ridge straight → big descent → hairpin → long climbing left → bridge crossing → final
     points: [
-      v(0, 0, 0), v(60, 0, 30), v(120, 0.5, 90),
-      v(140, 1.0, 170), v(110, 1.6, 240), v(40, 2.2, 280),
-      v(-40, 2.6, 270), v(-110, 2.4, 220), v(-160, 1.8, 140),
-      v(-150, 1.0, 60), v(-90, 0.4, -10), v(-30, 0.0, -20)
+      v(0, 0, 0),
+      v(70, 0.5, 40),
+      v(140, 1.4, 110),
+      v(180, 2.6, 200),     // ridge approach
+      v(170, 4.2, 290),     // ridge top (high bridge)
+      v(110, 5.0, 360),     // peak
+      v(20, 4.8, 380),
+      v(-70, 4.0, 350),
+      v(-140, 2.6, 280),    // descent
+      v(-180, 1.6, 180),
+      v(-200, 0.8, 80),
+      v(-180, 0.4, -20),    // base of descent
+      v(-130, 1.4, -90),    // climbing hairpin
+      v(-60, 2.4, -110),
+      v(20, 2.8, -90),      // crest
+      v(60, 2.0, -30),
+      v(40, 0.8, 30)
     ]
   },
 

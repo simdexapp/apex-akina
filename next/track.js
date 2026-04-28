@@ -50,7 +50,11 @@ export function buildTrack(trackId = "akina") {
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    metalness: 0.10,
+    roughness: 0.78
+  });
   const roadMesh = new THREE.Mesh(geo, mat);
 
   // Lane lines — create thin offset strips for each lane edge (4 lines for 5 lanes).
@@ -88,7 +92,7 @@ export function buildTrack(trackId = "akina") {
       const offset = side * (ROAD_HALF_WIDTH + SHOULDER * 0.5);
       const cubeGeo = new THREE.BoxGeometry(0.6, 0.10, 1.4);
       const color = i % 2 === 0 ? track.palette.kerbA : track.palette.kerbB;
-      const cubeMat = new THREE.MeshLambertMaterial({ color });
+      const cubeMat = new THREE.MeshStandardMaterial({ color, metalness: 0.20, roughness: 0.55 });
       const cube = new THREE.Mesh(cubeGeo, cubeMat);
       cube.position.set(p.x + right.x * offset, p.y + 0.05, p.z + right.z * offset);
       cube.rotation.y = Math.atan2(t.x, t.z);
@@ -98,7 +102,7 @@ export function buildTrack(trackId = "akina") {
 
   // Ground plane way below the track.
   const groundGeo = new THREE.PlaneGeometry(2000, 2000);
-  const groundMat = new THREE.MeshLambertMaterial({ color: track.palette.ground });
+  const groundMat = new THREE.MeshStandardMaterial({ color: track.palette.ground, metalness: 0.0, roughness: 0.95 });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -10;
