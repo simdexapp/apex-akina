@@ -99,6 +99,26 @@ export const CAR_SHAPES = {
     cabin: { w: 1.5, h: 0.42, l: 1.7, z: -0.3 },
     stats: { top: 1.10, accel: 1.06, handling: 0.92, grip: 1.10 },
     spoiler: "deck"
+  },
+  // Lightweight track-day kei coupe. Slow top end but agile + grippy.
+  kei: {
+    label: "Kei Sport",
+    description: "Tiny featherweight. Diabolical grip + razor handling.",
+    body: 0x3cff9b, stripe: 0x101525,
+    width: 1.55, height: 0.85, length: 3.4,
+    cabin: { w: 1.30, h: 0.62, l: 1.6, z: 0 },
+    stats: { top: 0.86, accel: 1.10, handling: 1.28, grip: 1.20 },
+    spoiler: "ducktail"
+  },
+  // Big-power muscle GT. Huge accel + top end, sluggish handling.
+  muscle: {
+    label: "Hyper GT",
+    description: "Brutal acceleration, momentum-based corner approach.",
+    body: 0x141828, stripe: 0xff315c,
+    width: 2.05, height: 0.62, length: 4.6,
+    cabin: { w: 1.62, h: 0.50, l: 1.85, z: -0.15 },
+    stats: { top: 1.14, accel: 1.10, handling: 0.86, grip: 0.96 },
+    spoiler: "wing"
   }
 };
 
@@ -483,27 +503,59 @@ function stepHeading(car, dt) {
   }
 }
 
+// Drift mechanics — locks in the initial direction on entry and lets the
+// player modulate the slip angle with steering. Holding the drift button +
+// steering same direction as drift keeps the slide; flicking the opposite
+// direction snaps out cleanly. Reward scales with sustained duration.
 function stepDrift(car, input, dt) {
-  const driftEligible = input.drift && Math.abs(car.steer) > 0.18 && car.speed > 18;
+  const speedPctNow = Math.abs(car.speed) / car.maxSpeed;
+  // Entry threshold: need drift held + meaningful steering + decent speed.
+  const driftEligible = input.drift && Math.abs(car.steer) > 0.14 && car.speed > 16;
+
   if (driftEligible && !car.driftActive) {
+    // Enter drift — lock in the direction the player kicked it.
     car.driftActive = true;
     car.driftDuration = 0;
     car.driftCharge = 0;
     car.driftDir = Math.sign(car.steer || 1);
-    car.lateralV += car.driftDir * 6;
-  } else if (!driftEligible && car.driftActive) {
-    car.driftActive = false;
-    if (car.driftDuration > 0.5) {
-      const reward = Math.min(0.35, car.driftCharge * 0.5);
-      car.boostMeter = Math.min(1, car.boostMeter + reward);
-      car.boostT = 0.4;
+    // Stronger initial kick so the back end actually breaks loose.
+    car.lateralV += car.driftDir * 8.5;
+    // Mild speed dip on entry — like a Scandinavian flick.
+    car.speed *= 0.97;
+  } else if (car.driftActive) {
+    // While drifting, modulate the slide based on steer input direction.
+    const steerSign = Math.sign(car.steer);
+    const counterFlick = steerSign && steerSign !== car.driftDir && Math.abs(car.steer) > 0.55;
+    if (!input.drift || counterFlick) {
+      // Exit — counter-flick or release. Reward is proportional to duration
+      // (so rewarding a controlled slide, not a flick-and-release).
+      const minDur = 0.35;
+      if (car.driftDuration > minDur) {
+        const reward = Math.min(0.45, car.driftCharge * 0.55);
+        car.boostMeter = Math.min(1, car.boostMeter + reward);
+        car.boostT = 0.5;
+      }
+      car.driftActive = false;
+      car.driftDuration = 0;
+      car.driftCharge = 0;
+    } else {
+      // Continue the slide. Steer-with the drift extends slip; steer-against
+      // pulls it tighter.
+      const sameDir = steerSign === car.driftDir;
+      const angleHold = sameDir ? 1.0 : 0.55;     // less lateralV decay if pushing into the slide
+      // Push lateral velocity in the locked direction so the car keeps slipping.
+      car.lateralV += car.driftDir * angleHold * 14 * dt * Math.max(0.2, Math.abs(car.steer));
+      // Cap lateralV so it doesn't run away.
+      const maxLateral = 22 * speedPctNow;
+      if (Math.abs(car.lateralV) > maxLateral) car.lateralV = Math.sign(car.lateralV) * maxLateral;
     }
-    car.driftDuration = 0;
-    car.driftCharge = 0;
   }
+
   if (car.driftActive) {
     car.driftDuration += dt;
-    car.driftCharge = Math.min(1, car.driftCharge + dt * 0.7);
+    // Charge accumulates more when holding clean angle (steer-with).
+    const sameDir = Math.sign(car.steer) === car.driftDir;
+    car.driftCharge = Math.min(1, car.driftCharge + dt * (sameDir ? 0.95 : 0.5));
   }
 }
 

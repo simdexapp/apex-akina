@@ -89,6 +89,23 @@
         <div class="boost-fx" id="boost-fx" aria-hidden="true">
           <div class="speedlines"></div>
         </div>
+
+        <!-- Mobile touch controls (only visible on coarse-pointer devices) -->
+        <div class="touch-pad touch-left" id="touch-left" hidden>
+          <button class="touch-btn" id="touch-steer-l" aria-label="Steer left">◀</button>
+          <button class="touch-btn" id="touch-steer-r" aria-label="Steer right">▶</button>
+        </div>
+        <div class="touch-pad touch-right" id="touch-right" hidden>
+          <button class="touch-btn touch-throttle" id="touch-throttle" aria-label="Throttle">▲</button>
+          <button class="touch-btn touch-brake" id="touch-brake" aria-label="Brake">▼</button>
+          <button class="touch-btn touch-boost" id="touch-boost" aria-label="Boost">⚡</button>
+          <button class="touch-btn touch-drift" id="touch-drift" aria-label="Drift">↺</button>
+        </div>
+
+        <!-- FPS overlay (F3 toggle) -->
+        <div class="fps-overlay" id="fps-overlay" hidden>
+          <span id="fps-value">60</span> fps
+        </div>
         <aside class="leaderboard" id="leaderboard">
           <span class="label">Order</span>
           <ol id="standings"></ol>
@@ -109,6 +126,15 @@
                 <span class="name">Time Trial</span>
                 <p class="desc">Solo against your best lap. Ghost car, sector splits.</p>
               </button>
+              <button type="button" class="mode-card" role="radio" data-mode="career" aria-checked="false">
+                <span class="name">Career</span>
+                <p class="desc">Multi-round championship. Points table, full season.</p>
+              </button>
+            </div>
+            <div class="career-panel" id="career-panel" hidden>
+              <p class="small" style="margin-top:0">Championship</p>
+              <div class="track-picker" id="championship-picker" role="radiogroup" aria-label="Choose championship"></div>
+              <p class="small" id="career-status"></p>
             </div>
             <p class="small" style="margin-top:6px">Track</p>
             <div class="track-picker" id="track-picker" role="radiogroup" aria-label="Choose track"></div>
@@ -132,7 +158,10 @@
             <p class="eyebrow">Race complete</p>
             <h1 id="finish-title">Finished</h1>
             <p id="finish-stats"></p>
-            <button id="restart" type="button">Run It Back</button>
+            <div class="prerace-actions">
+              <button id="restart" type="button">Run It Back</button>
+              <button id="watch-replay" type="button" class="ghost-btn">Watch Replay</button>
+            </div>
           </div>
         </div>
 
@@ -200,6 +229,15 @@
               <span>Counter-steer assist</span>
               <input id="setting-assist" type="checkbox" checked/>
             </label>
+            <label class="settings-row">
+              <span>AI difficulty</span>
+              <select id="setting-difficulty">
+                <option value="easy">Easy (slower AI, generous draft)</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard (faster AI, tight rubberband)</option>
+                <option value="brutal">Brutal (full pace, no rubberband)</option>
+              </select>
+            </label>
             <div class="prerace-actions">
               <button id="settings-back" type="button" class="ghost-btn">Back</button>
             </div>
@@ -224,6 +262,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=3"></script>
+    <script type="module" src="main.js?v=4"></script>
   </body>
 </html>

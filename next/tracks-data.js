@@ -30,6 +30,20 @@ export const MUSIC_PROFILES = {
     arp: [220, 277.18, 329.63, 415.30, 329.63, 415.30, 493.88, 329.63,
           220, 277.18, 329.63, 415.30, 277.18, 329.63, 415.30, 493.88],
     bass: [110, 0, 138.59, 0, 110, 0, 138.59, 0]
+  },
+  // Mountain pass — moody minor key, slower tempo for technical feel.
+  mountainpass: {
+    tempo: 76,
+    arp: [185.00, 220, 277.18, 329.63, 277.18, 329.63, 415.30, 277.18,
+          185.00, 220, 277.18, 329.63, 220, 277.18, 329.63, 415.30],
+    bass: [92.50, 0, 110.00, 0, 92.50, 0, 110.00, 0]
+  },
+  // City circuit — driving 4-on-the-floor for downtown energy.
+  city: {
+    tempo: 124,
+    arp: [196, 246.94, 293.66, 369.99, 293.66, 369.99, 440, 293.66,
+          196, 246.94, 293.66, 369.99, 246.94, 293.66, 369.99, 440],
+    bass: [98, 0, 123.47, 0, 98, 0, 123.47, 0]
   }
 };
 
@@ -138,6 +152,72 @@ export const TRACKS = {
       v(320, 0.8, -260), v(200, 0.6, -300), v(60, 0.4, -300),
       v(-80, 0.2, -260), v(-180, 0.0, -180), v(-220, 0.0, -80),
       v(-180, 0.0, 0), v(-80, 0.0, 30)
+    ]
+  },
+
+  // Mountain pass — tight technical sweepers + elevation. Touge feel.
+  mountainpass: {
+    name: "Akagi Pass",
+    description: "Technical mountain pass with elevation + tight switchbacks.",
+    palette: {
+      sky: { top: "#1c1840", mid: "#5a2c6e", bottom: "#ff8c5a" },
+      fog: 0x3a2a5a,
+      kerbA: 0xff6a3a, kerbB: 0xfbfdff,
+      ground: 0x121e30,
+      moonLight: 0xfde2c4,
+      fillRed: 0xff6a48,
+      fillCyan: 0x70a8e8
+    },
+    points: [
+      v(0, 0, 0),
+      v(60, 0.4, 60),
+      v(140, 1.2, 100),
+      v(180, 2.0, 180),
+      v(160, 2.8, 280),
+      v(100, 3.4, 360),
+      v(20, 3.6, 380),
+      v(-80, 3.4, 340),
+      v(-160, 2.6, 260),
+      v(-200, 1.8, 160),
+      v(-220, 0.8, 60),
+      v(-200, 0.2, -40),
+      v(-140, 0.0, -90),
+      v(-60, 0.0, -60),
+      v(20, 0.0, -20)
+    ]
+  },
+
+  // City circuit — flat downtown. Smoothed corners (no hard right angles)
+  // so the chordal-spline curve doesn't pinch.
+  city: {
+    name: "Akihabara Circuit",
+    description: "Downtown street circuit. Hard braking zones, neon walls.",
+    palette: {
+      sky: { top: "#0c1c3a", mid: "#3a3270", bottom: "#ff5a7c" },
+      fog: 0x382860,
+      kerbA: 0xfbfdff, kerbB: 0xff315c,
+      ground: 0x101a28,
+      moonLight: 0xfff3c4,
+      fillRed: 0xff5a7c,
+      fillCyan: 0x4cb8e8
+    },
+    points: [
+      v(0, 0, 0),
+      v(80, 0, 10),
+      v(160, 0, 30),
+      v(220, 0, 70),
+      v(250, 0, 140),
+      v(260, 0, 220),
+      v(240, 0, 290),
+      v(180, 0, 330),
+      v(80, 0, 340),
+      v(-30, 0, 330),
+      v(-130, 0, 300),
+      v(-200, 0, 240),
+      v(-240, 0, 160),
+      v(-230, 0, 80),
+      v(-180, 0, 20),
+      v(-100, 0, -10)
     ]
   }
 };

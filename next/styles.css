@@ -834,6 +834,203 @@ button:hover { filter: brightness(1.08); }
   to   { box-shadow: 0 0 18px 2px rgba(255, 49, 92, 0.45); }
 }
 
+/* ---- Responsive layout ---- */
+
+/* Tablet portrait + small landscape — shrink everything a notch. */
+@media (max-width: 900px) {
+  .game-frame {
+    aspect-ratio: auto;
+    height: 100%;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+  .shell { padding: 0; }
+  .hud { top: 8px; left: 8px; gap: 4px; }
+  .hud-actions { top: 8px; right: 8px; gap: 4px; }
+  .hud-pills { top: 8px; }
+  .hud-stack { padding: 3px 8px; min-width: 48px; }
+  .hud strong { font-size: 14px; }
+  .speedo { left: 8px; bottom: 8px; width: 144px; height: 96px; }
+  .speedo-readout strong { font-size: 20px; }
+  .gear-pill { font-size: 11px; padding: 2px 6px; }
+  .speedo-meters { bottom: -32px; }
+  .leaderboard { right: 8px; bottom: 8px; width: 132px; padding: 6px 8px; }
+  .leaderboard li { font-size: 10px; padding: 2px 6px; }
+  .minimap { right: 8px; top: 44px; width: 110px; height: 70px; }
+  .back-link { padding: 4px 8px; font-size: 11px; }
+}
+
+/* Phone portrait — stack things differently. */
+@media (max-width: 540px) {
+  .hud-stack { padding: 2px 6px; min-width: 40px; }
+  .hud strong { font-size: 12px; }
+  .label { font-size: 8px; }
+  .speedo { width: 124px; height: 80px; }
+  .speedo-readout strong { font-size: 18px; }
+  .speedo-readout .unit { font-size: 8px; }
+  .leaderboard { width: 110px; }
+  .minimap { width: 92px; height: 58px; top: 38px; }
+  .hud-pill { padding: 3px 8px; font-size: 10px; }
+  .hud-pill strong { font-size: 11px; }
+  .touch-btn { width: 56px; height: 56px; font-size: 22px; }
+  .touch-pad { gap: 10px; bottom: 16px; }
+  .touch-left { left: 14px; }
+  .touch-right { right: 14px; gap: 10px; }
+  /* Hide minimap on tiny screens to save space. */
+  .minimap { display: none; }
+  /* Hide back link on phones — Esc / pause covers it. */
+  .hud-actions a.back-link { display: none; }
+}
+
+/* Phone landscape — use the wider screen, push touch pads out. */
+@media (max-width: 900px) and (orientation: landscape) {
+  .touch-left { left: 16px; bottom: 16px; }
+  .touch-right { right: 16px; bottom: 16px; }
+  .touch-btn { width: 60px; height: 60px; }
+}
+
+/* High-DPI tap targets — make every button comfortably 44px+. */
+@media (pointer: coarse) {
+  .back-link { min-height: 36px; padding: 8px 12px; }
+  button, .mode-card, .track-card, .engine-card { min-height: 40px; }
+  .touch-btn { width: 70px; height: 70px; font-size: 28px; }
+}
+
+/* Notch-aware safe area on phones with display cutouts. */
+@supports (padding: env(safe-area-inset-top)) {
+  .hud { padding-top: env(safe-area-inset-top); }
+  .hud-actions { padding-top: env(safe-area-inset-top); }
+  .speedo, .leaderboard { padding-bottom: env(safe-area-inset-bottom); }
+  .touch-left { padding-left: env(safe-area-inset-left); }
+  .touch-right { padding-right: env(safe-area-inset-right); }
+}
+
+/* ---- Mobile touch controls ---- */
+.touch-pad {
+  position: absolute;
+  bottom: 24px;
+  z-index: 4;
+  display: flex;
+  gap: 14px;
+  pointer-events: auto;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.touch-pad[hidden] { display: none; }
+
+.touch-left { left: 24px; }
+.touch-right { right: 24px; flex-direction: column; }
+
+.touch-btn {
+  margin: 0;
+  width: 64px;
+  height: 64px;
+  font-size: 28px;
+  font-weight: 900;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(8, 13, 22, 0.78);
+  color: var(--ink);
+  backdrop-filter: blur(10px);
+  text-transform: none;
+  letter-spacing: 0;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 60ms ease, background 80ms ease;
+}
+
+.touch-btn:active {
+  transform: scale(0.92);
+  background: rgba(46, 233, 255, 0.30);
+}
+
+.touch-throttle { background: rgba(46, 233, 255, 0.30); }
+.touch-brake    { background: rgba(255, 49, 92, 0.28); }
+.touch-boost    { background: rgba(255, 209, 102, 0.30); }
+.touch-drift    { background: rgba(166, 108, 255, 0.30); }
+
+/* Photo mode — hide HUD, leaderboard, minimap. Press P to toggle. */
+body.is-photo-mode .hud,
+body.is-photo-mode .hud-actions,
+body.is-photo-mode .hud-pills,
+body.is-photo-mode .speedo,
+body.is-photo-mode .leaderboard,
+body.is-photo-mode .minimap,
+body.is-photo-mode .touch-pad {
+  display: none !important;
+}
+
+body.is-replay .hud,
+body.is-replay .hud-actions,
+body.is-replay .hud-pills,
+body.is-replay .speedo,
+body.is-replay .leaderboard,
+body.is-replay .minimap,
+body.is-replay .touch-pad {
+  display: none !important;
+}
+
+body.is-replay::after {
+  content: "REPLAY — Esc to exit";
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  z-index: 10;
+}
+
+body.is-photo-mode::after {
+  content: "PHOTO MODE — P to exit · ←→ orbit · ↑↓ zoom";
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  z-index: 10;
+}
+
+/* FPS overlay */
+.fps-overlay {
+  position: absolute;
+  top: 14px;
+  right: 50%;
+  transform: translateX(50%);
+  margin-top: 32px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--cyan);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  z-index: 6;
+  font-family: ui-monospace, monospace;
+}
+
 /* ---- Race callout (centered notification) ---- */
 .race-callout {
   position: absolute;

@@ -3,14 +3,15 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { buildTrack, getTrackList } from "./track.js";
-import { buildScenery } from "./scenery.js?v=3";
+import { buildScenery } from "./scenery.js?v=4";
 import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js";
-import { createInput } from "./input.js";
+import { createInput, initTouchControls } from "./input.js";
 import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile } from "./audio.js";
 import { MUSIC_PROFILES } from "./tracks-data.js";
 import { createGhost, createGhostMesh } from "./ghost.js";
+import { createReplay } from "./replay.js";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
@@ -227,6 +228,9 @@ let rivals = [];
 const MODE_KEY = "apex-akina-3d:mode";
 let gameMode = (localStorage.getItem(MODE_KEY) === "timeTrial") ? "timeTrial" : "race";
 let ghost = null;        // ghost recorder/playback for current track+car
+const replay = createReplay();
+let replayPlaying = false;
+let replayProgress = 0;
 let ghostMesh = null;
 let lapStartedAt = 0;    // performance.now() when current lap started
 let bestLapDisplay = null;
@@ -310,9 +314,9 @@ window.addEventListener("resize", resize);
 
 let cameraInitialised = false;
 const CAMERA_PRESETS = {
-  chase:   { offset: new THREE.Vector3(0, 4.5, -12), look: new THREE.Vector3(0, 1.5, 8) },
+  chase:   { offset: new THREE.Vector3(0, 3.2, -7.5), look: new THREE.Vector3(0, 1.2, 10) },
   hood:    { offset: new THREE.Vector3(0, 1.4, 0.5), look: new THREE.Vector3(0, 1.4, 30) },
-  cinema:  { offset: new THREE.Vector3(-3.5, 2.5, -7), look: new THREE.Vector3(0, 1.0, 14) }
+  cinema:  { offset: new THREE.Vector3(-2.5, 2.0, -5.5), look: new THREE.Vector3(0, 1.0, 14) }
 };
 let cameraMode = "chase";
 const cameraOffset = new THREE.Vector3();
@@ -548,6 +552,7 @@ const NEAR_MISS_INNER = 2.4; // inside this is a real collision
 
 // ---- Loop ----
 const input = createInput();
+initTouchControls();
 let lastTime = performance.now();
 let running = false;
 const FIXED_DT = 1 / 60;
@@ -630,7 +635,13 @@ function tick(dt) {
   const playerTotal = lap * track.length + playerProj.s;
 
   if (gameMode === "race") {
-    tickRivals(rivals, dt, track, car, playerTotal);
+    tickRivals(rivals, dt, track, car, playerTotal, settings.difficulty || "normal");
+  }
+
+  // Replay — always record while racing.
+  {
+    const now = performance.now() / 1000;
+    replay.record(now, car.group.position.x, car.group.position.y, car.group.position.z, car.heading, car.speed, car.gear || 1);
   }
 
   // Ghost — record current pose, play back saved best.
@@ -886,6 +897,21 @@ function loop(now) {
     if (bestLapDisplay && car) recordBestLap(track.id, car.shape, bestLapDisplay);
   }
 
+  // Photo mode camera + replay playback + FPS overlay.
+  if (photoMode) tickPhotoMode(dt);
+  if (replayPlaying) tickReplay(dt);
+  if (fpsOverlayEnabled) {
+    fpsFrameCount++;
+    const now2 = performance.now();
+    if (now2 - fpsLastSample >= 500) {
+      fpsValue = Math.round(fpsFrameCount * 1000 / (now2 - fpsLastSample));
+      fpsLastSample = now2;
+      fpsFrameCount = 0;
+      const el = document.getElementById("fps-value");
+      if (el) el.textContent = fpsValue;
+    }
+  }
+
   composer.render();
   requestAnimationFrame(loop);
 }
@@ -969,6 +995,40 @@ function showFinish(standings) {
     `${ordinal(standings.place)} of ${standings.entries.length} · ${formatTime(raceTime)}` +
     (best ? ` · best lap ${formatTime(best)}` : "");
   overlay.hidden = false;
+  // Stop replay recording at finish so playback shows just the race.
+  replay.stop();
+}
+
+// Replay playback — drive a virtual car (the player's group) along recorded
+// poses. Hides HUD, runs at 1.5× speed for snappier viewing.
+let replayStartReal = 0;
+let replayDuration = 0;
+function startReplay() {
+  if (replay.sampleCount() < 5) return;
+  replayPlaying = true;
+  replayProgress = 0;
+  replayStartReal = performance.now() / 1000;
+  replayDuration = replay.duration();
+  finishOverlay.hidden = true;
+  document.body.classList.add("is-replay");
+  running = false;
+}
+function stopReplay() {
+  replayPlaying = false;
+  document.body.classList.remove("is-replay");
+  finishOverlay.hidden = false;
+}
+function tickReplay(dt) {
+  if (!replayPlaying) return;
+  const elapsed = (performance.now() / 1000) - replayStartReal;
+  const t = Math.min(1, (elapsed * 1.5) / replayDuration);
+  const pose = replay.sampleAt(t);
+  if (!pose) return;
+  car.group.position.set(pose.x, pose.y, pose.z);
+  car.group.rotation.set(0, pose.heading, 0);
+  car.heading = pose.heading;
+  car.speed = pose.speed;
+  if (t >= 1) stopReplay();
 }
 
 function formatTime(t) {
@@ -1018,6 +1078,10 @@ function startRace() {
   // Ghost recording starts when the lights go out (countdown end).
   lapStartedAt = performance.now() / 1000;
   if (ghost) ghost.startLap(lapStartedAt);
+  // Reset replay buffer.
+  replay.start(performance.now() / 1000);
+  replayPlaying = false;
+  replayProgress = 0;
   // Hide rivals in time trial.
   for (const r of rivals) r.mesh.visible = (gameMode === "race");
   if (car) {
@@ -1065,6 +1129,12 @@ function runStartLights() {
 
 document.getElementById("start").addEventListener("click", startRace);
 document.getElementById("restart").addEventListener("click", startRace);
+document.getElementById("watch-replay")?.addEventListener("click", startReplay);
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape" && replayPlaying) {
+    stopReplay();
+  }
+});
 
 // ---- Track picker ----
 function renderTrackPicker() {
@@ -1253,7 +1323,45 @@ window.addEventListener("keydown", (e) => {
     if (!overlay.hidden) return;
     setPaused(!paused);
   }
+  if (e.code === "F3") {
+    e.preventDefault();
+    fpsOverlayEnabled = !fpsOverlayEnabled;
+    const el = document.getElementById("fps-overlay");
+    if (el) el.hidden = !fpsOverlayEnabled;
+  }
+  if (e.code === "KeyP" && running) {
+    photoMode = !photoMode;
+    document.body.classList.toggle("is-photo-mode", photoMode);
+  }
 });
+
+// FPS counter state.
+let fpsOverlayEnabled = false;
+let fpsLastSample = performance.now();
+let fpsFrameCount = 0;
+let fpsValue = 60;
+
+// Photo mode — pause physics + switch to a free-fly camera that the player
+// can orbit with arrow keys.
+let photoMode = false;
+let photoCam = { yaw: 0, pitch: -0.2, dist: 12, height: 4, target: new THREE.Vector3() };
+function tickPhotoMode(dt) {
+  if (!photoMode) return;
+  // Orbit with arrows.
+  if (input.read().steer < -0.1) photoCam.yaw -= dt * 1.4;
+  if (input.read().steer > 0.1) photoCam.yaw += dt * 1.4;
+  if (input.read().throttle) photoCam.dist = Math.max(4, photoCam.dist - dt * 8);
+  if (input.read().brake) photoCam.dist = Math.min(40, photoCam.dist + dt * 8);
+  photoCam.target.copy(car.group.position);
+  const sx = Math.sin(photoCam.yaw);
+  const sz = Math.cos(photoCam.yaw);
+  camera.position.set(
+    photoCam.target.x + sx * photoCam.dist,
+    photoCam.target.y + photoCam.height,
+    photoCam.target.z + sz * photoCam.dist
+  );
+  camera.lookAt(photoCam.target);
+}
 document.getElementById("pause-btn")?.addEventListener("click", () => {
   if (overlay.hidden) setPaused(!paused);
 });
@@ -1274,7 +1382,7 @@ document.getElementById("pause-settings")?.addEventListener("click", () => {
 
 // ---- Settings overlay ----
 const SETTINGS_KEY = "apex-akina-3d:settings";
-const defaultSettings = { quality: "high", volume: 80, fov: 70, shake: 100, assist: true };
+const defaultSettings = { quality: "high", volume: 80, fov: 70, shake: 100, assist: true, difficulty: "normal" };
 function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1314,9 +1422,11 @@ function syncSettingsUI() {
   document.getElementById("setting-fov").value = settings.fov;
   document.getElementById("setting-shake").value = settings.shake;
   document.getElementById("setting-assist").checked = !!settings.assist;
+  const diffEl = document.getElementById("setting-difficulty");
+  if (diffEl) diffEl.value = settings.difficulty || "normal";
 }
 syncSettingsUI();
-for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-shake", "setting-assist"]) {
+for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-shake", "setting-assist", "setting-difficulty"]) {
   const el = document.getElementById(id);
   if (!el) continue;
   el.addEventListener("input", () => {
@@ -1325,6 +1435,7 @@ for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-s
     settings.fov = parseInt(document.getElementById("setting-fov").value, 10);
     settings.shake = parseInt(document.getElementById("setting-shake").value, 10);
     settings.assist = document.getElementById("setting-assist").checked;
+    settings.difficulty = document.getElementById("setting-difficulty").value;
     saveSettings(settings);
     applySettings();
   });

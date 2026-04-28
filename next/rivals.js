@@ -189,22 +189,31 @@ export function placeRivalsOnGrid(rivals, track) {
   }
 }
 
-export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0) {
+// Difficulty profiles. paceMul scales target speeds; rubberStrength scales
+// the rubber-band logic; rubberMode "none" disables rubber-band entirely.
+const DIFFICULTY_PROFILES = {
+  easy:    { paceMul: 0.88, rubberCatchup: 1.05, rubberEase: 0.85, rubberMode: "soft" },
+  normal:  { paceMul: 1.00, rubberCatchup: 1.15, rubberEase: 0.92, rubberMode: "soft" },
+  hard:    { paceMul: 1.08, rubberCatchup: 1.22, rubberEase: 0.96, rubberMode: "tight" },
+  brutal:  { paceMul: 1.16, rubberCatchup: 1.00, rubberEase: 1.00, rubberMode: "none" }
+};
+
+export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, difficulty = "normal") {
   const trackLen = track.length;
+  const prof = DIFFICULTY_PROFILES[difficulty] || DIFFICULTY_PROFILES.normal;
   // Rubber-band: rivals just behind/ahead of the player get a small boost/drag.
   for (const r of rivals) {
     const rivalTotal = (r.laps || 0) * trackLen + r.s;
     const delta = rivalTotal - playerTotal;
-    // delta < 0 → rival is behind player; delta > 0 → rival is ahead.
     let mul = 1.0;
-    if (delta < -120) {
-      // Behind the player by > 120m: catch up.
-      mul = 1.15;
-    } else if (delta > 200) {
-      // Way ahead of the player: ease off slightly.
-      mul = 0.92;
+    if (prof.rubberMode !== "none") {
+      if (delta < -120) {
+        mul = prof.rubberCatchup;
+      } else if (delta > 200) {
+        mul = prof.rubberEase;
+      }
     }
-    r.targetSpeed = r.baseTargetSpeed * mul;
+    r.targetSpeed = r.baseTargetSpeed * mul * prof.paceMul;
   }
   for (let i = 0; i < rivals.length; i++) {
     const r = rivals[i];

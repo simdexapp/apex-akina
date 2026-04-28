@@ -11,7 +11,11 @@ export function getTrackList() {
 
 export function buildTrack(trackId = "lakeside") {
   const track = TRACKS[trackId] || TRACKS.lakeside;
-  const curve = new THREE.CatmullRomCurve3(track.points, true, "catmullrom", 0.4);
+  // Use CHORDAL CatmullRom — avoids the "twist" / overshoot artifacts that the
+  // default tensioned spline produces at unevenly-spaced control points. The
+  // curve sticks closer to the actual point sequence without creating kinks
+  // or self-intersections at sharp turns.
+  const curve = new THREE.CatmullRomCurve3(track.points, true, "chordal", 0.5);
   const points = curve.getSpacedPoints(SAMPLES);
   const tangents = [];
   for (let i = 0; i < SAMPLES; i++) {
