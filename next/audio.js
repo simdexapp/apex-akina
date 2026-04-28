@@ -40,6 +40,12 @@ export function setMusicProfile(profile) {
   }
   if (profile.arp && profile.arp.length) ARP = profile.arp;
   if (profile.bass && profile.bass.length) BASS = profile.bass;
+  if (profile.drums) {
+    if (profile.drums.kick)  DRUMS_KICK = profile.drums.kick;
+    if (profile.drums.snare) DRUMS_SNARE = profile.drums.snare;
+    if (profile.drums.hat)   DRUMS_HAT = profile.drums.hat;
+  }
+  if (profile.chords && profile.chords.length) CHORDS = profile.chords;
   // Reset the scheduler so the new profile takes effect on the next beat.
   if (ctx) {
     musicBeatTime = ctx.currentTime + 0.1;
@@ -151,18 +157,25 @@ function playArpNote(freq, time, duration) {
   const osc = ctx.createOscillator();
   osc.type = "triangle";
   osc.frequency.value = freq;
+  // Add a subtle detuned 5th for sweetness.
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = freq * 1.5;
   const lp = ctx.createBiquadFilter();
   lp.type = "lowpass";
-  lp.frequency.value = 2200;
+  lp.frequency.value = 2400;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, time);
   g.gain.exponentialRampToValueAtTime(0.16, time + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, time + duration);
   osc.connect(lp);
+  osc2.connect(lp);
   lp.connect(g);
   g.connect(musicGain);
   osc.start(time);
+  osc2.start(time);
   osc.stop(time + duration + 0.02);
+  osc2.stop(time + duration + 0.02);
 }
 
 function playBassNote(freq, time, duration) {
@@ -185,6 +198,106 @@ function playBassNote(freq, time, duration) {
   osc.stop(time + duration + 0.02);
 }
 
+// Pad chord — long sustained sound with multiple notes for atmosphere.
+function playChordPad(freqs, time, duration) {
+  if (!ctx || !freqs?.length) return;
+  for (const f of freqs) {
+    if (f <= 0) continue;
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = f;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 1600;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.04, time + 0.05);
+    g.gain.setTargetAtTime(0.04, time + 0.10, 0.30);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    osc.connect(lp);
+    lp.connect(g);
+    g.connect(musicGain);
+    osc.start(time);
+    osc.stop(time + duration + 0.05);
+  }
+}
+
+// Kick drum — short low sine with pitch envelope.
+function playKick(time) {
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(120, time);
+  osc.frequency.exponentialRampToValueAtTime(40, time + 0.10);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.45, time + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.18);
+  osc.connect(g);
+  g.connect(musicGain);
+  osc.start(time);
+  osc.stop(time + 0.20);
+}
+
+// Snare — filtered noise burst.
+function playSnare(time) {
+  if (!ctx) return;
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 1500;
+  bp.Q.value = 1;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.18, time + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.13);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(musicGain);
+  src.start(time);
+  src.stop(time + 0.16);
+}
+
+// Hi-hat — short high-passed noise.
+function playHat(time, accent = false) {
+  if (!ctx) return;
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 7000;
+  const g = ctx.createGain();
+  const peak = accent ? 0.10 : 0.06;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(peak, time + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.04);
+  src.connect(hp);
+  hp.connect(g);
+  g.connect(musicGain);
+  src.start(time);
+  src.stop(time + 0.06);
+}
+
+// Drum pattern: 16-step grid, 1 = hit, 0 = silent. Default: standard 4-on-floor.
+let DRUMS_KICK   = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0];
+let DRUMS_SNARE  = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+let DRUMS_HAT    = [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1];
+// Chord progression — array of arrays of note frequencies. One per "phrase",
+// usually 4 phrases per loop. Default: i-VI-VII-i in A minor.
+let CHORDS = [
+  [110, 130.81, 164.81],     // Am
+  [98, 130.81, 174.61],      // F
+  [98, 123.47, 164.81],      // G  (approx)
+  [110, 130.81, 164.81]      // Am
+];
+
 function startMusic() {
   musicBeatTime = ctx.currentTime + 0.1;
   musicBeatIdx = 0;
@@ -192,8 +305,21 @@ function startMusic() {
   musicScheduler = setInterval(() => {
     if (!ctx) return;
     while (musicBeatTime < ctx.currentTime + 0.25) {
-      playArpNote(ARP[musicBeatIdx % ARP.length], musicBeatTime, MUSIC_BEAT_SEC * 1.6);
-      playBassNote(BASS[musicBeatIdx % BASS.length], musicBeatTime, MUSIC_BEAT_SEC * 2.2);
+      const i = musicBeatIdx;
+      // Arp + bass on every step.
+      playArpNote(ARP[i % ARP.length], musicBeatTime, MUSIC_BEAT_SEC * 1.6);
+      playBassNote(BASS[i % BASS.length], musicBeatTime, MUSIC_BEAT_SEC * 2.2);
+      // Drum grid (16-step). Trigger only if pattern[step] is 1.
+      const step = i % 16;
+      if (DRUMS_KICK[step])  playKick(musicBeatTime);
+      if (DRUMS_SNARE[step]) playSnare(musicBeatTime);
+      if (DRUMS_HAT[step])   playHat(musicBeatTime, step % 4 === 0);
+      // Chord pad on phrase boundaries (every 16 beats = one bar of 8th notes
+      // since beat = half a beat at user-perceived tempo).
+      if (i % 32 === 0 && CHORDS.length) {
+        const chord = CHORDS[(i / 32) % CHORDS.length | 0];
+        playChordPad(chord, musicBeatTime, MUSIC_BEAT_SEC * 28);
+      }
       musicBeatTime += MUSIC_BEAT_SEC;
       musicBeatIdx++;
     }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=42">
+    <link rel="stylesheet" href="styles.css?v=43">
     <script type="importmap">
       {
         "imports": {
@@ -224,6 +224,16 @@
         <!-- Big animated countdown number -->
         <div class="countdown-num" id="countdown-num"></div>
 
+        <!-- Boss intro card — cinematic display when starting a boss race -->
+        <div class="boss-intro" id="boss-intro" hidden>
+          <div class="boss-intro-card">
+            <span class="bi-eyebrow" id="bi-eyebrow">Boss Race</span>
+            <h2 class="bi-name" id="bi-name">…</h2>
+            <p class="bi-bio" id="bi-bio">…</p>
+            <p class="bi-track" id="bi-track">…</p>
+          </div>
+        </div>
+
         <div class="overlay" id="finish-overlay" hidden>
           <div class="title-card">
             <p class="eyebrow">Race complete</p>
@@ -390,6 +400,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=42"></script>
+    <script type="module" src="main.js?v=43"></script>
   </body>
 </html>

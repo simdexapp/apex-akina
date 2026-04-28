@@ -8,30 +8,49 @@ import { buildSlopedCabin, buildNoseWedge } from "./car.js";
 // `homeLane` (varied per rival) blended with `dodge` (when there's traffic ahead).
 
 // Each entry has its own livery + body proportions so rivals look distinct.
+// `bio` is a 1-line characterization shown in tooltips/overlays.
 const RIVAL_VARIANTS = [
-  { name: "Rina",  body: 0xff315c, stripe: 0xffd166, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
-  { name: "Mako",  body: 0x2ee9ff, stripe: 0xfbfdff, w: 1.95, h: 0.55, l: 4.40, spoiler: "deck" },
-  { name: "Ren",   body: 0xffe156, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
-  { name: "Kai",   body: 0xa66cff, stripe: 0xfbfdff, w: 1.95, h: 0.55, l: 4.40, spoiler: "deck" },
-  { name: "Jun",   body: 0xfbfdff, stripe: 0xff315c, w: 1.78, h: 0.72, l: 3.95, spoiler: "ducktail" },
-  { name: "Sora",  body: 0x3cff9b, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
-  { name: "Noa",   body: 0xff8f1f, stripe: 0xfbfdff, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
-  { name: "Aki",   body: 0xff61b6, stripe: 0x101525, w: 1.78, h: 0.72, l: 3.95, spoiler: "ducktail" },
-  { name: "Tomo",  body: 0x1aa6ff, stripe: 0xffd166, w: 1.80, h: 0.70, l: 4.00, spoiler: "ducktail" },
-  { name: "Yuki",  body: 0xcaff5e, stripe: 0x101525, w: 1.55, h: 0.85, l: 3.40, spoiler: null },
-  { name: "Saki",  body: 0x5b6dff, stripe: 0xfbfdff, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
-  { name: "Riku",  body: 0xff7e1a, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
-  { name: "Hina",  body: 0xfbfdff, stripe: 0xff315c, w: 1.55, h: 0.85, l: 3.40, spoiler: null },
-  { name: "Daichi",body: 0x0d2240, stripe: 0x2ee9ff, w: 1.80, h: 0.70, l: 4.00, spoiler: "ducktail" }
+  { name: "Rina",   bio: "Cold-blooded apex hunter. Never lifts.",                 body: 0xff315c, stripe: 0xffd166, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
+  { name: "Mako",   bio: "Dad's mechanic, rich-kid attitude.",                     body: 0x2ee9ff, stripe: 0xfbfdff, w: 1.95, h: 0.55, l: 4.40, spoiler: "deck" },
+  { name: "Ren",    bio: "Ex-circuit hot lapper turned street.",                   body: 0xffe156, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
+  { name: "Kai",    bio: "Plays it safe until lap 3. Then he doesn't.",            body: 0xa66cff, stripe: 0xfbfdff, w: 1.95, h: 0.55, l: 4.40, spoiler: "deck" },
+  { name: "Jun",    bio: "Quiet, methodical, unbeaten in time-trial.",             body: 0xfbfdff, stripe: 0xff315c, w: 1.78, h: 0.72, l: 3.95, spoiler: "ducktail" },
+  { name: "Sora",   bio: "Drifts everywhere, even the straights.",                 body: 0x3cff9b, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
+  { name: "Noa",    bio: "Never met a corner she didn't take wide.",               body: 0xff8f1f, stripe: 0xfbfdff, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
+  { name: "Aki",    bio: "All gas, no brakes, somehow finishes top 3.",            body: 0xff61b6, stripe: 0x101525, w: 1.78, h: 0.72, l: 3.95, spoiler: "ducktail" },
+  { name: "Tomo",   bio: "Calm voice on the radio, fastest on the track.",         body: 0x1aa6ff, stripe: 0xffd166, w: 1.80, h: 0.70, l: 4.00, spoiler: "ducktail" },
+  { name: "Yuki",   bio: "Tiny car, terrifying commitment.",                       body: 0xcaff5e, stripe: 0x101525, w: 1.55, h: 0.85, l: 3.40, spoiler: null },
+  { name: "Saki",   bio: "Long-haul racer. Always there at the end.",              body: 0x5b6dff, stripe: 0xfbfdff, w: 1.85, h: 0.80, l: 4.20, spoiler: "wing" },
+  { name: "Riku",   bio: "Slid sideways into the championship by accident.",       body: 0xff7e1a, stripe: 0x101525, w: 1.70, h: 0.75, l: 3.80, spoiler: "lip" },
+  { name: "Hina",   bio: "Three-time runner-up. This year is hers.",               body: 0xfbfdff, stripe: 0xff315c, w: 1.55, h: 0.85, l: 3.40, spoiler: null },
+  { name: "Daichi", bio: "Old-school. Will pit-maneuver you and apologize later.", body: 0x0d2240, stripe: 0x2ee9ff, w: 1.80, h: 0.70, l: 4.00, spoiler: "ducktail" }
 ];
 
 // Boss rivals — special named drivers reserved for career-mode hard cups.
 // Higher base pace, signature liveries, and a `boss: true` flag so the UI
 // can mark them out (HP bar gold, name pill brighter).
 export const BOSS_VARIANTS = [
-  { name: "AKAGI ACE",   body: 0xff0033, stripe: 0xfbfdff, w: 1.98, h: 0.55, l: 4.45, spoiler: "wing", boss: true, basePace: 88 },
-  { name: "NEON KING",   body: 0x9f00ff, stripe: 0x4ce8ff, w: 2.02, h: 0.46, l: 4.55, spoiler: "deck", boss: true, basePace: 90 },
-  { name: "DAIKOKU GOD", body: 0x141828, stripe: 0xff315c, w: 2.10, h: 0.54, l: 4.75, spoiler: "wing", boss: true, basePace: 86 }
+  {
+    name: "AKAGI ACE",
+    bio: "Fastest driver to ever come down the pass. Has not lost on Akagi in two seasons.",
+    homeTrack: "mountainpass",
+    body: 0xff0033, stripe: 0xfbfdff, w: 1.98, h: 0.55, l: 4.45, spoiler: "wing",
+    boss: true, basePace: 88
+  },
+  {
+    name: "NEON KING",
+    bio: "City prowler. Owns the Neon Highway after dark.",
+    homeTrack: "neon",
+    body: 0x9f00ff, stripe: 0x4ce8ff, w: 2.02, h: 0.46, l: 4.55, spoiler: "deck",
+    boss: true, basePace: 90
+  },
+  {
+    name: "DAIKOKU GOD",
+    bio: "Enters every race. Wins half. Smokes after every one.",
+    homeTrack: "drift",
+    body: 0x141828, stripe: 0xff315c, w: 2.10, h: 0.54, l: 4.75, spoiler: "wing",
+    boss: true, basePace: 86
+  }
 ];
 
 function makeRivalMesh(variant) {
@@ -193,6 +212,8 @@ export function createRivals(track, count = 14, opts = {}) {
     const isBoss = !!variant.boss;
     rivals.push({
       name: variant.name,
+      bio: variant.bio || "",
+      homeTrack: variant.homeTrack || null,
       mesh,
       personality,
       isBoss,

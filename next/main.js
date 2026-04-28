@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=42";
-import { buildScenery, tickAmbient } from "./scenery.js?v=42";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=42";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=42";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=42";
+import { buildTrack, getTrackList } from "./track.js?v=43";
+import { buildScenery, tickAmbient } from "./scenery.js?v=43";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=43";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=43";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=43";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=42";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=42";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=42";
-import { createReplay } from "./replay.js?v=42";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=42";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=42";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=42";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=42";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=43";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=43";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=43";
+import { createReplay } from "./replay.js?v=43";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=43";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=43";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=43";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=43";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=42";
+} from "./profile.js?v=43";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -284,7 +284,17 @@ function loadTrack(id) {
   const bossIdx = (careerRound && typeof careerRound.boss === "number") ? careerRound.boss : null;
   rivals = createRivals(track, 14, bossIdx != null ? { boss: bossIdx } : {});
   if (bossIdx != null) {
-    setTimeout(() => flashCallout(`Boss: ${rivals[0].name}`, 2200), 1200);
+    // Cinematic boss-intro card.
+    const bossEl = document.getElementById("boss-intro");
+    if (bossEl) {
+      const boss = rivals[0];
+      document.getElementById("bi-name").textContent = boss.name;
+      document.getElementById("bi-bio").textContent = boss.bio || "";
+      const trackName = TRACKS_LIST.find((t) => t.id === id)?.name || id;
+      document.getElementById("bi-track").textContent = `Boss race · ${trackName}`;
+      bossEl.hidden = false;
+      setTimeout(() => { bossEl.hidden = true; }, 3500);
+    }
   }
   for (const r of rivals) {
     scene.add(r.mesh);
@@ -782,6 +792,38 @@ onAchievementToast((ach) => {
 
 // Track per-race context for achievement checks.
 const raceCtx = { topSpeedKmh: 0, nearMisses: 0, longestDrift: 0 };
+
+// Contextual tutorial hints — show each one once per profile, triggered by
+// first occurrence of the relevant gameplay event during a race.
+const TUT_KEY = "apex-akina-3d:tutSeen";
+function tutSeen() {
+  try { return JSON.parse(localStorage.getItem(TUT_KEY) || "{}"); }
+  catch (_) { return {}; }
+}
+function markTutSeen(id) {
+  try {
+    const cur = tutSeen();
+    cur[id] = 1;
+    localStorage.setItem(TUT_KEY, JSON.stringify(cur));
+  } catch (_) {}
+}
+let tutHintEl = null;
+function showTutHint(label, html) {
+  if (tutHintEl) tutHintEl.remove();
+  const frame = document.querySelector(".game-frame");
+  if (!frame) return;
+  tutHintEl = document.createElement("div");
+  tutHintEl.className = "tut-hint";
+  tutHintEl.innerHTML = `<span class="label">${label}</span>${html}`;
+  frame.appendChild(tutHintEl);
+  setTimeout(() => { if (tutHintEl) { tutHintEl.remove(); tutHintEl = null; } }, 3500);
+}
+function maybeTutHint(id, label, html) {
+  const seen = tutSeen();
+  if (seen[id]) return;
+  markTutSeen(id);
+  showTutHint(label, html);
+}
 let lastPlayerPlace = 15;
 let _aiLastOrder = [];
 let _aiCalloutCooldown = 0;
@@ -913,7 +955,10 @@ function tick(dt) {
   // Shift audio cue — rising edge.
   if (car.shiftEvent) {
     playShift(car.shiftEvent);
-    if (car.shiftEvent > 0) flashCallout(`▲ ${car.gear}`, 360);
+    if (car.shiftEvent > 0) {
+      flashCallout(`▲ ${car.gear}`, 360);
+      maybeTutHint("shift", "Gear up", `Auto-transmission shifted at redline. Each gear has its own pitch range.`);
+    }
     car.shiftEvent = 0;
   }
   if (car.launchEvent) {
@@ -934,6 +979,19 @@ function tick(dt) {
   if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
     playBrakeHiss();
     vibrate(0.30, 0.08, 90);
+    maybeTutHint("brake", "Tip", `Brake into corners — hold <kbd>S</kbd> while turning to rotate the rear (trail-braking).`);
+  }
+  // First draft tip.
+  if (running && car.draftAmount > 0.55 && !i.brake) {
+    maybeTutHint("draft", "Slipstream", `You're drafting. Stay tucked behind to gain ~10% top speed and refill boost.`);
+  }
+  // First drift tip.
+  if (running && car.driftActive && car.driftDuration > 1.0) {
+    maybeTutHint("drift", "Drift", `Hold <kbd>Space</kbd> + steer same direction to extend slip. Counter-flick to exit clean.`);
+  }
+  // First boost tip — when boost meter > 50%.
+  if (running && (car.boostMeter || 0) > 0.5 && !i.boost) {
+    maybeTutHint("boost", "Boost ready", `Hit <kbd>Shift</kbd> to fire boost. Costs the meter but pushes top speed +25%.`);
   }
   car._wasBraking = i.brake;
 
@@ -2299,7 +2357,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=42");
+  const mod = await import("./garagePreview.js?v=43");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
