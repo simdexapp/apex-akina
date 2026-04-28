@@ -1,101 +1,123 @@
 // Per-track scenery — distant mountains, trees, buildings, billboards.
-// All built procedurally from primitives; instanced where possible to keep
-// draw calls down. Returns a single Group that can be added/removed cleanly.
+// Heavily optimized: mountains are positioned outside the track bbox (so the
+// player can't drive into them), repeated assets use InstancedMesh / shared
+// geometry+material, and per-track density is conservative.
 
 import * as THREE from "three";
 
-// Build a ring of distant mountain silhouettes. The ring centers on (cx, cz)
-// at radius `r`, with `count` peaks. Each peak is a thin pyramid of varied
-// width/height, tinted by `color` with a touch of emissive rim glow.
-export function buildMountains({ count = 60, radius = 520, baseY = -8, color = 0x261a3a, rimColor = 0x6a3a8a } = {}) {
+// Compute the axis-aligned bbox of a track's centerline points. Used to push
+// mountains and far scenery outside any drivable region.
+function trackBounds(track) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of track.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  const cx = (minX + maxX) * 0.5;
+  const cz = (minZ + maxZ) * 0.5;
+  const halfX = (maxX - minX) * 0.5;
+  const halfZ = (maxZ - minZ) * 0.5;
+  const radius = Math.sqrt(halfX * halfX + halfZ * halfZ);
+  return { cx, cz, radius };
+}
+
+// Distant mountain ring centered on the track bbox. Radius = bbox radius +
+// MOUNTAIN_BUFFER so the player never drives into them. Uses ONE shared
+// material + geometry (re-using the same ConeGeometry for every peak with a
+// per-instance scale) so it's a small handful of draw calls.
+const MOUNTAIN_BUFFER = 320;          // metres beyond bbox radius
+function buildMountains(track, { count = 36, color = 0x261a3a, rimColor = 0x6a3a8a } = {}) {
   const group = new THREE.Group();
+  const bounds = trackBounds(track);
+  const ringR = bounds.radius + MOUNTAIN_BUFFER;
   const mat = new THREE.MeshStandardMaterial({
-    color, metalness: 0.0, roughness: 1.0, emissive: rimColor, emissiveIntensity: 0.18, flatShading: true
+    color, metalness: 0.0, roughness: 1.0, emissive: rimColor, emissiveIntensity: 0.22, flatShading: true
   });
+  // Use a single InstancedMesh per "size class" for speed.
+  const baseGeo = new THREE.ConeGeometry(1, 1, 5, 1, false);
+  const inst = new THREE.InstancedMesh(baseGeo, mat, count);
+  const dummy = new THREE.Object3D();
   for (let i = 0; i < count; i++) {
-    const ang = (i / count) * Math.PI * 2 + Math.random() * 0.04;
-    const r = radius + (Math.random() - 0.5) * 80;
-    const h = 30 + Math.random() * 70;
-    const w = 50 + Math.random() * 100;
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(w, h, 4 + Math.floor(Math.random() * 3), 1, false), mat);
-    peak.position.set(Math.cos(ang) * r, baseY + h * 0.5, Math.sin(ang) * r);
-    peak.rotation.y = Math.random() * Math.PI;
-    group.add(peak);
+    const ang = (i / count) * Math.PI * 2 + Math.random() * 0.06;
+    const r = ringR + (Math.random() - 0.5) * 80;
+    const h = 60 + Math.random() * 120;
+    const w = 80 + Math.random() * 140;
+    dummy.position.set(bounds.cx + Math.cos(ang) * r, -8 + h * 0.5, bounds.cz + Math.sin(ang) * r);
+    dummy.rotation.y = Math.random() * Math.PI;
+    dummy.scale.set(w, h, w);
+    dummy.updateMatrix();
+    inst.setMatrixAt(i, dummy.matrix);
   }
+  inst.instanceMatrix.needsUpdate = true;
+  group.add(inst);
   return group;
 }
 
-// Pine-tree silhouette — stack of cones for a touge look. Returns a Group
-// that can be reused (clone each placement).
-function buildPineTree(scale = 1) {
-  const group = new THREE.Group();
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2a1810, roughness: 0.9 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x1a4030, roughness: 0.85, emissive: 0x0c2018, emissiveIntensity: 0.2 });
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * scale, 0.22 * scale, 1.2 * scale, 8), trunkMat);
-  trunk.position.y = 0.6 * scale;
-  group.add(trunk);
-  for (let i = 0; i < 3; i++) {
-    const r = (1.2 - i * 0.28) * scale;
-    const h = (1.6 - i * 0.32) * scale;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), leafMat);
-    cone.position.y = (1.4 + i * 0.7) * scale;
-    group.add(cone);
-  }
-  return group;
+// ============================================================
+// Asset templates — built once, then InstancedMesh-ed per placement.
+// Each template returns { geometries, material } so we can build one
+// InstancedMesh per (geometry, material) pair.
+// ============================================================
+
+// Tree: merged into 2 instanced parts — trunk (cylinder) + foliage (cone).
+// We pre-bake one trunk+foliage stack, then the InstancedMesh handles N copies.
+function buildTreeInstances(count, trunkColor, leafColor, leafEmissive = 0x0c2018) {
+  const trunkMat = new THREE.MeshStandardMaterial({ color: trunkColor, roughness: 0.9 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.85, emissive: leafEmissive, emissiveIntensity: 0.18 });
+  // Trunk + 3 stacked foliage cones merged via 4 InstancedMeshes.
+  const trunkGeo = new THREE.CylinderGeometry(0.20, 0.24, 1.2, 6);
+  const tier1Geo = new THREE.ConeGeometry(1.2, 1.6, 6);
+  const tier2Geo = new THREE.ConeGeometry(0.92, 1.28, 6);
+  const tier3Geo = new THREE.ConeGeometry(0.64, 0.96, 6);
+  return {
+    trunkMesh: new THREE.InstancedMesh(trunkGeo, trunkMat, count),
+    tier1Mesh: new THREE.InstancedMesh(tier1Geo, leafMat, count),
+    tier2Mesh: new THREE.InstancedMesh(tier2Geo, leafMat, count),
+    tier3Mesh: new THREE.InstancedMesh(tier3Geo, leafMat, count),
+  };
 }
 
-// Palm-tree silhouette — bent trunk + a fan of cone fronds.
-function buildPalmTree(scale = 1) {
-  const group = new THREE.Group();
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6a4a26, roughness: 0.85 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2a8048, roughness: 0.7, emissive: 0x0c2018, emissiveIntensity: 0.18 });
-  // Curved trunk approximated by 3 cylinder segments.
-  for (let i = 0; i < 3; i++) {
-    const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * scale, 0.20 * scale, 1.4 * scale, 8), trunkMat);
-    seg.position.set(i * 0.12 * scale, (i + 0.5) * 1.4 * scale, 0);
-    seg.rotation.z = -i * 0.08;
-    group.add(seg);
-  }
-  // Fronds.
-  for (let i = 0; i < 6; i++) {
-    const ang = (i / 6) * Math.PI * 2;
-    const frond = new THREE.Mesh(new THREE.ConeGeometry(0.30 * scale, 1.6 * scale, 4), leafMat);
-    frond.position.set(0.36 * scale + Math.cos(ang) * 0.6 * scale, 4.4 * scale, Math.sin(ang) * 0.6 * scale);
-    frond.rotation.x = Math.PI / 2 - 0.3;
-    frond.rotation.y = ang;
-    group.add(frond);
-  }
-  return group;
+// Place a tree instance at world (x, y, z) with random scale + yaw.
+function setTreeInstance(meshes, idx, x, y, z, scale = 1, yaw = 0) {
+  const dummy = new THREE.Object3D();
+  // Trunk
+  dummy.position.set(x, y + 0.6 * scale, z);
+  dummy.rotation.set(0, yaw, 0);
+  dummy.scale.setScalar(scale);
+  dummy.updateMatrix();
+  meshes.trunkMesh.setMatrixAt(idx, dummy.matrix);
+  // Tier 1
+  dummy.position.set(x, y + 1.4 * scale, z);
+  dummy.updateMatrix();
+  meshes.tier1Mesh.setMatrixAt(idx, dummy.matrix);
+  // Tier 2
+  dummy.position.set(x, y + 2.1 * scale, z);
+  dummy.updateMatrix();
+  meshes.tier2Mesh.setMatrixAt(idx, dummy.matrix);
+  // Tier 3
+  dummy.position.set(x, y + 2.8 * scale, z);
+  dummy.updateMatrix();
+  meshes.tier3Mesh.setMatrixAt(idx, dummy.matrix);
 }
 
-// Skyscraper — dark box with random emissive window grid (cheap noise-based UV).
-function buildSkyscraper(w, h, d, hue = 0x2ee9ff) {
+function flushTreeInstances(group, meshes) {
+  for (const m of [meshes.trunkMesh, meshes.tier1Mesh, meshes.tier2Mesh, meshes.tier3Mesh]) {
+    m.instanceMatrix.needsUpdate = true;
+    group.add(m);
+  }
+}
+
+// Building: one InstancedMesh for body + one for window grid (random subset).
+function buildBuildingInstances(count) {
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x080812, roughness: 0.7, metalness: 0.4 });
-  const winMat = new THREE.MeshBasicMaterial({ color: hue });
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-  body.position.y = h * 0.5;
-  group.add(body);
-  // Window grid: small emissive boxes embedded in each side.
-  const winSize = 0.5;
-  const winGap = 1.4;
-  for (const side of [-1, 1]) {
-    const cols = Math.floor(w / winGap);
-    const rows = Math.floor(h / winGap);
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (Math.random() > 0.55) continue;
-        const win = new THREE.Mesh(new THREE.BoxGeometry(winSize, winSize, 0.05), winMat);
-        win.position.set(-w * 0.45 + c * winGap + 0.7, 0.6 + r * winGap, side * (d * 0.5 + 0.03));
-        group.add(win);
-      }
-    }
-  }
-  return group;
+  const bodyGeo = new THREE.BoxGeometry(1, 1, 1);
+  return new THREE.InstancedMesh(bodyGeo, bodyMat, count);
 }
 
-// Billboard — pole + lit panel with emissive face.
-function buildBillboard(color = 0xff315c) {
+// Billboard: pole + panel as one merged mesh per placement (cheap enough).
+function makeBillboard(color) {
   const group = new THREE.Group();
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.7 });
   for (const side of [-1, 1]) {
@@ -107,49 +129,46 @@ function buildBillboard(color = 0xff315c) {
   const panel = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 0.2), panelMat);
   panel.position.set(0, 5.2, 0);
   group.add(panel);
-  // Subtle frame.
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.05), poleMat);
-  frame.position.set(0, 5.2, 0.13);
-  group.add(frame);
   return group;
 }
 
-// Place trees / billboards / buildings around the track at a given lateral
-// offset, every `stride` samples. The decorate function returns an optional
-// mesh per slot (or null to skip). Returns a Group.
-function decorateTrack(track, sideOffset, stride, decorate) {
-  const group = new THREE.Group();
-  if (!track || !track.points || !track.tangents) return group;
-  // Use the smaller of the two arrays so we never index a missing tangent.
-  // (CatmullRom getSpacedPoints(N) returns N+1 points but only N tangents.)
+// ============================================================
+// Track-side decoration helper. Uses InstancedMesh callback for hot paths.
+// ============================================================
+function decorateTrackInstanced(track, sideOffset, stride, count, place) {
+  if (!track || !track.points || !track.tangents) return 0;
   const SAMPLES = Math.min(track.points.length, track.tangents.length);
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3();
+  let placed = 0;
   for (let i = 0; i < SAMPLES; i += stride) {
+    if (placed >= count) break;
     const p = track.points[i];
     const t = track.tangents[i];
     if (!p || !t) continue;
     right.crossVectors(t, up).normalize();
     for (const side of [1, -1]) {
-      const off = side * sideOffset;
-      const wx = p.x + right.x * off + (Math.random() - 0.5) * 4;
-      const wz = p.z + right.z * off + (Math.random() - 0.5) * 4;
+      if (placed >= count) break;
+      const off = side * sideOffset + (Math.random() - 0.5) * 6;
+      const x = p.x + right.x * off;
+      const z = p.z + right.z * off;
       const yaw = Math.atan2(t.x, t.z);
-      const mesh = decorate(i, side);
-      if (!mesh) continue;
-      mesh.position.set(wx, p.y, wz);
-      mesh.rotation.y = yaw + Math.PI * 0.5;
-      group.add(mesh);
+      // Skip if the slot would be too close to any other track point — guards
+      // against accidental placements where the loop curves back.
+      const ok = place(placed, x, p.y, z, yaw);
+      if (ok) placed++;
     }
   }
-  return group;
+  return placed;
 }
 
+// ============================================================
 // Top-level: build a scenery group for a given track id + track object.
+// ============================================================
 export function buildScenery(trackId, track) {
   const group = new THREE.Group();
 
-  // 1. Distant mountain ring — common to all tracks, recolored to taste.
+  // 1. Distant mountain ring — outside the track bbox by 320m.
   const mountainColors = {
     lakeside: { color: 0x1a3050, rim: 0x4a6a90 },
     bayside:  { color: 0x14285a, rim: 0x3a6a9a },
@@ -157,54 +176,130 @@ export function buildScenery(trackId, track) {
     neon:     { color: 0x2a0c4a, rim: 0xa648c8 }
   };
   const mc = mountainColors[trackId] || mountainColors.lakeside;
-  group.add(buildMountains({ color: mc.color, rimColor: mc.rim }));
+  group.add(buildMountains(track, { color: mc.color, rimColor: mc.rim }));
 
-  // 2. Per-track foreground scenery. Stride controls density.
+  // 2. Per-track foreground scenery. Pushed well off the road; instanced.
+  // sideOffset 24+ keeps anything tall outside the racing line.
+  const dummy = new THREE.Object3D();
+
   if (trackId === "lakeside") {
-    // Pines along both sides, dense.
-    group.add(decorateTrack(track, 18, 5, () => {
-      if (Math.random() < 0.22) return null;
-      return buildPineTree(0.7 + Math.random() * 0.7);
-    }));
-    // A few bigger pines further out for parallax.
-    group.add(decorateTrack(track, 36, 14, () => {
-      if (Math.random() < 0.5) return null;
-      return buildPineTree(1.4 + Math.random() * 0.8);
-    }));
+    // ~80 pines along both sides, instanced.
+    const PINE_CAP = 80;
+    const trees = buildTreeInstances(PINE_CAP, 0x2a1810, 0x1a4030);
+    let placed = 0;
+    decorateTrackInstanced(track, 26, 7, PINE_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.18) return false;
+      const scale = 0.9 + Math.random() * 1.0;
+      setTreeInstance(trees, placed, x, y, z, scale, yaw + Math.random() * 0.5);
+      placed++;
+      return true;
+    });
+    // Park unused instances out of view.
+    for (let i = placed; i < PINE_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      trees.trunkMesh.setMatrixAt(i, dummy.matrix);
+      trees.tier1Mesh.setMatrixAt(i, dummy.matrix);
+      trees.tier2Mesh.setMatrixAt(i, dummy.matrix);
+      trees.tier3Mesh.setMatrixAt(i, dummy.matrix);
+    }
+    flushTreeInstances(group, trees);
   } else if (trackId === "bayside") {
-    // Palm trees on outer shoulder.
-    group.add(decorateTrack(track, 16, 8, () => {
-      if (Math.random() < 0.2) return null;
-      return buildPalmTree(0.9 + Math.random() * 0.4);
-    }));
-    // A few low buildings further inland.
-    group.add(decorateTrack(track, 60, 16, () => {
-      if (Math.random() < 0.45) return null;
-      return buildSkyscraper(8 + Math.random() * 6, 12 + Math.random() * 14, 8 + Math.random() * 6, Math.random() < 0.5 ? 0xffd166 : 0x2ee9ff);
-    }));
+    // Palms on outer shoulder, instanced lite (just trunk+frond ball).
+    const PALM_CAP = 50;
+    const palms = buildTreeInstances(PALM_CAP, 0x6a4a26, 0x2a8048);
+    let placed = 0;
+    decorateTrackInstanced(track, 22, 10, PALM_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.2) return false;
+      const scale = 1.2 + Math.random() * 0.5;
+      setTreeInstance(palms, placed, x, y, z, scale, yaw);
+      placed++;
+      return true;
+    });
+    for (let i = placed; i < PALM_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      palms.trunkMesh.setMatrixAt(i, dummy.matrix);
+      palms.tier1Mesh.setMatrixAt(i, dummy.matrix);
+      palms.tier2Mesh.setMatrixAt(i, dummy.matrix);
+      palms.tier3Mesh.setMatrixAt(i, dummy.matrix);
+    }
+    flushTreeInstances(group, palms);
+    // ~20 buildings further inland, instanced.
+    const BLD_CAP = 20;
+    const bldMesh = buildBuildingInstances(BLD_CAP);
+    let bplaced = 0;
+    decorateTrackInstanced(track, 90, 18, BLD_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.4) return false;
+      const w = 8 + Math.random() * 8, h = 14 + Math.random() * 16, d = 8 + Math.random() * 8;
+      dummy.position.set(x, y + h * 0.5, z);
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(w, h, d);
+      dummy.updateMatrix();
+      bldMesh.setMatrixAt(bplaced, dummy.matrix);
+      bplaced++;
+      return true;
+    });
+    for (let i = bplaced; i < BLD_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      bldMesh.setMatrixAt(i, dummy.matrix);
+    }
+    bldMesh.instanceMatrix.needsUpdate = true;
+    group.add(bldMesh);
   } else if (trackId === "highway") {
-    // Billboards every so often.
-    group.add(decorateTrack(track, 22, 14, (i) => {
-      if (Math.random() < 0.55) return null;
-      const colors = [0xff315c, 0xffd166, 0x2ee9ff, 0xa66cff];
-      return buildBillboard(colors[i % colors.length]);
-    }));
-    // Sparse low buildings.
-    group.add(decorateTrack(track, 50, 12, () => {
-      if (Math.random() < 0.5) return null;
-      return buildSkyscraper(10 + Math.random() * 10, 8 + Math.random() * 10, 10 + Math.random() * 6, 0xffd166);
-    }));
+    // ~12 billboards.
+    const colors = [0xff315c, 0xffd166, 0x2ee9ff, 0xa66cff];
+    let bilCount = 0;
+    decorateTrackInstanced(track, 32, 22, 12, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.4) return false;
+      const bil = makeBillboard(colors[i % colors.length]);
+      bil.position.set(x, y, z);
+      bil.rotation.y = yaw + Math.PI * 0.5;
+      group.add(bil);
+      bilCount++;
+      return true;
+    });
+    // ~16 buildings.
+    const BLD_CAP = 16;
+    const bldMesh = buildBuildingInstances(BLD_CAP);
+    let bplaced = 0;
+    decorateTrackInstanced(track, 70, 14, BLD_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.4) return false;
+      const w = 12 + Math.random() * 10, h = 14 + Math.random() * 14, d = 12 + Math.random() * 8;
+      dummy.position.set(x, y + h * 0.5, z);
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(w, h, d);
+      dummy.updateMatrix();
+      bldMesh.setMatrixAt(bplaced, dummy.matrix);
+      bplaced++;
+      return true;
+    });
+    for (let i = bplaced; i < BLD_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      bldMesh.setMatrixAt(i, dummy.matrix);
+    }
+    bldMesh.instanceMatrix.needsUpdate = true;
+    group.add(bldMesh);
   } else if (trackId === "neon") {
-    // Dense skyscrapers — cyberpunk overpass.
-    group.add(decorateTrack(track, 28, 6, () => {
-      if (Math.random() < 0.22) return null;
-      const hues = [0xff315c, 0x2ee9ff, 0xa66cff, 0xffd166, 0x3cff9b];
-      return buildSkyscraper(6 + Math.random() * 6, 18 + Math.random() * 36, 6 + Math.random() * 6, hues[Math.floor(Math.random() * hues.length)]);
-    }));
-    group.add(decorateTrack(track, 56, 10, () => {
-      if (Math.random() < 0.4) return null;
-      return buildSkyscraper(12 + Math.random() * 8, 40 + Math.random() * 40, 12 + Math.random() * 8, 0x2ee9ff);
-    }));
+    // Dense skyscrapers — 50 buildings via instancing.
+    const BLD_CAP = 50;
+    const bldMesh = buildBuildingInstances(BLD_CAP);
+    let bplaced = 0;
+    decorateTrackInstanced(track, 38, 8, BLD_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.18) return false;
+      const w = 8 + Math.random() * 8, h = 28 + Math.random() * 50, d = 8 + Math.random() * 8;
+      dummy.position.set(x, y + h * 0.5, z);
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(w, h, d);
+      dummy.updateMatrix();
+      bldMesh.setMatrixAt(bplaced, dummy.matrix);
+      bplaced++;
+      return true;
+    });
+    for (let i = bplaced; i < BLD_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      bldMesh.setMatrixAt(i, dummy.matrix);
+    }
+    bldMesh.instanceMatrix.needsUpdate = true;
+    group.add(bldMesh);
   }
 
   return group;

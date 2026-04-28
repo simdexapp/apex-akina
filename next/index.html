@@ -18,11 +18,8 @@
     <main class="shell">
       <section class="game-frame" aria-label="Apex Akina 3D">
         <canvas id="game"></canvas>
-        <div class="hud" aria-live="polite">
-          <div class="hud-stack">
-            <span class="label">Speed</span>
-            <strong id="speed">0</strong><small> km/h</small>
-          </div>
+        <!-- Top-left compact strip: lap, pos, time, best -->
+        <div class="hud hud-top" aria-live="polite">
           <div class="hud-stack">
             <span class="label">Lap</span>
             <strong id="lap">1/3</strong>
@@ -39,29 +36,29 @@
             <span class="label">Best</span>
             <strong id="best">—</strong>
           </div>
-          <div class="hud-stack boost-wrap">
-            <span class="label">Boost</span>
-            <div class="boost-meter" aria-hidden="true"><span id="boost-bar"></span></div>
-            <span class="label" style="margin-top:4px;">Heat</span>
-            <div class="boost-meter heat-meter" aria-hidden="true"><span id="heat-bar"></span></div>
-          </div>
-          <div class="hud-stack combo-stack" id="combo-stack" hidden>
+        </div>
+        <!-- Top-right small action buttons -->
+        <div class="hud-actions">
+          <button id="mute-btn" class="back-link" type="button" aria-pressed="false">♪</button>
+          <button id="pause-btn" class="back-link" type="button" aria-label="Pause">⏸</button>
+          <a class="back-link" href="../index.html" aria-label="Back to engine picker">←</a>
+        </div>
+        <!-- Status pills (combo + draft) — only when active, top-center -->
+        <div class="hud-pills">
+          <div class="hud-pill combo-stack" id="combo-stack" hidden>
             <span class="label">Combo</span>
             <strong id="combo-value">x1</strong>
           </div>
-          <div class="hud-stack draft-stack" id="draft-stack" hidden>
+          <div class="hud-pill draft-stack" id="draft-stack" hidden>
             <span class="label">Draft</span>
             <strong id="draft-value">0%</strong>
           </div>
-          <button id="mute-btn" class="back-link" type="button" aria-pressed="false">♪</button>
-          <button id="pause-btn" class="back-link" type="button" aria-label="Pause">⏸</button>
-          <a class="back-link" href="../index.html">← Old engine</a>
         </div>
-        <!-- Speedometer arc gauge in the bottom-left corner -->
+        <!-- Speedometer arc gauge in the bottom-left — speed, gear, boost, heat -->
         <div class="speedo" id="speedo" aria-hidden="true">
           <svg viewBox="0 0 200 130" width="100%" height="100%">
-            <path id="speedo-track" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="rgba(46,233,255,0.18)" stroke-width="10" stroke-linecap="round"/>
-            <path id="speedo-fill" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#speedo-grad)" stroke-width="10" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+            <path id="speedo-track" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="rgba(46,233,255,0.18)" stroke-width="9" stroke-linecap="round"/>
+            <path id="speedo-fill" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#speedo-grad)" stroke-width="9" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
             <defs>
               <linearGradient id="speedo-grad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0" stop-color="#2ee9ff"/>
@@ -75,7 +72,19 @@
             <span class="unit">km/h</span>
             <span class="gear-pill" id="gear-pill">1</span>
           </div>
+          <div class="speedo-meters">
+            <div class="meter-row">
+              <span class="meter-label">Boost</span>
+              <div class="boost-meter"><span id="boost-bar"></span></div>
+            </div>
+            <div class="meter-row">
+              <span class="meter-label">Heat</span>
+              <div class="boost-meter heat-meter"><span id="heat-bar"></span></div>
+            </div>
+          </div>
         </div>
+        <!-- Hidden compatibility node so existing JS that writes to #speed still works -->
+        <strong id="speed" hidden>0</strong>
         <!-- Boost FX vignette overlay -->
         <div class="boost-fx" id="boost-fx" aria-hidden="true">
           <div class="speedlines"></div>
@@ -215,6 +224,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=2"></script>
+    <script type="module" src="main.js?v=3"></script>
   </body>
 </html>

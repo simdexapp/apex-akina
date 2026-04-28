@@ -39,24 +39,26 @@ body {
 
 #game { display: block; width: 100%; height: 100%; }
 
+/* Top-left compact strip */
 .hud {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  right: 16px;
+  top: 14px;
+  left: 14px;
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: stretch;
   pointer-events: none;
   z-index: 3;
 }
 
+.hud-top { gap: 6px; }
+
 .hud-stack {
   pointer-events: auto;
-  min-height: 44px;
-  padding: 6px 12px;
+  min-width: 56px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--panel);
   backdrop-filter: blur(12px);
   display: grid;
@@ -66,7 +68,7 @@ body {
 .label {
   display: block;
   color: rgba(46, 233, 255, 0.78);
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.10em;
@@ -75,17 +77,60 @@ body {
 
 .hud strong {
   display: block;
-  margin-top: 3px;
-  font-size: 20px;
+  margin-top: 2px;
+  font-size: 16px;
   line-height: 1;
   font-weight: 900;
 }
 
 .hud small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   margin-left: 2px;
 }
+
+/* Top-right action buttons (mute / pause / back) */
+.hud-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 6px;
+  z-index: 3;
+}
+
+.hud-actions .back-link {
+  margin: 0;
+  pointer-events: auto;
+}
+
+/* Center-top status pills (combo, draft) — only shown when active */
+.hud-pills {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hud-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.hud-pill .label { font-size: 9px; }
+.hud-pill strong { font-size: 14px; font-weight: 900; }
 
 .back-link {
   margin-left: auto;
@@ -178,32 +223,32 @@ button:hover { filter: brightness(1.08); }
 
 .leaderboard {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
-  width: 180px;
-  padding: 10px 12px;
+  right: 14px;
+  bottom: 14px;
+  width: 152px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--panel);
   backdrop-filter: blur(12px);
   z-index: 3;
 }
 
 .leaderboard ol {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .leaderboard li {
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #dce6f4;
   background: rgba(255, 255, 255, 0.05);
@@ -355,12 +400,12 @@ button:hover { filter: brightness(1.08); }
 
 .minimap {
   position: absolute;
-  right: 16px;
-  top: 78px;
-  width: 180px;
-  height: 120px;
+  right: 14px;
+  top: 56px;
+  width: 132px;
+  height: 88px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 5px;
   background: rgba(8, 13, 22, 0.78);
   backdrop-filter: blur(12px);
   z-index: 3;
@@ -568,16 +613,16 @@ button:hover { filter: brightness(1.08); }
   grid-column: 1 / -1;
 }
 
-/* ---- Speedometer arc ---- */
+/* ---- Speedometer cluster (bottom-left) ---- */
 .speedo {
   position: absolute;
-  left: 18px;
-  bottom: 18px;
-  width: 220px;
-  height: 150px;
+  left: 14px;
+  bottom: 14px;
+  width: 168px;
+  height: 110px;
   z-index: 3;
   pointer-events: none;
-  filter: drop-shadow(0 4px 24px rgba(46, 233, 255, 0.18));
+  filter: drop-shadow(0 4px 18px rgba(46, 233, 255, 0.18));
 }
 
 .speedo svg { display: block; }
@@ -589,12 +634,12 @@ button:hover { filter: brightness(1.08); }
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
   pointer-events: none;
 }
 
 .speedo-readout strong {
-  font-size: 32px;
+  font-size: 24px;
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -603,27 +648,53 @@ button:hover { filter: brightness(1.08); }
 }
 
 .speedo-readout .unit {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .gear-pill {
   position: absolute;
-  bottom: 4px;
-  right: 14px;
-  min-width: 28px;
+  bottom: 0;
+  right: 6px;
+  min-width: 22px;
   text-align: center;
-  padding: 4px 8px;
-  font-size: 14px;
+  padding: 3px 7px;
+  font-size: 12px;
   font-weight: 900;
-  border-radius: 6px;
+  border-radius: 5px;
   background: linear-gradient(135deg, var(--cyan), var(--gold));
   color: #05070c;
-  box-shadow: 0 0 14px rgba(46, 233, 255, 0.45);
+  box-shadow: 0 0 12px rgba(46, 233, 255, 0.45);
+}
+
+.speedo-meters {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -38px;
+  padding: 0 6px;
+  display: grid;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.meter-row {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.meter-label {
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: rgba(46, 233, 255, 0.75);
 }
 
 .gear-pill.is-shifting { animation: shift-pulse 0.18s ease-out; }

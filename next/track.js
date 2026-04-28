@@ -61,16 +61,19 @@ export function buildTrack(trackId = "lakeside") {
   });
   const roadMesh = new THREE.Mesh(geo, mat);
 
-  // Lane lines — proper emissive boxes (visible regardless of `linewidth`,
-  // which most browsers ignore). Center line is gold, side lines white.
+  // Lane lines — flat emissive plane stripes. Use PlaneGeometry laid flat on
+  // the road so they read as paint, not 3D bricks. Center line gold, side
+  // lines white. InstancedMesh per lane for cheap draw calls.
   const laneGroup = new THREE.Group();
   const laneCount = 5;
   for (let lane = 1; lane < laneCount; lane++) {
     const offset = -ROAD_HALF_WIDTH + (ROAD_HALF_WIDTH * 2) * (lane / laneCount);
     const isCenter = lane === Math.floor(laneCount / 2);
-    const color = isCenter ? 0xffe88a : 0xfbfdff;
-    const dashLen = 3.0;
-    const gapLen = 4.0;
+    const color = isCenter ? 0xffe88a : 0xeef2ff;
+    const dashLen = 2.5;
+    const gapLen = 5.5;
+    // Pre-count slots so we can size the InstancedMesh exactly.
+    const slots = [];
     let acc = 0;
     let drawing = true;
     for (let i = 0; i < SAMPLES; i++) {
@@ -80,40 +83,59 @@ export function buildTrack(trackId = "lakeside") {
       acc += seg;
       const limit = drawing ? dashLen : gapLen;
       if (acc >= limit) {
-        if (drawing) {
-          // Draw a small box at this segment.
-          const t = tangents[i];
-          right.crossVectors(t, up).normalize();
-          const stripe = new THREE.Mesh(
-            new THREE.BoxGeometry(0.16, 0.06, dashLen * 0.9),
-            new THREE.MeshBasicMaterial({ color })
-          );
-          stripe.position.set(p.x + right.x * offset, p.y + 0.04, p.z + right.z * offset);
-          stripe.rotation.y = Math.atan2(t.x, t.z);
-          laneGroup.add(stripe);
-        }
+        if (drawing) slots.push(i);
         drawing = !drawing;
         acc = 0;
       }
     }
+    if (slots.length === 0) continue;
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const geo = new THREE.PlaneGeometry(0.16, dashLen * 0.9);
+    const inst = new THREE.InstancedMesh(geo, mat, slots.length);
+    const dummy = new THREE.Object3D();
+    for (let s = 0; s < slots.length; s++) {
+      const i = slots[s];
+      const p = points[i];
+      const t = tangents[i];
+      right.crossVectors(t, up).normalize();
+      dummy.position.set(p.x + right.x * offset, p.y + 0.03, p.z + right.z * offset);
+      dummy.rotation.set(-Math.PI / 2, 0, -Math.atan2(t.x, t.z));
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      inst.setMatrixAt(s, dummy.matrix);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    laneGroup.add(inst);
   }
 
-  // Kerb stripes — alternating red/white at the road edge.
+  // Kerb stripes — alternating colors at the road edge. Instanced per side
+  // so we collapse 480×2 mesh instances into 2 draw calls. Slimmer + lower
+  // profile so they read as painted curbs instead of speed bumps.
   const kerbGroup = new THREE.Group();
-  for (let i = 0; i < SAMPLES; i++) {
-    const p = points[i];
-    const t = tangents[i];
-    right.crossVectors(t, up).normalize();
-    for (const side of [1, -1]) {
+  const kerbGeoFlat = new THREE.BoxGeometry(0.4, 0.06, 1.6);
+  for (const side of [1, -1]) {
+    const matA = new THREE.MeshStandardMaterial({ color: track.palette.kerbA, metalness: 0.15, roughness: 0.55 });
+    const matB = new THREE.MeshStandardMaterial({ color: track.palette.kerbB, metalness: 0.15, roughness: 0.55 });
+    const instA = new THREE.InstancedMesh(kerbGeoFlat, matA, Math.ceil(SAMPLES / 2));
+    const instB = new THREE.InstancedMesh(kerbGeoFlat, matB, Math.ceil(SAMPLES / 2));
+    let aIdx = 0, bIdx = 0;
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < SAMPLES; i++) {
+      const p = points[i];
+      const t = tangents[i];
+      right.crossVectors(t, up).normalize();
       const offset = side * (ROAD_HALF_WIDTH + SHOULDER * 0.5);
-      const cubeGeo = new THREE.BoxGeometry(0.6, 0.10, 1.4);
-      const color = i % 2 === 0 ? track.palette.kerbA : track.palette.kerbB;
-      const cubeMat = new THREE.MeshStandardMaterial({ color, metalness: 0.20, roughness: 0.55 });
-      const cube = new THREE.Mesh(cubeGeo, cubeMat);
-      cube.position.set(p.x + right.x * offset, p.y + 0.05, p.z + right.z * offset);
-      cube.rotation.y = Math.atan2(t.x, t.z);
-      kerbGroup.add(cube);
+      dummy.position.set(p.x + right.x * offset, p.y + 0.03, p.z + right.z * offset);
+      dummy.rotation.set(0, Math.atan2(t.x, t.z), 0);
+      dummy.updateMatrix();
+      if (i % 2 === 0) { instA.setMatrixAt(aIdx++, dummy.matrix); }
+      else             { instB.setMatrixAt(bIdx++, dummy.matrix); }
     }
+    instA.instanceMatrix.needsUpdate = true;
+    instB.instanceMatrix.needsUpdate = true;
+    instA.count = aIdx;
+    instB.count = bIdx;
+    kerbGroup.add(instA, instB);
   }
 
   // Ground plane below the track. Closer to road level + emissive base so it
@@ -202,57 +224,85 @@ export function buildTrack(trackId = "lakeside") {
     }
   }
 
-  // Trackside posts — denser + tall lamp posts with point lights every 24 samples.
+  // Trackside posts — instanced for cheap draw cost.
   const postGroup = new THREE.Group();
   const postMatShared = new THREE.MeshLambertMaterial({ color: 0x0c1322 });
-  const armMat = new THREE.MeshLambertMaterial({ color: 0x1a2030 });
-  const headMatRight = new THREE.MeshBasicMaterial({ color: 0xfff5d4 });
-  const headMatLeft = new THREE.MeshBasicMaterial({ color: 0xffe9c4 });
+  const lampHeadMat = new THREE.MeshBasicMaterial({ color: 0xfff5d4 });
   const capMatRight = new THREE.MeshBasicMaterial({ color: 0x2ee9ff });
   const capMatLeft = new THREE.MeshBasicMaterial({ color: 0xffd166 });
-  for (let i = 0; i < SAMPLES; i += 4) {
+  // Plan slots first so we can size InstancedMesh exactly.
+  const POST_STRIDE = 8;       // shorter posts every 8 samples
+  const LAMP_STRIDE = 40;      // tall lamps every 40 samples
+  const shortSlots = [];
+  const lampSlots = [];
+  for (let i = 0; i < SAMPLES; i += POST_STRIDE) {
+    if (i % LAMP_STRIDE === 0) lampSlots.push(i);
+    else shortSlots.push(i);
+  }
+  // Each slot has 2 sides.
+  const shortPostMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 1.6, 0.2), postMatShared, shortSlots.length * 2);
+  const shortCapMeshR = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.06, 0.22), capMatRight, shortSlots.length);
+  const shortCapMeshL = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.06, 0.22), capMatLeft, shortSlots.length);
+  const lampPostMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 4.6, 0.2), postMatShared, lampSlots.length * 2);
+  const lampHeadMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 0.18, 0.45), lampHeadMat, lampSlots.length * 2);
+  const dummy = new THREE.Object3D();
+  let spIdx = 0, lpIdx = 0, lhIdx = 0, scrIdx = 0, sclIdx = 0;
+  for (const i of shortSlots) {
     const p = points[i];
     const t = tangents[i];
     right.crossVectors(t, up).normalize();
-    const isLamp = i % 24 === 0;
     for (const side of [1, -1]) {
       const offset = side * (ROAD_HALF_WIDTH + SHOULDER + 1.6);
       const px = p.x + right.x * offset;
       const pz = p.z + right.z * offset;
-      const postH = isLamp ? 4.6 : 1.6;
-      const postGeo = new THREE.BoxGeometry(0.2, postH, 0.2);
-      const post = new THREE.Mesh(postGeo, postMatShared);
-      post.position.set(px, p.y + postH * 0.5, pz);
-      postGroup.add(post);
-      if (isLamp) {
-        // Curved arm reaching over the road.
-        const armLen = 2.2;
-        const armGeo = new THREE.BoxGeometry(0.12, 0.12, armLen);
-        const arm = new THREE.Mesh(armGeo, armMat);
-        const armX = px - right.x * side * armLen * 0.5;
-        const armZ = pz - right.z * side * armLen * 0.5;
-        arm.position.set(armX, p.y + postH - 0.1, armZ);
-        arm.rotation.y = Math.atan2(right.x, right.z);
-        postGroup.add(arm);
-        // Lamp head emissive box.
-        const headX = px - right.x * side * armLen;
-        const headZ = pz - right.z * side * armLen;
-        const headGeo = new THREE.BoxGeometry(0.45, 0.18, 0.45);
-        const head = new THREE.Mesh(headGeo, side > 0 ? headMatRight : headMatLeft);
-        head.position.set(headX, p.y + postH - 0.16, headZ);
-        postGroup.add(head);
-        // Point light to actually illuminate the road below.
-        const lampLight = new THREE.PointLight(side > 0 ? 0xfff5d4 : 0xffe9c4, 1.3, 18, 1.6);
-        lampLight.position.set(headX, p.y + postH - 0.5, headZ);
-        postGroup.add(lampLight);
-      } else {
-        // Reflective top cap on shorter posts.
-        const capGeo = new THREE.BoxGeometry(0.22, 0.06, 0.22);
-        const cap = new THREE.Mesh(capGeo, side > 0 ? capMatRight : capMatLeft);
-        cap.position.set(px, p.y + 1.65, pz);
-        postGroup.add(cap);
-      }
+      dummy.position.set(px, p.y + 0.8, pz);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      shortPostMesh.setMatrixAt(spIdx++, dummy.matrix);
+      dummy.position.set(px, p.y + 1.65, pz);
+      dummy.updateMatrix();
+      if (side > 0) shortCapMeshR.setMatrixAt(scrIdx++, dummy.matrix);
+      else          shortCapMeshL.setMatrixAt(sclIdx++, dummy.matrix);
     }
+  }
+  shortCapMeshR.count = scrIdx;
+  shortCapMeshL.count = sclIdx;
+  for (const i of lampSlots) {
+    const p = points[i];
+    const t = tangents[i];
+    right.crossVectors(t, up).normalize();
+    for (const side of [1, -1]) {
+      const offset = side * (ROAD_HALF_WIDTH + SHOULDER + 1.6);
+      const px = p.x + right.x * offset;
+      const pz = p.z + right.z * offset;
+      dummy.position.set(px, p.y + 2.3, pz);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      lampPostMesh.setMatrixAt(lpIdx++, dummy.matrix);
+      // Lamp head over the road.
+      const armLen = 2.0;
+      const headX = px - right.x * side * armLen;
+      const headZ = pz - right.z * side * armLen;
+      dummy.position.set(headX, p.y + 4.46, headZ);
+      dummy.updateMatrix();
+      lampHeadMesh.setMatrixAt(lhIdx++, dummy.matrix);
+    }
+  }
+  for (const m of [shortPostMesh, shortCapMeshR, shortCapMeshL, lampPostMesh, lampHeadMesh]) {
+    m.instanceMatrix.needsUpdate = true;
+    postGroup.add(m);
+  }
+  // Add a small number of real lights at lamp slots — too many tanks the
+  // renderer. Cap at 6 across the whole track for sanity.
+  const LAMP_LIGHT_CAP = 6;
+  for (let k = 0; k < Math.min(LAMP_LIGHT_CAP, lampSlots.length); k++) {
+    const i = lampSlots[Math.floor((k / LAMP_LIGHT_CAP) * lampSlots.length)];
+    const p = points[i];
+    const lampLight = new THREE.PointLight(0xfff5d4, 1.4, 22, 1.5);
+    lampLight.position.set(p.x, p.y + 4.0, p.z);
+    postGroup.add(lampLight);
   }
 
   // Distant ambient lights — small glowing markers off in the distance to give depth.
@@ -273,22 +323,23 @@ export function buildTrack(trackId = "lakeside") {
   }
 
   // Start-line: a checkered strip at s=0 across the road surface.
+  // Tiles are very thin (0.02 height) so they read as paint, not 3D bricks.
   const startGroup = new THREE.Group();
   {
     const start = points[0];
     const startTangent = tangents[0];
     right.crossVectors(startTangent, up).normalize();
     const yaw = Math.atan2(startTangent.x, startTangent.z);
-    const lineWidth = 1.6;
-    const TILES = 12;
+    const lineWidth = 1.4;
+    const TILES = 10;
+    const tileGeo = new THREE.PlaneGeometry((ROAD_HALF_WIDTH * 2) / TILES, lineWidth);
+    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xfbfdff });
+    const blackMat = new THREE.MeshBasicMaterial({ color: 0x05070d });
     for (let i = 0; i < TILES; i++) {
-      const t = (i / TILES - 0.5) * (ROAD_HALF_WIDTH * 2);
-      const tile = new THREE.Mesh(
-        new THREE.BoxGeometry((ROAD_HALF_WIDTH * 2) / TILES, 0.04, lineWidth),
-        new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xfbfdff : 0x05070d })
-      );
-      tile.position.set(start.x + right.x * t, start.y + 0.06, start.z + right.z * t);
-      tile.rotation.y = yaw;
+      const t = (i / TILES - 0.5) * (ROAD_HALF_WIDTH * 2) + (ROAD_HALF_WIDTH * 2) / TILES * 0.5;
+      const tile = new THREE.Mesh(tileGeo, i % 2 === 0 ? whiteMat : blackMat);
+      tile.position.set(start.x + right.x * t, start.y + 0.04, start.z + right.z * t);
+      tile.rotation.set(-Math.PI / 2, 0, -yaw);
       startGroup.add(tile);
     }
     // Two pylons at the line edges with a banner between them.
@@ -309,7 +360,7 @@ export function buildTrack(trackId = "lakeside") {
     startGroup.add(banner);
   }
 
-  // Sector markers — three diagonal lines at 1/3, 2/3 and 1 of arclength.
+  // Sector markers — flat plane stripes.
   const sectorGroup = new THREE.Group();
   for (let s = 1; s <= 3; s++) {
     const idx = Math.floor((s / 3) * SAMPLES) % SAMPLES;
@@ -318,9 +369,9 @@ export function buildTrack(trackId = "lakeside") {
     right.crossVectors(t, up).normalize();
     const yaw = Math.atan2(t.x, t.z);
     const sectorMat = new THREE.MeshBasicMaterial({ color: s === 3 ? 0xfbfdff : 0xffd166 });
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2, 0.04, 0.4), sectorMat);
-    stripe.position.set(p.x, p.y + 0.06, p.z);
-    stripe.rotation.y = yaw;
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF_WIDTH * 2, 0.35), sectorMat);
+    stripe.position.set(p.x, p.y + 0.04, p.z);
+    stripe.rotation.set(-Math.PI / 2, 0, -yaw);
     sectorGroup.add(stripe);
   }
 
