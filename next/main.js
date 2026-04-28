@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=36";
-import { buildScenery, tickAmbient } from "./scenery.js?v=36";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=36";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=36";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=36";
+import { buildTrack, getTrackList } from "./track.js?v=37";
+import { buildScenery, tickAmbient } from "./scenery.js?v=37";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=37";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=37";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=37";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=36";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=36";
-import { createGhost, createGhostMesh } from "./ghost.js?v=36";
-import { createReplay } from "./replay.js?v=36";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=36";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=36";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=36";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=36";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=37";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=37";
+import { createGhost, createGhostMesh } from "./ghost.js?v=37";
+import { createReplay } from "./replay.js?v=37";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=37";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=37";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=37";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=37";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=36";
+} from "./profile.js?v=37";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2114,6 +2114,7 @@ function renderGarage() {
         setCarColors(carId, next.body, next.stripe);
       }
       if (carId === car.shape) swapCar(carId);
+      if (_garagePreview && carId === car.shape) refreshGaragePreview();
     });
   }
   for (const sel of wrap.querySelectorAll('select[data-part="spoiler"]')) {
@@ -2121,21 +2122,46 @@ function renderGarage() {
       const carId = sel.dataset.car;
       setCarSpoiler(carId, sel.value);
       if (carId === car.shape) swapCar(carId);
+      if (_garagePreview && carId === car.shape) refreshGaragePreview();
     });
   }
 }
 
+// 3D garage preview — lazy-init the first time the garage opens.
+let _garagePreview = null;
+async function ensureGaragePreview() {
+  if (_garagePreview) return _garagePreview;
+  const mod = await import("./garagePreview.js?v=37");
+  const cv = document.getElementById("garage-preview");
+  if (!cv) return null;
+  _garagePreview = mod.createGaragePreview(cv);
+  return _garagePreview;
+}
+function refreshGaragePreview() {
+  if (!_garagePreview) return;
+  _garagePreview.setCar(car.shape, getCarLivery(car.shape));
+  document.getElementById("garage-preview-label").textContent = (CAR_SHAPES[car.shape]?.label || "Car").toUpperCase();
+}
+
 if (openGarageBtn) {
-  openGarageBtn.addEventListener("click", () => {
+  openGarageBtn.addEventListener("click", async () => {
     overlay.hidden = true;
     garageOverlay.hidden = false;
     renderGarage();
+    const preview = await ensureGaragePreview();
+    if (preview) {
+      refreshGaragePreview();
+      preview.start();
+      // Also resize on the next frame in case the canvas was 0x0 at start.
+      requestAnimationFrame(() => preview.resize());
+    }
   });
 }
 if (garageBackBtn) {
   garageBackBtn.addEventListener("click", () => {
     const nameInput = document.getElementById("garage-name");
     if (nameInput) setName(nameInput.value);
+    if (_garagePreview) _garagePreview.stop();
     garageOverlay.hidden = true;
     overlay.hidden = false;
   });

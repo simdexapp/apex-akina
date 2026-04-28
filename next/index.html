@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=36">
+    <link rel="stylesheet" href="styles.css?v=37">
     <script type="importmap">
       {
         "imports": {
@@ -346,6 +346,10 @@
               <input id="garage-name" type="text" maxlength="24" />
             </label>
             <div class="garage-stats" id="garage-stats"></div>
+            <div class="garage-preview-wrap">
+              <canvas id="garage-preview" class="garage-preview-canvas" aria-hidden="true"></canvas>
+              <div class="garage-preview-label" id="garage-preview-label">Active car</div>
+            </div>
             <p class="small">Liveries</p>
             <div class="garage-cars" id="garage-cars"></div>
             <p class="small">Achievements</p>
@@ -357,6 +361,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=36"></script>
+    <script type="module" src="main.js?v=37"></script>
   </body>
 </html>
