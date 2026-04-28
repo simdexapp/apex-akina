@@ -284,52 +284,132 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     }
     r.targetSpeed = r.baseTargetSpeed * mul * prof.paceMul;
   }
+  // Project player position once per tick.
+  const playerProj = (playerCar && track) ? track.project(playerCar.group.position) : null;
+
   for (let i = 0; i < rivals.length; i++) {
     const r = rivals[i];
 
-    // ---- Steering: blend homeLane with dodge if traffic ahead ----
-    let dodge = 0;
-    let blockerSpeed = null;
-    // Look ahead 25m for blockers.
-    for (let j = 0; j < rivals.length; j++) {
-      if (j === i) continue;
-      const other = rivals[j];
-      let ds = other.s - r.s;
-      if (ds < -trackLen * 0.5) ds += trackLen;
-      if (ds < 0 || ds > 25) continue;
-      if (Math.abs(other.lane - r.lane) < 1.4) {
-        dodge = (other.lane >= 0 ? -1 : 1) * 1.6;
-        if (blockerSpeed == null || other.speed < blockerSpeed) blockerSpeed = other.speed;
-      }
-    }
-    // Also dodge the player if they're ahead and in our lane.
-    if (playerCar && track) {
-      const proj = track.project(playerCar.group.position);
-      let dsP = proj.s - r.s;
-      if (dsP < -trackLen * 0.5) dsP += trackLen;
-      if (dsP > 0 && dsP < 22 && Math.abs(proj.lateral - r.lane) < 1.4) {
-        dodge = (proj.lateral >= 0 ? -1 : 1) * 1.6;
-      }
-    }
-    const targetLane = Math.max(-5, Math.min(5, r.homeLane + dodge));
-    r.lane += (targetLane - r.lane) * Math.min(1, dt * 2);
-
-    // ---- Pace: look-ahead corner braking ----
-    // Sample three look-aheads (0.5%, 1.5%, 3% of track) and use the worst
-    // curvature to scale braking. Sharper turns trigger heavier slowdown.
+    // ---- Pace + cornering: racing-line aware ----
+    // Sample upcoming curvature at multiple look-aheads. The SIGNED curve
+    // value tells us which way the corner bends, so we can target the
+    // proper apex line (out-in-out): swing wide on entry, hug inside at apex,
+    // exit wide.
     const sampleS = Math.max(0, r.s);
     const t0 = sampleS / trackLen;
     const here = track.sample(t0);
     const a1 = track.sample((t0 + 0.005) % 1);
     const a2 = track.sample((t0 + 0.015) % 1);
     const a3 = track.sample((t0 + 0.030) % 1);
-    const c1 = Math.abs(angularDelta(here.tangentAngle, a1.tangentAngle));
-    const c2 = Math.abs(angularDelta(here.tangentAngle, a2.tangentAngle));
-    const c3 = Math.abs(angularDelta(here.tangentAngle, a3.tangentAngle));
+    const c1signed = angularDelta(here.tangentAngle, a1.tangentAngle);
+    const c2signed = angularDelta(here.tangentAngle, a2.tangentAngle);
+    const c3signed = angularDelta(here.tangentAngle, a3.tangentAngle);
+    const c1 = Math.abs(c1signed);
+    const c2 = Math.abs(c2signed);
+    const c3 = Math.abs(c3signed);
     const curveSeverity = Math.max(c1, c2 * 0.8, c3 * 0.6);
     const cornerDrag = Math.min(0.55, curveSeverity * 6.0);
+
+    // Racing-line target lane: positive = right, negative = left.
+    // Heuristic — apex on the inside of the upcoming turn; entry wide on the
+    // outside; exit wide on the outside again.
+    // c2signed > 0 means upcoming turn bends right → apex is right (positive).
+    // The current lateral curvature c1signed tells us if we're IN a corner now.
+    let racingLine = r.homeLane;
+    if (curveSeverity > 0.012) {
+      // We're approaching/in a corner. Bias lane toward outside on entry,
+      // inside at apex (max curvature ahead now), outside on exit.
+      const inApex = c1 > c2 * 0.8;       // current curve >= upcoming curve = at/just past apex
+      const turnSign = Math.sign(c2signed || c1signed || 1);  // +1 right turn, -1 left turn
+      if (inApex) {
+        // Apex/exit phase — drift to the outside of the turn (opposite of turnSign).
+        racingLine = -turnSign * 3.2;
+      } else {
+        // Entry phase — drive on the outside before the apex.
+        racingLine = -turnSign * 4.0;
+      }
+    }
+
+    // ---- Traffic awareness: scan ahead for slower cars + plan overtake ----
+    let blockerSpeed = null;
+    let blockerLane = null;
+    let blockerDist = Infinity;
+    let dodge = 0;
+    for (let j = 0; j < rivals.length; j++) {
+      if (j === i) continue;
+      const other = rivals[j];
+      let ds = other.s - r.s;
+      if (ds < -trackLen * 0.5) ds += trackLen;
+      // Look 30m ahead, with a tighter lane band to detect "in my line".
+      if (ds < 0 || ds > 30) continue;
+      const laneGap = Math.abs(other.lane - r.lane);
+      // Closer cars matter more — early-warning on traffic 10-30m out.
+      if (laneGap < 1.6 && ds < blockerDist) {
+        blockerDist = ds;
+        blockerSpeed = other.speed;
+        blockerLane = other.lane;
+      }
+    }
+    // Player is also traffic.
+    if (playerProj) {
+      let dsP = playerProj.s - r.s;
+      if (dsP < -trackLen * 0.5) dsP += trackLen;
+      if (dsP > 0 && dsP < 30 && Math.abs(playerProj.lateral - r.lane) < 1.6) {
+        if (dsP < blockerDist) {
+          blockerDist = dsP;
+          blockerSpeed = playerCar.speed;
+          blockerLane = playerProj.lateral;
+        }
+      }
+    }
+    // If there's traffic ahead, plan overtake: pick the side with more room.
+    if (blockerLane != null && blockerDist < 25) {
+      // Choose which side to dive to. Prefer the side AWAY from blocker's lane.
+      const overtakeSide = blockerLane >= 0 ? -1 : 1;
+      // Commitment scales with how close we are.
+      const commit = Math.max(0.4, 1.0 - blockerDist / 25);
+      dodge = overtakeSide * 3.6 * commit;
+    }
+
+    // ---- Defending: if a car is RIGHT BEHIND us, weave slightly to defend ----
+    let defenderUrge = 0;
+    for (let j = 0; j < rivals.length; j++) {
+      if (j === i) continue;
+      const other = rivals[j];
+      let ds = r.s - other.s;
+      if (ds < -trackLen * 0.5) ds += trackLen;
+      if (ds < 0 || ds > 8) continue;
+      // Closing speed > 4 m/s means they're an actual threat.
+      if (other.speed - r.speed > 4) {
+        // Personality: aggressive drivers actually defend, smooth ones don't.
+        const pBlock = (r.personality?.blockChance ?? 0.3);
+        if (pBlock > 0.4) defenderUrge = Math.sign(other.lane - r.lane) * -1.2;
+      }
+    }
+    if (playerProj) {
+      let dsB = r.s - playerProj.s;
+      if (dsB < -trackLen * 0.5) dsB += trackLen;
+      if (dsB > 0 && dsB < 8 && playerCar.speed - r.speed > 4) {
+        const pBlock = (r.personality?.blockChance ?? 0.3);
+        if (pBlock > 0.4) defenderUrge = Math.sign(playerProj.lateral - r.lane) * -1.2;
+      }
+    }
+
+    // Combined target lane: racing line + overtake dodge + defender weave.
+    // Clamp to track halfWidth so AI doesn't drive into barriers.
+    const halfW = (track.halfWidth || 7) - 0.5;
+    const targetLane = Math.max(-halfW, Math.min(halfW, racingLine + dodge + defenderUrge));
+    r.lane += (targetLane - r.lane) * Math.min(1, dt * 2.4);
+
+    // ---- Pace ----
     let pace = r.targetSpeed * (1 - cornerDrag);
-    if (blockerSpeed != null) pace = Math.min(pace, blockerSpeed * 0.96);
+    // If blocker is significantly slower AND we can't easily pass (no room),
+    // tuck in their slipstream — slow to 96% of their speed for a draft setup.
+    if (blockerSpeed != null && blockerSpeed < r.targetSpeed * 0.95 && Math.abs(dodge) < 1.0) {
+      pace = Math.min(pace, blockerSpeed * 0.96);
+    }
+    // If we're committing to an overtake with room, take full pace.
+    // (no extra slowdown from blocker)
     // Health-based pace dampener. Below 50% HP rival drives 30% slower; below
     // 20% it crawls and weaves. Hp recovers 4/sec when not crashed.
     const personality = r.personality || PERSONALITIES[0];

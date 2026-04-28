@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=38";
-import { buildScenery, tickAmbient } from "./scenery.js?v=38";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=38";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=38";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=38";
+import { buildTrack, getTrackList } from "./track.js?v=39";
+import { buildScenery, tickAmbient } from "./scenery.js?v=39";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=39";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=39";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=39";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=38";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=38";
-import { createGhost, createGhostMesh } from "./ghost.js?v=38";
-import { createReplay } from "./replay.js?v=38";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=38";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=38";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=38";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=38";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=39";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=39";
+import { createGhost, createGhostMesh } from "./ghost.js?v=39";
+import { createReplay } from "./replay.js?v=39";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=39";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=39";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=39";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=39";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=38";
+} from "./profile.js?v=39";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2184,7 +2184,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=38");
+  const mod = await import("./garagePreview.js?v=39");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2195,6 +2195,58 @@ function refreshGaragePreview() {
   _garagePreview.setCar(car.shape, getCarLivery(car.shape));
   document.getElementById("garage-preview-label").textContent = (CAR_SHAPES[car.shape]?.label || "Car").toUpperCase();
 }
+
+// ---- Trophy room ----
+function renderTrophyRoom() {
+  const profile = loadProfile();
+  const careerState = getCareerState();
+  const races = profile.stats.races || 0;
+  const wins = profile.stats.wins || 0;
+  const longestSec = (profile.stats.longestRaceMs || 0) / 1000;
+  const summary = document.getElementById("trophy-summary");
+  if (summary) summary.textContent = `${races} races · ${wins} wins · ${profile.stats.bestStreak || 0} best streak · ${longestSec > 0 ? formatTime(longestSec) : "—"} longest race`;
+
+  const wrap = document.getElementById("trophy-list");
+  if (wrap) {
+    const champKeys = ["rookie", "pro", "pro2"];
+    const earnedFinal = (careerState.finalStandings && careerState.finalStandings[0]?.isPlayer) ? careerState.championshipId : null;
+    let html = "";
+    for (const id of champKeys) {
+      const champ = CHAMPIONSHIPS[id];
+      const earned = (earnedFinal === id);
+      const icon = earned ? "🏆" : "🔒";
+      const place = earned ? "1ST PLACE" : "Not yet";
+      html += `<div class="trophy-card ${earned ? "is-earned" : ""}">
+        <span class="trophy-icon">${icon}</span>
+        <span class="trophy-name">${champ.name}</span>
+        <span class="trophy-place">${place}</span>
+      </div>`;
+    }
+    wrap.innerHTML = html;
+  }
+
+  const recs = document.getElementById("trophy-records");
+  if (recs) {
+    let html = "";
+    for (const t of TRACKS_LIST) {
+      const time = bestLapPerTrack[t.id];
+      const cls = time ? "trec" : "trec empty";
+      const display = time ? formatTime(time) : "—";
+      html += `<div class="${cls}"><span>${t.name}</span><span>${display}</span></div>`;
+    }
+    recs.innerHTML = html;
+  }
+}
+
+document.getElementById("open-trophy")?.addEventListener("click", () => {
+  overlay.hidden = true;
+  document.getElementById("trophy-overlay").hidden = false;
+  renderTrophyRoom();
+});
+document.getElementById("trophy-back")?.addEventListener("click", () => {
+  document.getElementById("trophy-overlay").hidden = true;
+  overlay.hidden = false;
+});
 
 if (openGarageBtn) {
   openGarageBtn.addEventListener("click", async () => {

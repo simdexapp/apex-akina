@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=38">
+    <link rel="stylesheet" href="styles.css?v=39">
     <script type="importmap">
       {
         "imports": {
@@ -195,6 +195,7 @@
             <div class="track-picker" id="car-picker" role="radiogroup" aria-label="Choose car"></div>
             <div class="prerace-actions">
               <button id="open-garage" type="button" class="ghost-btn">Garage</button>
+              <button id="open-trophy" type="button" class="ghost-btn">Trophies</button>
               <button id="start" type="button">Drop In</button>
             </div>
             <p class="small race-tip" id="race-tip"></p>
@@ -341,6 +342,21 @@
           </div>
         </div>
 
+        <div class="overlay" id="trophy-overlay" hidden>
+          <div class="title-card">
+            <p class="eyebrow">Trophy Room</p>
+            <h1>Your collection</h1>
+            <p class="small" id="trophy-summary">—</p>
+            <p class="small" style="margin-top: 14px;">Championships</p>
+            <div class="trophy-list" id="trophy-list"></div>
+            <p class="small" style="margin-top: 14px;">Best laps</p>
+            <div class="trophy-records" id="trophy-records"></div>
+            <div class="prerace-actions">
+              <button id="trophy-back" type="button" class="ghost-btn">Back</button>
+            </div>
+          </div>
+        </div>
+
         <div class="overlay" id="garage-overlay" hidden>
           <div class="title-card">
             <p class="eyebrow">Garage</p>
@@ -365,6 +381,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=38"></script>
+    <script type="module" src="main.js?v=39"></script>
   </body>
 </html>
