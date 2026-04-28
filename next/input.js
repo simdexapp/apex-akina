@@ -48,8 +48,12 @@ export function initTouchControls() {
   // ---- Analog drag-pad steering ----
   const track = document.getElementById("steer-track");
   const knob = document.getElementById("steer-knob");
-  let dragId = null;            // active touch identifier
-  const RADIUS = 65 - 30;       // half of (track-knob) = (130-60)/2 = 35
+  let dragId = null;
+
+  function getRadius() {
+    if (!track || !knob) return 1;
+    return (track.offsetWidth - knob.offsetWidth) / 2;
+  }
 
   function updateKnob(clientX, clientY) {
     if (!track || !knob) return;
@@ -58,14 +62,12 @@ export function initTouchControls() {
     const cy = rect.top + rect.height / 2;
     let dx = clientX - cx;
     let dy = clientY - cy;
-    // Clamp to circle (use just X for steer; Y is visual only).
-    const r = RADIUS;
-    const norm = Math.max(-r, Math.min(r, dx));
-    knob.style.left = (rect.width / 2 - knob.offsetWidth / 2 + norm) + "px";
-    // Vertical follow within ±r/2 for tactile feedback.
+    const r = getRadius();
+    const normX = Math.max(-r, Math.min(r, dx));
+    knob.style.left = (rect.width / 2 - knob.offsetWidth / 2 + normX) + "px";
     const ny = Math.max(-r * 0.5, Math.min(r * 0.5, dy));
     knob.style.top = (rect.height / 2 - knob.offsetHeight / 2 + ny) + "px";
-    TOUCH.steerAnalog = norm / r;
+    TOUCH.steerAnalog = normX / r;
   }
 
   function resetKnob() {

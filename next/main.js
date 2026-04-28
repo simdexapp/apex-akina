@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=22";
-import { buildScenery } from "./scenery.js?v=22";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=22";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=22";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=22";
+import { buildTrack, getTrackList } from "./track.js?v=23";
+import { buildScenery } from "./scenery.js?v=23";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=23";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=23";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=23";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=22";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=22";
-import { createGhost, createGhostMesh } from "./ghost.js?v=22";
-import { createReplay } from "./replay.js?v=22";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=22";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=22";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=23";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=23";
+import { createGhost, createGhostMesh } from "./ghost.js?v=23";
+import { createReplay } from "./replay.js?v=23";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=23";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=23";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=22";
+} from "./profile.js?v=23";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");

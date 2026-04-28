@@ -1058,13 +1058,8 @@ body.is-drafting .game-frame::after {
   .hud-stack { padding: 2px 6px; min-width: 40px; }
   .hud strong { font-size: 12px; }
   .label { font-size: 8px; }
-  .speedo { width: 116px; height: 76px; left: 8px; bottom: 8px; }
-  .speedo-readout strong { font-size: 18px; }
-  .speedo-readout .unit { font-size: 8px; }
-  .speedo-meters { display: none; }              /* meters move to top pills on phone */
-  .gear-pill { font-size: 10px; padding: 2px 5px; }
-  .rpm-readout { display: none; }
-  .leaderboard { display: none; }                /* leaderboard takes too much space */
+  .speedo { display: none; }                       /* speedo overlaps steer pad on phone */
+  .leaderboard { display: none; }
   .minimap { display: none; }
   .hud-pill { padding: 3px 8px; font-size: 10px; }
   .hud-pill strong { font-size: 11px; }
@@ -1073,39 +1068,36 @@ body.is-drafting .game-frame::after {
   .lap-delta strong { font-size: 13px; }
   .sectors { display: none; }
   .rival-labels { display: none; }
-  /* Touch buttons sized for thumb reach. */
-  .touch-btn { width: 64px; height: 64px; font-size: 22px; }
-  .touch-throttle { width: 80px; height: 80px; }
-  .touch-brake { width: 80px; height: 64px; }
-  .touch-extras { bottom: 170px; }
-  .steer-track { width: 110px; height: 110px; }
-  .steer-knob { width: 50px; height: 50px; left: 30px; top: 30px; }
-  /* Hide back link + pause/mute become smaller fly-outs. */
+  /* Hide back link; tighter pause/mute. */
   .hud-actions a.back-link { display: none; }
   .hud-actions .back-link { padding: 3px 8px; font-size: 13px; min-height: 30px; }
   /* Top strip stays one line. */
   .hud-top { gap: 4px; }
   .hud-top .hud-stack { padding: 2px 6px; min-width: 36px; }
   .hud-top .hud-stack:nth-child(4) { display: none; }    /* hide "Best" on tiny screens */
-  /* Pre-race pills (combo/draft) stay center-top. */
   .hud-pills { top: 4px; gap: 4px; }
-  /* Ensure touch buttons sit above safe-area inset. */
-  .touch-pad { bottom: max(14px, env(safe-area-inset-bottom)); }
-  .touch-steer { left: max(10px, env(safe-area-inset-left)); }
-  .touch-right { right: max(10px, env(safe-area-inset-right)); }
+  /* Touch buttons stay BIG on phone — same sizes as desktop touch but
+     with safe-area insets so notch / home-bar gestures don't clip. */
+  .touch-pad { bottom: max(80px, calc(80px + env(safe-area-inset-bottom))); }
+  .touch-steer { left: max(18px, env(safe-area-inset-left)); }
+  .touch-right { right: max(18px, env(safe-area-inset-right)); }
 }
 
 /* Phone landscape — pull touch pads toward edges, slim HUD. */
-@media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
-  .speedo { display: none; }                   /* speedo too crowded in landscape; rely on big speed in HUD */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 540px) {
+  .speedo { display: none; }
   .hud-top .hud-stack:nth-child(n+5) { display: none; }
   .lap-delta { display: none; }
   .grip-bar { display: none; }
-  .touch-extras { bottom: 130px; }
-  .touch-throttle { width: 80px; height: 80px; }
-  .touch-brake { width: 80px; height: 64px; }
-  .steer-track { width: 110px; height: 110px; }
-  .steer-knob { width: 50px; height: 50px; left: 30px; top: 30px; }
+  /* Slightly smaller buttons in landscape since the screen is short. */
+  .steer-track { width: 150px; height: 150px; }
+  .steer-knob { width: 66px; height: 66px; left: 42px; top: 42px; }
+  .touch-throttle { width: 110px; height: 110px; font-size: 32px; }
+  .touch-brake { width: 110px; height: 92px; font-size: 30px; }
+  .touch-btn { width: 78px; height: 78px; font-size: 28px; }
+  .touch-steer { bottom: max(40px, env(safe-area-inset-bottom)); }
+  .touch-right { bottom: max(40px, env(safe-area-inset-bottom)); }
+  .touch-extras { bottom: 240px; }
 }
 
 /* Phone landscape — use the wider screen, push touch pads out. */
@@ -1143,24 +1135,25 @@ body.is-drafting .game-frame::after {
 
 .touch-pad[hidden] { display: none; }
 
-/* Analog drag-pad for steering. Sits in the bottom-left. */
+/* Analog drag-pad for steering. Lifted up from the bottom so the OS
+   home-bar / nav gesture area doesn't fight with the steering. */
 .touch-steer {
-  left: 18px;
-  bottom: 18px;
+  left: 22px;
+  bottom: 90px;
 }
 
 .steer-track {
   position: relative;
-  width: 130px;
-  height: 130px;
+  width: 180px;
+  height: 180px;
   border-radius: 50%;
-  border: 2px solid rgba(46, 233, 255, 0.32);
-  background: radial-gradient(circle at 50% 50%, rgba(46,233,255,0.12) 0%, rgba(8,13,22,0.65) 60%);
+  border: 2px solid rgba(46, 233, 255, 0.34);
+  background: radial-gradient(circle at 50% 50%, rgba(46,233,255,0.14) 0%, rgba(8,13,22,0.70) 65%);
   backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
 }
 
 .steer-track::before {
@@ -1168,33 +1161,33 @@ body.is-drafting .game-frame::after {
   position: absolute;
   width: 100%;
   height: 1px;
-  background: rgba(46, 233, 255, 0.16);
+  background: rgba(46, 233, 255, 0.18);
   top: 50%;
 }
 
 .steer-knob {
   position: absolute;
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--cyan), var(--gold));
-  box-shadow: 0 4px 14px rgba(46, 233, 255, 0.5);
+  box-shadow: 0 6px 18px rgba(46, 233, 255, 0.55);
   pointer-events: none;
-  left: 35px;        /* center: (130 - 60) / 2 = 35 */
-  top: 35px;
+  left: 50px;        /* center: (180 - 80) / 2 = 50 */
+  top: 50px;
   transition: left 80ms ease, top 80ms ease;
 }
 
 .steer-track.is-active .steer-knob {
-  transition: none;     /* follow finger immediately while dragging */
+  transition: none;
 }
 
 .steer-hint {
   position: absolute;
-  bottom: -22px;
+  bottom: -26px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
   color: var(--muted);
   letter-spacing: 0.10em;
@@ -1203,37 +1196,37 @@ body.is-drafting .game-frame::after {
 
 .steer-track.is-active .steer-hint { opacity: 0; }
 
-/* Right side: throttle + brake stacked, large hit areas. */
+/* Right side: throttle + brake stacked, large hit areas. Lifted up. */
 .touch-right {
-  right: 18px;
-  bottom: 18px;
+  right: 22px;
+  bottom: 90px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-/* Top-right cluster: boost + drift, smaller. */
+/* Boost + drift cluster — sits above the throttle/brake stack on the right. */
 .touch-extras {
-  right: 18px;
-  bottom: 200px;       /* sits above touch-right cluster */
+  right: 22px;
+  bottom: 320px;       /* clears the bigger throttle (130px) + brake (110px) + 14 gap + buffer */
   display: flex;
-  gap: 10px;
+  gap: 14px;
 }
 
 .touch-btn {
   margin: 0;
-  width: 70px;
-  height: 70px;
-  font-size: 26px;
+  width: 90px;
+  height: 90px;
+  font-size: 32px;
   font-weight: 900;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(8, 13, 22, 0.78);
+  border-radius: 22px;
+  background: rgba(8, 13, 22, 0.80);
   color: var(--ink);
   backdrop-filter: blur(10px);
   text-transform: none;
   letter-spacing: 0;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
   padding: 0;
   display: flex;
   align-items: center;
@@ -1246,21 +1239,23 @@ body.is-drafting .game-frame::after {
 .touch-btn:active,
 .touch-btn.is-pressed {
   transform: scale(0.92);
-  background: rgba(46, 233, 255, 0.42);
+  background: rgba(46, 233, 255, 0.45);
 }
 
 .touch-throttle {
-  width: 90px;
-  height: 90px;
-  background: rgba(46, 233, 255, 0.32);
+  width: 130px;
+  height: 130px;
+  background: rgba(46, 233, 255, 0.34);
+  font-size: 38px;
 }
 .touch-brake {
-  width: 90px;
-  height: 70px;
-  background: rgba(255, 49, 92, 0.30);
+  width: 130px;
+  height: 110px;
+  background: rgba(255, 49, 92, 0.32);
+  font-size: 36px;
 }
-.touch-boost   { background: rgba(255, 209, 102, 0.32); }
-.touch-drift   { background: rgba(166, 108, 255, 0.32); }
+.touch-boost   { background: rgba(255, 209, 102, 0.34); }
+.touch-drift   { background: rgba(166, 108, 255, 0.34); }
 
 /* Photo mode — hide HUD, leaderboard, minimap. Press P to toggle. */
 body.is-photo-mode .hud,
