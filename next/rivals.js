@@ -27,33 +27,50 @@ const RIVAL_VARIANTS = [
 
 function makeRivalMesh(variant) {
   const group = new THREE.Group();
-  const w = variant.w, h = variant.h, l = variant.l;
+  // Apply sleek-JDM proportions: lower stance, wider stance.
+  const w = variant.w * 1.05;
+  const h = variant.h * 0.74;
+  const l = variant.l * 1.04;
   // Body
   const bodyGeo = new THREE.BoxGeometry(w, h, l * 0.94);
   const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.4, roughness: 0.5 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, h * 0.85, -l * 0.03);
   group.add(body);
-  // Sloped cabin
-  const cabinW = w * 0.84, cabinH = h * 0.85, cabinL = l * 0.46;
+  // Sloped cabin (more aggressive rake to match sleek style)
+  const cabinW = w * 0.82, cabinH = h * 0.78, cabinL = l * 0.44;
   const cabinMat = new THREE.MeshStandardMaterial({ color: 0x101729, metalness: 0.25, roughness: 0.3 });
-  const cabin = new THREE.Mesh(buildSlopedCabin(cabinW, cabinH, cabinL, -l * 0.04), cabinMat);
+  const cabin = new THREE.Mesh(buildSlopedCabin(cabinW, cabinH, cabinL, -l * 0.04, 0.45, 0.35), cabinMat);
   cabin.position.y = h * 0.85 + h * 0.5 - 0.05;
   group.add(cabin);
   // Glass
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.36 });
-  const glass = new THREE.Mesh(buildSlopedCabin(cabinW * 0.96, cabinH * 0.94, cabinL * 0.96, -l * 0.04), glassMat);
+  const glass = new THREE.Mesh(buildSlopedCabin(cabinW * 0.96, cabinH * 0.94, cabinL * 0.96, -l * 0.04, 0.45, 0.35), glassMat);
   glass.position.copy(cabin.position);
   glass.position.y += 0.02;
   group.add(glass);
   // Nose wedge
-  const nose = new THREE.Mesh(buildNoseWedge(w * 0.96, h * 0.6, l * 0.22), bodyMat);
-  nose.position.set(0, h * 0.45, l * 0.40);
+  const nose = new THREE.Mesh(buildNoseWedge(w * 0.96, h * 0.55, l * 0.22), bodyMat);
+  nose.position.set(0, h * 0.40, l * 0.40);
   group.add(nose);
-  // Side mirrors
+  // Front splitter
+  const splitter = new THREE.Mesh(
+    new THREE.BoxGeometry(w * 0.94, 0.04, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0x0a0d18, metalness: 0.4, roughness: 0.6 })
+  );
+  splitter.position.set(0, h * 0.16, l * 0.50);
+  group.add(splitter);
+  // Side skirts
+  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x0a0d18, metalness: 0.3, roughness: 0.6 });
   for (const side of [-1, 1]) {
-    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.10, 0.14), bodyMat);
-    mirror.position.set(side * (cabinW * 0.5 + 0.06), cabin.position.y + cabinH * 0.45, -l * 0.04 + cabinL * 0.32);
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, l * 0.62), skirtMat);
+    skirt.position.set(side * w * 0.50, h * 0.20, 0);
+    group.add(skirt);
+  }
+  // Side mirrors (smaller, pulled in)
+  for (const side of [-1, 1]) {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.10), bodyMat);
+    mirror.position.set(side * (cabinW * 0.5 + 0.05), cabin.position.y + cabinH * 0.45, -l * 0.04 + cabinL * 0.32);
     group.add(mirror);
   }
   // Stripe
