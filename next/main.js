@@ -3,7 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { buildTrack, getTrackList } from "./track.js";
-import { buildScenery } from "./scenery.js";
+import { buildScenery } from "./scenery.js?v=2";
 import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js";
 import { createInput } from "./input.js";
 import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js";
