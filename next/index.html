@@ -49,8 +49,36 @@
             <span class="label">Combo</span>
             <strong id="combo-value">x1</strong>
           </div>
+          <div class="hud-stack draft-stack" id="draft-stack" hidden>
+            <span class="label">Draft</span>
+            <strong id="draft-value">0%</strong>
+          </div>
           <button id="mute-btn" class="back-link" type="button" aria-pressed="false">♪</button>
+          <button id="pause-btn" class="back-link" type="button" aria-label="Pause">⏸</button>
           <a class="back-link" href="../index.html">← Old engine</a>
+        </div>
+        <!-- Speedometer arc gauge in the bottom-left corner -->
+        <div class="speedo" id="speedo" aria-hidden="true">
+          <svg viewBox="0 0 200 130" width="100%" height="100%">
+            <path id="speedo-track" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="rgba(46,233,255,0.18)" stroke-width="10" stroke-linecap="round"/>
+            <path id="speedo-fill" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#speedo-grad)" stroke-width="10" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+            <defs>
+              <linearGradient id="speedo-grad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#2ee9ff"/>
+                <stop offset="0.6" stop-color="#ffd166"/>
+                <stop offset="1" stop-color="#ff315c"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="speedo-readout">
+            <strong id="speedo-num">0</strong>
+            <span class="unit">km/h</span>
+            <span class="gear-pill" id="gear-pill">1</span>
+          </div>
+        </div>
+        <!-- Boost FX vignette overlay -->
+        <div class="boost-fx" id="boost-fx" aria-hidden="true">
+          <div class="speedlines"></div>
         </div>
         <aside class="leaderboard" id="leaderboard">
           <span class="label">Order</span>
@@ -96,6 +124,76 @@
             <h1 id="finish-title">Finished</h1>
             <p id="finish-stats"></p>
             <button id="restart" type="button">Run It Back</button>
+          </div>
+        </div>
+
+        <div class="overlay" id="pause-overlay" hidden>
+          <div class="title-card">
+            <p class="eyebrow">Paused</p>
+            <h1>Take a breath</h1>
+            <p>Press Esc to resume.</p>
+            <div class="prerace-actions">
+              <button id="pause-resume" type="button">Resume</button>
+              <button id="pause-restart" type="button" class="ghost-btn">Restart</button>
+              <button id="pause-quit" type="button" class="ghost-btn">Quit to menu</button>
+              <button id="pause-settings" type="button" class="ghost-btn">Settings</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="tutorial-overlay" hidden>
+          <div class="title-card">
+            <p class="eyebrow">First time</p>
+            <h1>Driver briefing</h1>
+            <p>Quick controls, then we drop you in.</p>
+            <ul class="control-grid">
+              <li><kbd>W</kbd>/<kbd>↑</kbd><span>Throttle</span></li>
+              <li><kbd>S</kbd>/<kbd>↓</kbd><span>Brake</span></li>
+              <li><kbd>A D</kbd>/<kbd>← →</kbd><span>Steer</span></li>
+              <li><kbd>Shift</kbd><span>Boost</span></li>
+              <li><kbd>Space</kbd><span>Drift</span></li>
+              <li><kbd>C</kbd><span>Camera</span></li>
+              <li><kbd>Esc</kbd><span>Pause</span></li>
+              <li><kbd>Gamepad</kbd><span>Auto-detected</span></li>
+            </ul>
+            <p class="small">Tip: get the throttle on within a beat of GO for a Perfect Launch surge. Tail an AI inside 22m to draft.</p>
+            <div class="prerace-actions">
+              <button id="tutorial-go" type="button">Drop in</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="settings-overlay" hidden>
+          <div class="title-card">
+            <p class="eyebrow">Settings</p>
+            <h1>Tune the rig</h1>
+            <label class="settings-row">
+              <span>Graphics quality</span>
+              <select id="setting-quality">
+                <option value="high">High (shadows + bloom)</option>
+                <option value="medium">Medium (no shadows)</option>
+                <option value="low">Low (minimal post)</option>
+              </select>
+            </label>
+            <label class="settings-row">
+              <span>Master volume</span>
+              <input id="setting-volume" type="range" min="0" max="100" value="80"/>
+            </label>
+            <label class="settings-row">
+              <span>FOV</span>
+              <input id="setting-fov" type="range" min="60" max="90" value="70"/>
+            </label>
+            <label class="settings-row">
+              <span>Camera shake</span>
+              <input id="setting-shake" type="range" min="0" max="100" value="100"/>
+            </label>
+            <label class="settings-row">
+              <span>Counter-steer assist</span>
+              <input id="setting-assist" type="checkbox" checked/>
+            </label>
+            <div class="prerace-actions">
+              <button id="settings-back" type="button" class="ghost-btn">Back</button>
+            </div>
           </div>
         </div>
 

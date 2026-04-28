@@ -24,8 +24,10 @@ export function buildTrack(trackId = "lakeside") {
   const indices = [];
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3();
-  const innerColor = new THREE.Color("#1d222f");
-  const altColor = new THREE.Color("#141823");
+  // Brighter asphalt — lighter base + alternating darker stripe so the road
+  // surface visibly streaks past the player, instead of being a uniform black.
+  const innerColor = new THREE.Color("#3a3f4f");
+  const altColor = new THREE.Color("#2a2e3c");
   for (let i = 0; i < SAMPLES; i++) {
     const p = points[i];
     const t = tangents[i];
@@ -52,34 +54,48 @@ export function buildTrack(trackId = "lakeside") {
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.10,
-    roughness: 0.78
+    metalness: 0.20,
+    roughness: 0.62,
+    emissive: 0x0a0c14,
+    emissiveIntensity: 0.4
   });
   const roadMesh = new THREE.Mesh(geo, mat);
 
-  // Lane lines — create thin offset strips for each lane edge (4 lines for 5 lanes).
+  // Lane lines — proper emissive boxes (visible regardless of `linewidth`,
+  // which most browsers ignore). Center line is gold, side lines white.
   const laneGroup = new THREE.Group();
   const laneCount = 5;
   for (let lane = 1; lane < laneCount; lane++) {
     const offset = -ROAD_HALF_WIDTH + (ROAD_HALF_WIDTH * 2) * (lane / laneCount);
-    const linePts = [];
-    for (let i = 0; i <= SAMPLES; i++) {
-      const idx = i % SAMPLES;
-      const p = points[idx];
-      const t = tangents[idx];
-      right.crossVectors(t, up).normalize();
-      linePts.push(new THREE.Vector3(p.x + right.x * offset, p.y + 0.02, p.z + right.z * offset));
+    const isCenter = lane === Math.floor(laneCount / 2);
+    const color = isCenter ? 0xffe88a : 0xfbfdff;
+    const dashLen = 3.0;
+    const gapLen = 4.0;
+    let acc = 0;
+    let drawing = true;
+    for (let i = 0; i < SAMPLES; i++) {
+      const p = points[i];
+      const next = points[(i + 1) % SAMPLES];
+      const seg = p.distanceTo(next);
+      acc += seg;
+      const limit = drawing ? dashLen : gapLen;
+      if (acc >= limit) {
+        if (drawing) {
+          // Draw a small box at this segment.
+          const t = tangents[i];
+          right.crossVectors(t, up).normalize();
+          const stripe = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 0.06, dashLen * 0.9),
+            new THREE.MeshBasicMaterial({ color })
+          );
+          stripe.position.set(p.x + right.x * offset, p.y + 0.04, p.z + right.z * offset);
+          stripe.rotation.y = Math.atan2(t.x, t.z);
+          laneGroup.add(stripe);
+        }
+        drawing = !drawing;
+        acc = 0;
+      }
     }
-    const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
-    const lineMat = new THREE.LineDashedMaterial({
-      color: lane === Math.floor(laneCount / 2) ? 0xffd166 : 0xfbfdff,
-      dashSize: 4,
-      gapSize: 4,
-      linewidth: 1
-    });
-    const line = new THREE.Line(lineGeo, lineMat);
-    line.computeLineDistances();
-    laneGroup.add(line);
   }
 
   // Kerb stripes — alternating red/white at the road edge.
@@ -100,12 +116,19 @@ export function buildTrack(trackId = "lakeside") {
     }
   }
 
-  // Ground plane way below the track.
-  const groundGeo = new THREE.PlaneGeometry(2000, 2000);
-  const groundMat = new THREE.MeshStandardMaterial({ color: track.palette.ground, metalness: 0.0, roughness: 0.95 });
+  // Ground plane below the track. Closer to road level + emissive base so it
+  // doesn't read as black at the horizon.
+  const groundGeo = new THREE.PlaneGeometry(2400, 2400, 32, 32);
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: track.palette.ground,
+    metalness: 0.0,
+    roughness: 0.92,
+    emissive: track.palette.ground,
+    emissiveIntensity: 0.18
+  });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -10;
+  ground.position.y = -2.2;
 
   // Bridge / guardrail barriers — looser than before so it doesn't feel claustrophobic.
   const barrierGroup = new THREE.Group();
@@ -179,26 +202,126 @@ export function buildTrack(trackId = "lakeside") {
     }
   }
 
-  // Trackside posts (every 8 samples, both sides).
+  // Trackside posts — denser + tall lamp posts with point lights every 24 samples.
   const postGroup = new THREE.Group();
-  for (let i = 0; i < SAMPLES; i += 8) {
+  const postMatShared = new THREE.MeshLambertMaterial({ color: 0x0c1322 });
+  const armMat = new THREE.MeshLambertMaterial({ color: 0x1a2030 });
+  const headMatRight = new THREE.MeshBasicMaterial({ color: 0xfff5d4 });
+  const headMatLeft = new THREE.MeshBasicMaterial({ color: 0xffe9c4 });
+  const capMatRight = new THREE.MeshBasicMaterial({ color: 0x2ee9ff });
+  const capMatLeft = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+  for (let i = 0; i < SAMPLES; i += 4) {
     const p = points[i];
     const t = tangents[i];
     right.crossVectors(t, up).normalize();
+    const isLamp = i % 24 === 0;
     for (const side of [1, -1]) {
       const offset = side * (ROAD_HALF_WIDTH + SHOULDER + 1.6);
-      const postGeo = new THREE.BoxGeometry(0.2, 1.6, 0.2);
-      const postMat = new THREE.MeshLambertMaterial({ color: 0x0c1322 });
-      const post = new THREE.Mesh(postGeo, postMat);
-      post.position.set(p.x + right.x * offset, p.y + 0.8, p.z + right.z * offset);
+      const px = p.x + right.x * offset;
+      const pz = p.z + right.z * offset;
+      const postH = isLamp ? 4.6 : 1.6;
+      const postGeo = new THREE.BoxGeometry(0.2, postH, 0.2);
+      const post = new THREE.Mesh(postGeo, postMatShared);
+      post.position.set(px, p.y + postH * 0.5, pz);
       postGroup.add(post);
-      // Reflective top cap.
-      const capGeo = new THREE.BoxGeometry(0.22, 0.06, 0.22);
-      const capMat = new THREE.MeshBasicMaterial({ color: side > 0 ? 0x2ee9ff : 0xffd166 });
-      const cap = new THREE.Mesh(capGeo, capMat);
-      cap.position.set(p.x + right.x * offset, p.y + 1.65, p.z + right.z * offset);
-      postGroup.add(cap);
+      if (isLamp) {
+        // Curved arm reaching over the road.
+        const armLen = 2.2;
+        const armGeo = new THREE.BoxGeometry(0.12, 0.12, armLen);
+        const arm = new THREE.Mesh(armGeo, armMat);
+        const armX = px - right.x * side * armLen * 0.5;
+        const armZ = pz - right.z * side * armLen * 0.5;
+        arm.position.set(armX, p.y + postH - 0.1, armZ);
+        arm.rotation.y = Math.atan2(right.x, right.z);
+        postGroup.add(arm);
+        // Lamp head emissive box.
+        const headX = px - right.x * side * armLen;
+        const headZ = pz - right.z * side * armLen;
+        const headGeo = new THREE.BoxGeometry(0.45, 0.18, 0.45);
+        const head = new THREE.Mesh(headGeo, side > 0 ? headMatRight : headMatLeft);
+        head.position.set(headX, p.y + postH - 0.16, headZ);
+        postGroup.add(head);
+        // Point light to actually illuminate the road below.
+        const lampLight = new THREE.PointLight(side > 0 ? 0xfff5d4 : 0xffe9c4, 1.3, 18, 1.6);
+        lampLight.position.set(headX, p.y + postH - 0.5, headZ);
+        postGroup.add(lampLight);
+      } else {
+        // Reflective top cap on shorter posts.
+        const capGeo = new THREE.BoxGeometry(0.22, 0.06, 0.22);
+        const cap = new THREE.Mesh(capGeo, side > 0 ? capMatRight : capMatLeft);
+        cap.position.set(px, p.y + 1.65, pz);
+        postGroup.add(cap);
+      }
     }
+  }
+
+  // Distant ambient lights — small glowing markers off in the distance to give depth.
+  const distantGroup = new THREE.Group();
+  const distantHues = [0xff315c, 0x2ee9ff, 0xffd166, 0xa66cff, 0x3cff9b];
+  for (let i = 0; i < 28; i++) {
+    const ang = (i / 28) * Math.PI * 2;
+    const r = 240 + Math.random() * 90;
+    const x = Math.cos(ang) * r;
+    const z = Math.sin(ang) * r;
+    const y = 4 + Math.random() * 22;
+    const color = distantHues[i % distantHues.length];
+    const lampGeo = new THREE.SphereGeometry(0.9 + Math.random() * 0.5, 6, 6);
+    const lampMat = new THREE.MeshBasicMaterial({ color });
+    const lamp = new THREE.Mesh(lampGeo, lampMat);
+    lamp.position.set(x, y, z);
+    distantGroup.add(lamp);
+  }
+
+  // Start-line: a checkered strip at s=0 across the road surface.
+  const startGroup = new THREE.Group();
+  {
+    const start = points[0];
+    const startTangent = tangents[0];
+    right.crossVectors(startTangent, up).normalize();
+    const yaw = Math.atan2(startTangent.x, startTangent.z);
+    const lineWidth = 1.6;
+    const TILES = 12;
+    for (let i = 0; i < TILES; i++) {
+      const t = (i / TILES - 0.5) * (ROAD_HALF_WIDTH * 2);
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry((ROAD_HALF_WIDTH * 2) / TILES, 0.04, lineWidth),
+        new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xfbfdff : 0x05070d })
+      );
+      tile.position.set(start.x + right.x * t, start.y + 0.06, start.z + right.z * t);
+      tile.rotation.y = yaw;
+      startGroup.add(tile);
+    }
+    // Two pylons at the line edges with a banner between them.
+    const pylonMat = new THREE.MeshStandardMaterial({ color: 0x0c1322, metalness: 0.3, roughness: 0.6 });
+    for (const side of [1, -1]) {
+      const pyOff = side * (ROAD_HALF_WIDTH + SHOULDER + 1.0);
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.3, 6.0, 0.3), pylonMat);
+      pylon.position.set(start.x + right.x * pyOff, start.y + 3.0, start.z + right.z * pyOff);
+      pylon.rotation.y = yaw;
+      startGroup.add(pylon);
+    }
+    const banner = new THREE.Mesh(
+      new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 4, 0.8, 0.12),
+      new THREE.MeshBasicMaterial({ color: 0xff315c })
+    );
+    banner.position.set(start.x, start.y + 5.6, start.z);
+    banner.rotation.y = yaw;
+    startGroup.add(banner);
+  }
+
+  // Sector markers — three diagonal lines at 1/3, 2/3 and 1 of arclength.
+  const sectorGroup = new THREE.Group();
+  for (let s = 1; s <= 3; s++) {
+    const idx = Math.floor((s / 3) * SAMPLES) % SAMPLES;
+    const p = points[idx];
+    const t = tangents[idx];
+    right.crossVectors(t, up).normalize();
+    const yaw = Math.atan2(t.x, t.z);
+    const sectorMat = new THREE.MeshBasicMaterial({ color: s === 3 ? 0xfbfdff : 0xffd166 });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2, 0.04, 0.4), sectorMat);
+    stripe.position.set(p.x, p.y + 0.06, p.z);
+    stripe.rotation.y = yaw;
+    sectorGroup.add(stripe);
   }
 
   const group = new THREE.Group();
@@ -208,6 +331,9 @@ export function buildTrack(trackId = "lakeside") {
   group.add(kerbGroup);
   group.add(barrierGroup);
   group.add(postGroup);
+  group.add(distantGroup);
+  group.add(startGroup);
+  group.add(sectorGroup);
 
   // Track length in world units.
   let length = 0;

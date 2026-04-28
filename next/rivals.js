@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { buildSlopedCabin, buildNoseWedge } from "./car.js";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -28,22 +29,33 @@ function makeRivalMesh(variant) {
   const group = new THREE.Group();
   const w = variant.w, h = variant.h, l = variant.l;
   // Body
-  const bodyGeo = new THREE.BoxGeometry(w, h, l);
+  const bodyGeo = new THREE.BoxGeometry(w, h, l * 0.94);
   const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.4, roughness: 0.5 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = h * 0.85;
+  body.position.set(0, h * 0.85, -l * 0.03);
   group.add(body);
-  // Cabin
-  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x121828, metalness: 0.2, roughness: 0.3 });
-  const cabinW = w * 0.84, cabinH = h * 0.78, cabinL = l * 0.45;
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(cabinW, cabinH, cabinL), cabinMat);
-  cabin.position.set(0, h * 0.85 + h * 0.5 + cabinH * 0.5 - 0.1, -l * 0.04);
+  // Sloped cabin
+  const cabinW = w * 0.84, cabinH = h * 0.85, cabinL = l * 0.46;
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x101729, metalness: 0.25, roughness: 0.3 });
+  const cabin = new THREE.Mesh(buildSlopedCabin(cabinW, cabinH, cabinL, -l * 0.04), cabinMat);
+  cabin.position.y = h * 0.85 + h * 0.5 - 0.05;
   group.add(cabin);
   // Glass
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.32 });
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(cabinW * 0.95, cabinH * 0.92, cabinL * 0.92), glassMat);
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.36 });
+  const glass = new THREE.Mesh(buildSlopedCabin(cabinW * 0.96, cabinH * 0.94, cabinL * 0.96, -l * 0.04), glassMat);
   glass.position.copy(cabin.position);
+  glass.position.y += 0.02;
   group.add(glass);
+  // Nose wedge
+  const nose = new THREE.Mesh(buildNoseWedge(w * 0.96, h * 0.6, l * 0.22), bodyMat);
+  nose.position.set(0, h * 0.45, l * 0.40);
+  group.add(nose);
+  // Side mirrors
+  for (const side of [-1, 1]) {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.10, 0.14), bodyMat);
+    mirror.position.set(side * (cabinW * 0.5 + 0.06), cabin.position.y + cabinH * 0.45, -l * 0.04 + cabinL * 0.32);
+    group.add(mirror);
+  }
   // Stripe
   const stripeMat = new THREE.MeshStandardMaterial({ color: variant.stripe, metalness: 0.1, roughness: 0.4 });
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, h + 0.02, l + 0.02), stripeMat);
@@ -98,26 +110,34 @@ function makeRivalMesh(variant) {
   return group;
 }
 
+// F1-style grid: player at pole (s=0, lane=0). Rivals fill 7 rows of 2 behind,
+// staggered laterally ±3m and longitudinally ROW_SPACING metres apart.
+const ROW_SPACING = 6;
+const COL_OFFSET = 3;
+
 export function createRivals(track, count = 14) {
   const rivals = [];
   for (let i = 0; i < count; i++) {
     const variant = RIVAL_VARIANTS[i % RIVAL_VARIANTS.length];
     const mesh = makeRivalMesh(variant);
-    // Lane offset varies per rival from -4.5 to +4.5 m.
+    // Grid placement.
+    const row = Math.floor(i / 2) + 1;       // row 0 = player; rivals start from row 1
+    const col = i % 2 === 0 ? -1 : 1;        // alternate left/right
+    const gridS = -row * ROW_SPACING;
+    const gridLane = col * COL_OFFSET;
+    // Race home lane is independent — pull toward a small offset off the centerline so they spread once underway.
     const homeLane = ((i % 5) - 2) * 1.6;
     rivals.push({
       name: variant.name,
       mesh,
-      // Stagger starting arclength so they spread across the grid.
-      s: -((i + 1) * 14),
-      lane: homeLane,
+      s: gridS,
+      lane: gridLane,
       homeLane,
-      // Tiered target speeds scaled to BASE_MAX_SPEED 78 — front fights the player, mid hangs in, back holds station.
-      // Player base 78, *1.04 (gt) = 81, +25% boost = 101 briefly. Front pack 72-80 fights without boost.
-      targetSpeed: i < 4 ? 72 + Math.random() * 8
-                  : i < 9 ? 62 + Math.random() * 8
-                  : 52 + Math.random() * 8,
-      baseTargetSpeed: 0,  // populated below; used for rubber-band
+      // Tiered target speeds. Front tier 78-84 closely matches the player base of 78-86.
+      targetSpeed: i < 4 ? 78 + Math.random() * 6
+                  : i < 9 ? 70 + Math.random() * 6
+                  : 60 + Math.random() * 6,
+      baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
       heading: 0
@@ -126,6 +146,47 @@ export function createRivals(track, count = 14) {
   // Cache the base targetSpeed for rubber-band scaling later.
   for (const r of rivals) r.baseTargetSpeed = r.targetSpeed;
   return rivals;
+}
+
+// Resolve a rival pose at arclength `s` and lateral `lane`. When s < 0 we project
+// straight backwards from the start point along the start tangent — this gives a
+// straight grid even on tracks whose start line sits on a curve.
+function resolveRivalPose(track, s, lane) {
+  const trackLen = track.length;
+  if (s < 0) {
+    const start = track.sample(0);
+    const tangentX = Math.sin(start.tangentAngle);
+    const tangentZ = Math.cos(start.tangentAngle);
+    const rightX = -tangentZ;
+    const rightZ = tangentX;
+    // Walk backwards along the straight line of the start tangent by |s|.
+    const x = start.x + tangentX * s + rightX * lane;
+    const z = start.z + tangentZ * s + rightZ * lane;
+    return { x, y: start.y, z, heading: start.tangentAngle };
+  }
+  const tParam = ((s % trackLen) + trackLen) % trackLen / trackLen;
+  const pt = track.sample(tParam);
+  const tangentX = Math.sin(pt.tangentAngle);
+  const tangentZ = Math.cos(pt.tangentAngle);
+  const rightX = -tangentZ;
+  const rightZ = tangentX;
+  return {
+    x: pt.x + rightX * lane,
+    y: pt.y,
+    z: pt.z + rightZ * lane,
+    heading: pt.tangentAngle
+  };
+}
+
+// Place each rival's mesh at its current (s, lane). Used to make the grid
+// visible before the race ticks, and after a reset.
+export function placeRivalsOnGrid(rivals, track) {
+  for (const r of rivals) {
+    const pose = resolveRivalPose(track, r.s, r.lane);
+    r.mesh.position.set(pose.x, pose.y + 0.4, pose.z);
+    r.heading = pose.heading;
+    r.mesh.rotation.set(0, r.heading, 0);
+  }
 }
 
 export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0) {
@@ -176,9 +237,11 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0) {
     r.lane += (targetLane - r.lane) * Math.min(1, dt * 2);
 
     // ---- Pace: target speed minus traffic / corner drag ----
-    // Sample upcoming curvature 5 segments ahead to slow into corners.
-    const futureT = ((r.s / trackLen) + 0.005) % 1;
-    const here = track.sample(r.s / trackLen);
+    // Sample upcoming curvature 5 segments ahead to slow into corners. Clamp s
+    // to the start of the track if we're still on the grid (s < 0).
+    const sampleS = Math.max(0, r.s);
+    const futureT = ((sampleS / trackLen) + 0.005) % 1;
+    const here = track.sample(sampleS / trackLen);
     const future = track.sample(futureT);
     const curveSeverity = Math.abs(angularDelta(here.tangentAngle, future.tangentAngle));
     const cornerDrag = Math.min(0.35, curveSeverity * 4.0);
@@ -186,26 +249,23 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0) {
     if (blockerSpeed != null) pace = Math.min(pace, blockerSpeed * 0.96);
     r.speed += (pace - r.speed) * Math.min(1, dt * 1.8);
 
-    // Advance arclength.
+    // Advance arclength. Don't modulo while still on the negative-s grid —
+    // only wrap once the rival has actually crossed the start line and the
+    // arclength would exceed track length.
     const oldS = r.s;
-    r.s = (r.s + r.speed * dt) % trackLen;
-    if (r.s < oldS - trackLen * 0.5) r.laps++;
+    let nextS = r.s + r.speed * dt;
+    if (nextS >= trackLen) {
+      nextS -= trackLen;
+      r.laps++;
+    }
+    r.s = nextS;
 
-    // Place mesh on the track at (s, lane).
-    const tParam = ((r.s % trackLen) + trackLen) % trackLen / trackLen;
-    const pt = track.sample(tParam);
-    // Compute lateral offset in world space.
-    const tangentX = Math.sin(pt.tangentAngle);
-    const tangentZ = Math.cos(pt.tangentAngle);
-    // Right vector = tangent × up = (tx, 0, tz) × (0, 1, 0) = (-tz, 0, tx) but in our "negative-cos forward" convention we want:
-    const rightX = -tangentZ;
-    const rightZ = tangentX;
-    r.mesh.position.set(
-      pt.x + rightX * r.lane,
-      pt.y + 0.4,
-      pt.z + rightZ * r.lane
-    );
-    r.heading = pt.tangentAngle;
+    // Place mesh — use straight-line projection while still on the grid (s < 0),
+    // otherwise sample the track centerline. This keeps the formation straight
+    // on tracks whose start line is on a curve.
+    const pose = resolveRivalPose(track, r.s, r.lane);
+    r.mesh.position.set(pose.x, pose.y + 0.4, pose.z);
+    r.heading = pose.heading;
     r.mesh.rotation.set(0, r.heading, 0);
   }
 }

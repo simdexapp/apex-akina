@@ -12,6 +12,8 @@ function defaultProfile() {
     cars[id] = {
       body: shape.body,
       stripe: shape.stripe,
+      accent: 0xc8d4e6,            // wheel hub chrome
+      spoiler: shape.spoiler ?? "none",
       livery: "Stock"
     };
   }
@@ -48,6 +50,9 @@ export function loadProfile() {
     const def = defaultProfile();
     for (const id of Object.keys(def.cars)) {
       if (!parsed.cars[id]) parsed.cars[id] = def.cars[id];
+      // Backfill new fields onto existing entries.
+      if (parsed.cars[id].accent === undefined) parsed.cars[id].accent = def.cars[id].accent;
+      if (parsed.cars[id].spoiler === undefined) parsed.cars[id].spoiler = def.cars[id].spoiler;
     }
     cache = parsed;
     return cache;
@@ -70,9 +75,25 @@ export function setName(name) {
 
 export function setCarColors(carShape, body, stripe) {
   const p = loadProfile();
-  if (!p.cars[carShape]) p.cars[carShape] = { body, stripe, livery: "Custom" };
+  if (!p.cars[carShape]) p.cars[carShape] = { body, stripe, accent: 0xc8d4e6, spoiler: "none", livery: "Custom" };
   p.cars[carShape].body = body;
   p.cars[carShape].stripe = stripe;
+  p.cars[carShape].livery = "Custom";
+  saveProfile();
+}
+
+export function setCarAccent(carShape, accent) {
+  const p = loadProfile();
+  if (!p.cars[carShape]) return;
+  p.cars[carShape].accent = accent;
+  p.cars[carShape].livery = "Custom";
+  saveProfile();
+}
+
+export function setCarSpoiler(carShape, spoiler) {
+  const p = loadProfile();
+  if (!p.cars[carShape]) return;
+  p.cars[carShape].spoiler = spoiler;
   p.cars[carShape].livery = "Custom";
   saveProfile();
 }

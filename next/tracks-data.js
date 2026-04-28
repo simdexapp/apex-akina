@@ -4,18 +4,47 @@ import * as THREE from "three";
 
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
 
+// Per-track music profiles. tempo in BPM, arp + bass note arrays in Hz.
+// Used by audio.js to swap the music loop per track for variety.
+export const MUSIC_PROFILES = {
+  lakeside: {
+    tempo: 88,
+    arp: [196, 246.94, 293.66, 369.99, 293.66, 369.99, 440, 293.66,
+          196, 246.94, 293.66, 369.99, 246.94, 293.66, 369.99, 440],
+    bass: [98, 0, 123.47, 0, 98, 0, 123.47, 0]
+  },
+  bayside: {
+    tempo: 96,
+    arp: [146.83, 174.61, 220, 261.63, 220, 261.63, 329.63, 220,
+          146.83, 174.61, 220, 261.63, 174.61, 220, 261.63, 329.63],
+    bass: [73.42, 0, 87.31, 0, 73.42, 0, 87.31, 0]
+  },
+  highway: {
+    tempo: 110,
+    arp: [164.81, 207.65, 246.94, 311.13, 246.94, 311.13, 369.99, 246.94,
+          164.81, 207.65, 246.94, 311.13, 207.65, 246.94, 311.13, 369.99],
+    bass: [82.41, 0, 103.83, 0, 82.41, 0, 103.83, 0]
+  },
+  neon: {
+    tempo: 132,
+    arp: [220, 277.18, 329.63, 415.30, 329.63, 415.30, 493.88, 329.63,
+          220, 277.18, 329.63, 415.30, 277.18, 329.63, 415.30, 493.88],
+    bass: [110, 0, 138.59, 0, 110, 0, 138.59, 0]
+  }
+};
+
 export const TRACKS = {
   lakeside: {
     name: "Lakeside",
     description: "Flowing lakeside circuit. Wide cambered curves, gentle rises.",
     palette: {
-      sky: { top: "#0a1224", mid: "#1c2a48", bottom: "#5a6c8a" },
-      fog: 0x182740,
-      kerbA: 0xb84a3a, kerbB: 0xeaeef5,
-      ground: 0x0a1422,
-      moonLight: 0xc8d0e8,
-      fillRed: 0xa84838,
-      fillCyan: 0x5878a8
+      sky: { top: "#1d2c5a", mid: "#5e4a92", bottom: "#ffa86a" },
+      fog: 0x3a3a72,
+      kerbA: 0xff5e3a, kerbB: 0xfbfdff,
+      ground: 0x182d3a,
+      moonLight: 0xfde2c4,
+      fillRed: 0xff5a48,
+      fillCyan: 0x70a8e8
     },
     // Smooth oval-ish loop with gentle elevation. No hairpins, no bridge crossings.
     points: [
@@ -41,13 +70,13 @@ export const TRACKS = {
     name: "Bayside Boulevard",
     description: "Long ocean straights, sweeping cambered curves.",
     palette: {
-      sky: { top: "#0a1430", mid: "#1a3460", bottom: "#3a6080" },
-      fog: 0x16284a,
-      kerbA: 0xc24c3a, kerbB: 0xeaeef5,
-      ground: 0x06121e,
-      moonLight: 0xc8d8ff,
-      fillRed: 0xa84838,
-      fillCyan: 0x4a86b0
+      sky: { top: "#152452", mid: "#3a5092", bottom: "#ffb074" },
+      fog: 0x3a4880,
+      kerbA: 0xff5a48, kerbB: 0xfbfdff,
+      ground: 0x102438,
+      moonLight: 0xfde2c4,
+      fillRed: 0xff5a48,
+      fillCyan: 0x6ab4d8
     },
     points: [
       v(0, 0, 0), v(80, 0.2, 60), v(160, 0.4, 140),
@@ -62,13 +91,13 @@ export const TRACKS = {
     name: "Coastal Highway",
     description: "High-speed straights joined by long sweepers. Top-end test.",
     palette: {
-      sky: { top: "#0c1422", mid: "#28342a", bottom: "#88a092" },
-      fog: 0x182618,
-      kerbA: 0xb89238, kerbB: 0xe8dcb8,
-      ground: 0x0a1216,
-      moonLight: 0xd0c898,
-      fillRed: 0x9c6c30,
-      fillCyan: 0x7aa088
+      sky: { top: "#1c2a4a", mid: "#5a3a6a", bottom: "#ffae6c" },
+      fog: 0x4a3a5a,
+      kerbA: 0xffd166, kerbB: 0xfbfdff,
+      ground: 0x1a2632,
+      moonLight: 0xffe2b6,
+      fillRed: 0xff5a48,
+      fillCyan: 0xa890d8
     },
     // Long straights with wide, fast sweepers. Mostly flat, a couple gentle rises.
     points: [
@@ -95,13 +124,13 @@ export const TRACKS = {
     name: "Neon Highway",
     description: "Cyberpunk overpass. Long blasts.",
     palette: {
-      sky: { top: "#0c0820", mid: "#2a1240", bottom: "#a83778" },
-      fog: 0x180a30,
-      kerbA: 0xc83a8a, kerbB: 0x4cb8c8,
-      ground: 0x070416,
-      moonLight: 0xd896b8,
-      fillRed: 0xa8307a,
-      fillCyan: 0x3098a8
+      sky: { top: "#1a0c4a", mid: "#5a1a72", bottom: "#ff4ca8" },
+      fog: 0x4a1a72,
+      kerbA: 0xff48b6, kerbB: 0x4ce8ff,
+      ground: 0x1a0a32,
+      moonLight: 0xffb0d8,
+      fillRed: 0xff48b6,
+      fillCyan: 0x4ce8ff
     },
     points: [
       v(0, 0, 0), v(80, 0, 60), v(180, 0.3, 80),

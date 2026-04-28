@@ -3,14 +3,17 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { buildTrack, getTrackList } from "./track.js";
-import { createCar, CAR_SHAPES } from "./car.js";
+import { buildScenery } from "./scenery.js";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js";
 import { createInput } from "./input.js";
-import { createRivals, tickRivals } from "./rivals.js";
-import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted } from "./audio.js";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js";
+import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
+  setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile } from "./audio.js";
+import { MUSIC_PROFILES } from "./tracks-data.js";
 import { createGhost, createGhostMesh } from "./ghost.js";
 import {
-  loadProfile, saveProfile, setName, setCarColors, getCarLivery,
-  bumpStats, recordBestLap, hex, parseHex
+  loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
+  getCarLivery, bumpStats, recordBestLap, hex, parseHex
 } from "./profile.js";
 
 // ---- Renderer / scene setup ----
@@ -18,66 +21,120 @@ const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = 1.55;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x1a1240, 60, 350);
+scene.fog = new THREE.Fog(0x2a1c5a, 120, 480);
 
-// Sky shader.
+// Sky shader — dawn / dusk gradient with a hot horizon band so the world reads
+// luminous instead of black.
 const skyUniforms = {
-  topColor: { value: new THREE.Color("#0a0f2c") },
-  midColor: { value: new THREE.Color("#3a1656") },
-  bottomColor: { value: new THREE.Color("#ff5f4c") },
-  offset: { value: 200 }
+  topColor: { value: new THREE.Color("#1a1a4e") },
+  midColor: { value: new THREE.Color("#7a2c8e") },
+  bottomColor: { value: new THREE.Color("#ff8a4c") },
+  offset: { value: 220 }
 };
 {
-  const skyGeo = new THREE.SphereGeometry(800, 32, 16);
+  const skyGeo = new THREE.SphereGeometry(900, 48, 24);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: skyUniforms,
     vertexShader: `varying vec3 vWorld; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor; uniform float offset; varying vec3 vWorld;
+      // Quick hash for sky stipple noise (subtle horizon haze).
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       void main() {
         float h = normalize(vWorld + vec3(0.0, offset, 0.0)).y;
-        vec3 col = mix(bottomColor, midColor, smoothstep(-0.1, 0.4, h));
-        col = mix(col, topColor, smoothstep(0.4, 1.0, h));
+        // Hot horizon band: amplify bottom color near horizon.
+        vec3 horizon = mix(bottomColor * 1.2, midColor, smoothstep(-0.05, 0.35, h));
+        vec3 col = mix(horizon, topColor, smoothstep(0.35, 0.95, h));
+        // Soft horizon haze noise.
+        float n = hash(floor(vWorld.xz * 0.04));
+        col += vec3(0.04, 0.02, 0.05) * n * (1.0 - smoothstep(0.0, 0.4, h));
         gl_FragColor = vec4(col, 1.0);
       }`
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
 }
 
+// Strong ambient so the world isn't pitch-black even with no direct light.
+const ambient = new THREE.AmbientLight(0x9bb6ff, 0.35);
+scene.add(ambient);
+
 // Lighting (set up once, recolored per track).
-const moonLight = new THREE.DirectionalLight(0xb6c8ff, 1.4);
+const moonLight = new THREE.DirectionalLight(0xfde2c4, 2.4);
 moonLight.position.set(60, 110, 40);
-scene.add(moonLight);
-const hemi = new THREE.HemisphereLight(0x6688ff, 0x150828, 0.5);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(2048, 2048);
+moonLight.shadow.camera.near = 10;
+moonLight.shadow.camera.far = 320;
+moonLight.shadow.camera.left = -90;
+moonLight.shadow.camera.right = 90;
+moonLight.shadow.camera.top = 90;
+moonLight.shadow.camera.bottom = -90;
+moonLight.shadow.bias = -0.0008;
+moonLight.shadow.normalBias = 0.04;
+// Move the shadow camera with the player so it always covers the active area.
+const shadowTargetGroup = new THREE.Group();
+moonLight.target = shadowTargetGroup;
+scene.add(shadowTargetGroup);
+const hemi = new THREE.HemisphereLight(0xa8c8ff, 0x4a3060, 1.2);
 scene.add(hemi);
-const fillRed = new THREE.PointLight(0xff315c, 1.6, 260);
+// Warm horizon fill — simulates the orange sun band hitting everything.
+const horizonFill = new THREE.DirectionalLight(0xff9a4c, 0.9);
+horizonFill.position.set(-200, 8, 0);
+scene.add(horizonFill);
+const fillRed = new THREE.PointLight(0xff315c, 3.2, 280);
 fillRed.position.set(-60, 40, -40);
 scene.add(fillRed);
-const fillCyan = new THREE.PointLight(0x2ee9ff, 1.2, 220);
+const fillCyan = new THREE.PointLight(0x2ee9ff, 2.4, 240);
 fillCyan.position.set(60, 30, 80);
 scene.add(fillCyan);
 
-// Stars.
+// Stars — denser + slightly tinted for sparkle.
 {
-  const starCount = 500;
+  const starCount = 1400;
   const positions = new Float32Array(starCount * 3);
+  const colors = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i++) {
-    const r = 350 + Math.random() * 200;
+    const r = 480 + Math.random() * 240;
     const phi = Math.random() * Math.PI * 2;
-    const theta = Math.random() * 0.6;
+    const theta = Math.random() * 0.7;
     positions[i * 3]     = Math.cos(phi) * Math.cos(theta) * r;
-    positions[i * 3 + 1] = Math.sin(theta) * r + 100;
+    positions[i * 3 + 1] = Math.sin(theta) * r + 120;
     positions[i * 3 + 2] = Math.sin(phi) * Math.cos(theta) * r;
+    // Tint about 20% of stars cyan / pink for visual variety.
+    const t = Math.random();
+    if (t < 0.10) { colors.set([0.55, 0.85, 1.0], i * 3); }
+    else if (t < 0.18) { colors.set([1.0, 0.7, 0.85], i * 3); }
+    else if (t < 0.26) { colors.set([1.0, 0.92, 0.65], i * 3); }
+    else { colors.set([1.0, 1.0, 1.0], i * 3); }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({ color: 0xfbfdff, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0.85 });
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: 1.8, sizeAttenuation: false, transparent: true, opacity: 0.95, vertexColors: true });
   scene.add(new THREE.Points(geo, mat));
+}
+
+// Nebula band — a couple of large soft glow planes high in the sky.
+{
+  const nebulaMat1 = new THREE.MeshBasicMaterial({
+    color: 0xa64cff, transparent: true, opacity: 0.16, depthWrite: false
+  });
+  const nebulaMat2 = new THREE.MeshBasicMaterial({
+    color: 0x2ee9ff, transparent: true, opacity: 0.12, depthWrite: false
+  });
+  for (const [mat, ang] of [[nebulaMat1, 0.6], [nebulaMat2, -0.3]]) {
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(700, 240), mat);
+    plane.position.set(Math.cos(ang) * 380, 240, Math.sin(ang) * 380);
+    plane.lookAt(0, 240, 0);
+    scene.add(plane);
+  }
 }
 
 // ---- Track + car + rivals (loaded per track id) ----
@@ -102,9 +159,21 @@ const initialCarShape = (() => {
   } catch (_) { return "gt"; }
 })();
 
+// Walk a Three.js subtree and flag meshes as shadow casters / receivers.
+// Skip MeshBasic (lamps, lights) — they shouldn't cast.
+function applyShadows(root, { cast = true, receive = false } = {}) {
+  root.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const isBasic = obj.material && obj.material.isMeshBasicMaterial;
+    if (cast && !isBasic) obj.castShadow = true;
+    if (receive) obj.receiveShadow = true;
+  });
+}
+
 let boostFlame = null;
 let car = createCar(initialCarShape, getCarLivery(initialCarShape));
 scene.add(car.group);
+applyShadows(car.group, { cast: true, receive: true });
 attachBoostFlame();
 
 function swapCar(shapeId) {
@@ -115,10 +184,12 @@ function swapCar(shapeId) {
   }
   car = createCar(shapeId, getCarLivery(shapeId));
   scene.add(car.group);
+  applyShadows(car.group, { cast: true, receive: true });
   attachBoostFlame();
   if (startPoint) {
     car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
     car.heading = startPoint.tangentAngle;
+    car.group.rotation.set(0, car.heading, 0);
   }
   setupGhostFor(track?.id || initialTrackId, shapeId);
   try { localStorage.setItem(CAR_KEY, shapeId); } catch (_) {}
@@ -171,12 +242,22 @@ function setupGhostFor(trackId, carShape) {
   bestLapDisplay = ghost.bestTime();
 }
 
+let scenery = null;
 function loadTrack(id) {
   if (track) {
     scene.remove(track.group);
   }
+  if (scenery) {
+    scene.remove(scenery);
+    scenery = null;
+  }
   track = buildTrack(id);
   scene.add(track.group);
+  applyShadows(track.group, { cast: true, receive: true });
+  // Build per-track scenery (mountains + trees / buildings / billboards).
+  scenery = buildScenery(id, track);
+  scene.add(scenery);
+  applyShadows(scenery, { cast: false, receive: false });
   startPoint = track.sample(0);
   // Update sky + fog + lights from palette.
   skyUniforms.topColor.value.set(track.palette.sky.top);
@@ -188,12 +269,19 @@ function loadTrack(id) {
   fillCyan.color.setHex(track.palette.fillCyan);
   // Reset rivals.
   for (const r of rivals) scene.remove(r.mesh);
-  rivals = createRivals(track, 8);
-  for (const r of rivals) scene.add(r.mesh);
+  rivals = createRivals(track, 14);
+  for (const r of rivals) {
+    scene.add(r.mesh);
+    applyShadows(r.mesh, { cast: true, receive: false });
+  }
+  placeRivalsOnGrid(rivals, track);
   // Place player.
   car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
   car.heading = startPoint.tangentAngle;
+  car.group.rotation.set(0, car.heading, 0);
   setupGhostFor(id, car.shape);
+  // Swap to this track's music profile if defined.
+  if (MUSIC_PROFILES[id]) setMusicProfile(MUSIC_PROFILES[id]);
   try { localStorage.setItem(TRACK_KEY, id); } catch (_) {}
 }
 
@@ -207,7 +295,7 @@ let fovPunch = 0;          // current fov delta over base, decays to 0
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 // Restrained bloom — keep the lights glowing but stop everything from looking neon-soaked.
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.42, 0.55, 0.78);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.55, 0.6, 0.85);
 composer.addPass(bloomPass);
 
 function resize() {
@@ -246,6 +334,8 @@ const cameraTarget = new THREE.Vector3();
 const cameraDesired = new THREE.Vector3();
 const cameraSmoothPos = new THREE.Vector3();
 
+let shakeMultiplier = 1;
+
 function updateCamera(dt) {
   const sin = Math.sin(car.heading);
   const cos = Math.cos(car.heading);
@@ -256,6 +346,10 @@ function updateCamera(dt) {
     car.group.position.y + cameraOffset.y,
     car.group.position.z + oz
   );
+  // Drag the directional-light source + target with the player so the shadow
+  // map's view frustum always covers the active area.
+  shadowTargetGroup.position.set(car.group.position.x, car.group.position.y, car.group.position.z);
+  moonLight.position.set(car.group.position.x + 60, car.group.position.y + 110, car.group.position.z + 40);
   if (!cameraInitialised) {
     cameraSmoothPos.copy(cameraDesired);
     cameraInitialised = true;
@@ -264,7 +358,7 @@ function updateCamera(dt) {
   }
   // Apply camera shake + FOV punch (decay).
   if (cameraShake > 0) {
-    const shake = cameraShake;
+    const shake = cameraShake * (typeof shakeMultiplier === "number" ? shakeMultiplier : 1);
     cameraSmoothPos.x += (Math.random() - 0.5) * shake;
     cameraSmoothPos.y += (Math.random() - 0.5) * shake * 0.5;
     cameraShake = Math.max(0, cameraShake - dt * 4);
@@ -280,12 +374,13 @@ function updateCamera(dt) {
   camera.lookAt(cameraTarget);
 
   // FOV punch — subtle widen on boost activation, decays back to base.
+  const baseFov = settings.fov ?? BASE_FOV;
   if (fovPunch > 0.01) {
-    camera.fov = BASE_FOV + fovPunch;
+    camera.fov = baseFov + fovPunch;
     camera.updateProjectionMatrix();
     fovPunch = Math.max(0, fovPunch - dt * 22);
-  } else if (camera.fov !== BASE_FOV) {
-    camera.fov = BASE_FOV;
+  } else if (camera.fov !== baseFov) {
+    camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
 }
@@ -474,11 +569,53 @@ function saveBestLaps() {
 
 function tick(dt) {
   const i = input.read();
+
+  // Slipstream — find closest rival ahead and compute draft amount.
+  // (Done before car.tick so the speed ceiling reflects current draft.)
+  let draft = 0;
+  if (rivals && rivals.length) {
+    const sin = Math.sin(car.heading);
+    const cos = Math.cos(car.heading);
+    let bestDraft = 0;
+    for (const r of rivals) {
+      const dx = r.mesh.position.x - car.group.position.x;
+      const dz = r.mesh.position.z - car.group.position.z;
+      const forward = dx * sin + dz * cos;        // dot with heading vector
+      if (forward < 1 || forward > 22) continue;
+      const lateral = dx * cos - dz * sin;
+      if (Math.abs(lateral) > 2.6) continue;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      const proximity = 1 - dist / 22;
+      if (proximity > bestDraft) bestDraft = proximity;
+    }
+    draft = bestDraft;
+  }
+  car.draftAmount = draft;
+
+  // Race-live time for perfect-launch detection.
+  if (running) {
+    car.raceLiveTime = (car.raceLiveTime ?? 0) + dt;
+  }
+
   car.tick(dt, i, track);
-  // Boost mechanic — input.boost drains fuel, gives speed bump.
-  // Boost is now driven inside car.tick — passive regen happens here.
+
+  // Boost mechanic — passive regen happens here while not boosting/drifting.
   if (running && !i.boost && !car.driftActive) {
     car.boostMeter = Math.min(1, car.boostMeter + 0.06 * dt);
+  }
+  // Draft also tops up boost meter slowly — rewards staying in tow.
+  if (running && draft > 0.4) {
+    car.boostMeter = Math.min(1, car.boostMeter + draft * 0.10 * dt);
+  }
+  // Shift audio cue — rising edge.
+  if (car.shiftEvent) {
+    playShift(car.shiftEvent);
+    if (car.shiftEvent > 0) flashCallout(`▲ ${car.gear}`, 360);
+    car.shiftEvent = 0;
+  }
+  if (car.launchEvent) {
+    flashCallout("PERFECT LAUNCH", 900);
+    car.launchEvent = false;
   }
 
   // Boost activation kick.
@@ -606,7 +743,7 @@ function computeStandings() {
 function loop(now) {
   const dt = Math.min(0.25, (now - lastTime) / 1000);
   lastTime = now;
-  if (running) {
+  if (running && !paused) {
     acc += dt;
     while (acc >= FIXED_DT) {
       tick(FIXED_DT);
@@ -649,6 +786,7 @@ function loop(now) {
     brake: lastInput.brake,
     racing: running
   });
+  updateWind(Math.abs(car.speed) / car.maxSpeed);
 
   // Boost flame opacity reflects boost state.
   if (boostFlame) {
@@ -671,6 +809,46 @@ function loop(now) {
   const bestSeconds = gameMode === "timeTrial" ? bestLapDisplay : bestLapPerTrack[track.id];
   document.getElementById("best").textContent = bestSeconds ? formatTime(bestSeconds) : "—";
   document.getElementById("boost-bar").style.width = `${Math.round(readBoost() * 100)}%`;
+
+  // Speedometer arc fill — pathLength=100, dasharray "<fill> 100".
+  const fillEl = document.getElementById("speedo-fill");
+  if (fillEl) {
+    const speedKmh = Math.round(Math.abs(car.speed) * 3.6);
+    const ceilingKmh = Math.round(car.maxSpeed * 1.25 * 3.6); // boost-able ceiling
+    const fillPct = Math.min(100, Math.round((speedKmh / ceilingKmh) * 100));
+    fillEl.setAttribute("stroke-dasharray", `${fillPct} 100`);
+    document.getElementById("speedo-num").textContent = speedKmh;
+    const gearEl = document.getElementById("gear-pill");
+    if (gearEl) {
+      gearEl.textContent = car.gear || 1;
+      if (car._lastShownGear !== car.gear) {
+        gearEl.classList.add("is-shifting");
+        setTimeout(() => gearEl.classList.remove("is-shifting"), 200);
+        car._lastShownGear = car.gear;
+      }
+    }
+  }
+  // Boost FX overlay.
+  const boostFxEl = document.getElementById("boost-fx");
+  if (boostFxEl) {
+    boostFxEl.classList.toggle("is-active", car.boostT > 0 && running);
+  }
+  // Draft HUD.
+  const draftStack = document.getElementById("draft-stack");
+  if (draftStack) {
+    const d = Math.round((car.draftAmount || 0) * 100);
+    if (d > 35) {
+      draftStack.hidden = false;
+      document.getElementById("draft-value").textContent = `${d}%`;
+    } else {
+      draftStack.hidden = true;
+    }
+  }
+  // Final-lap badge glow.
+  const lapBadge = document.getElementById("lap")?.parentElement;
+  if (lapBadge) {
+    lapBadge.classList.toggle("is-final", lap === LAPS_TOTAL && running);
+  }
   // Engine heat HUD.
   const heatBar = document.getElementById("heat-bar");
   if (heatBar) heatBar.style.width = `${Math.round((car.engineHeat || 0) * 100)}%`;
@@ -810,16 +988,25 @@ function startRace() {
   ensureAudio();
   car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
   car.heading = startPoint.tangentAngle;
+  car.group.rotation.set(0, car.heading, 0);
+  car.pitch = 0;
+  car.roll = 0;
+  car.bodyYaw = 0;
   car.speed = 0;
   car.lateralV = 0;
   car.steer = 0;
+  // Re-place rivals onto the grid (matches createRivals layout).
+  const ROW_SPACING = 6, COL_OFFSET = 3;
   for (let i = 0; i < rivals.length; i++) {
     const r = rivals[i];
-    r.s = -((i + 1) * 14);
+    const row = Math.floor(i / 2) + 1;
+    const col = i % 2 === 0 ? -1 : 1;
+    r.s = -row * ROW_SPACING;
+    r.lane = col * COL_OFFSET;
     r.laps = 0;
     r.speed = 0;
-    r.lane = r.homeLane;
   }
+  placeRivalsOnGrid(rivals, track);
   running = false; // wait for countdown
   finishShown = false;
   lastTime = performance.now();
@@ -833,7 +1020,17 @@ function startRace() {
   if (ghost) ghost.startLap(lapStartedAt);
   // Hide rivals in time trial.
   for (const r of rivals) r.mesh.visible = (gameMode === "race");
-  if (car) car.boostMeter = 0.5;
+  if (car) {
+    car.boostMeter = 0.5;
+    car.gear = 1;
+    car.rpm = 900;
+    car.shiftCooldown = 0;
+    car.shiftEvent = 0;
+    car._launchUsed = false;
+    car.raceLiveTime = null;
+    car.draftAmount = 0;
+    car.launchEvent = false;
+  }
   combo = 0;
   comboTimer = 0;
   clearSkids();
@@ -850,6 +1047,8 @@ function runStartLights() {
   const interval = setInterval(() => {
     if (i < bulbs.length) {
       bulbs[i].classList.add("is-lit");
+      // Beep on each bulb except the last (which is the "GO" cue).
+      if (i < bulbs.length - 1) playCountdownBeep("tick");
       i++;
     } else {
       // GO — extinguish all and start the race.
@@ -857,6 +1056,8 @@ function runStartLights() {
       bulbs.forEach((b) => b.classList.remove("is-lit"));
       setTimeout(() => { startLightsEl.hidden = true; }, 220);
       running = true;
+      if (car) car.raceLiveTime = 0;
+      playCountdownBeep("go");
       flashCallout("GO", 700);
     }
   }, 600);
@@ -975,14 +1176,22 @@ function renderGarage() {
   const wrap = document.getElementById("garage-cars");
   wrap.innerHTML = "";
   for (const id of Object.keys(CAR_SHAPES)) {
-    const livery = profile.cars[id] || { body: CAR_SHAPES[id].body, stripe: CAR_SHAPES[id].stripe };
+    const base = CAR_SHAPES[id];
+    const livery = profile.cars[id] || { body: base.body, stripe: base.stripe, accent: 0xc8d4e6, spoiler: base.spoiler ?? "none" };
+    const accentHex = hex(livery.accent ?? 0xc8d4e6);
+    const currentSpoiler = livery.spoiler ?? base.spoiler ?? "none";
+    const spoilerOptionsHtml = SPOILER_OPTIONS.map((opt) =>
+      `<option value="${opt}"${opt === currentSpoiler ? " selected" : ""}>${opt[0].toUpperCase()}${opt.slice(1)}</option>`
+    ).join("");
     const div = document.createElement("div");
     div.className = "garage-car";
     div.innerHTML = `
-      <span class="name">${CAR_SHAPES[id].label}</span>
+      <span class="name">${base.label}</span>
       <div class="pickers">
         <label><span>Body</span><input type="color" data-car="${id}" data-part="body" value="${hex(livery.body)}"></label>
         <label><span>Stripe</span><input type="color" data-car="${id}" data-part="stripe" value="${hex(livery.stripe)}"></label>
+        <label><span>Accent</span><input type="color" data-car="${id}" data-part="accent" value="${accentHex}"></label>
+        <label class="spoiler-pick"><span>Spoiler</span><select data-car="${id}" data-part="spoiler">${spoilerOptionsHtml}</select></label>
       </div>`;
     wrap.appendChild(div);
   }
@@ -990,10 +1199,22 @@ function renderGarage() {
     input.addEventListener("input", () => {
       const carId = input.dataset.car;
       const part = input.dataset.part;
-      const cur = loadProfile().cars[carId] || { body: CAR_SHAPES[carId].body, stripe: CAR_SHAPES[carId].stripe };
-      const next = { ...cur };
-      next[part] = parseHex(input.value) ?? next[part];
-      setCarColors(carId, next.body, next.stripe);
+      const cur = loadProfile().cars[carId] || { body: CAR_SHAPES[carId].body, stripe: CAR_SHAPES[carId].stripe, accent: 0xc8d4e6 };
+      const value = parseHex(input.value);
+      if (value == null) return;
+      if (part === "accent") {
+        setCarAccent(carId, value);
+      } else {
+        const next = { ...cur, [part]: value };
+        setCarColors(carId, next.body, next.stripe);
+      }
+      if (carId === car.shape) swapCar(carId);
+    });
+  }
+  for (const sel of wrap.querySelectorAll('select[data-part="spoiler"]')) {
+    sel.addEventListener("change", () => {
+      const carId = sel.dataset.car;
+      setCarSpoiler(carId, sel.value);
       if (carId === car.shape) swapCar(carId);
     });
   }
@@ -1014,6 +1235,121 @@ if (garageBackBtn) {
     overlay.hidden = false;
   });
 }
+
+// ---- Pause menu (Esc) ----
+const pauseOverlay = document.getElementById("pause-overlay");
+let paused = false;
+function setPaused(v) {
+  paused = v;
+  if (paused) {
+    pauseOverlay.hidden = false;
+  } else {
+    pauseOverlay.hidden = true;
+  }
+}
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape") {
+    // Don't allow pausing on title overlay (already a menu).
+    if (!overlay.hidden) return;
+    setPaused(!paused);
+  }
+});
+document.getElementById("pause-btn")?.addEventListener("click", () => {
+  if (overlay.hidden) setPaused(!paused);
+});
+document.getElementById("pause-resume")?.addEventListener("click", () => setPaused(false));
+document.getElementById("pause-restart")?.addEventListener("click", () => {
+  setPaused(false);
+  startRace();
+});
+document.getElementById("pause-quit")?.addEventListener("click", () => {
+  setPaused(false);
+  running = false;
+  finishShown = false;
+  overlay.hidden = false;
+});
+document.getElementById("pause-settings")?.addEventListener("click", () => {
+  document.getElementById("settings-overlay").hidden = false;
+});
+
+// ---- Settings overlay ----
+const SETTINGS_KEY = "apex-akina-3d:settings";
+const defaultSettings = { quality: "high", volume: 80, fov: 70, shake: 100, assist: true };
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : { ...defaultSettings };
+  } catch (_) { return { ...defaultSettings }; }
+}
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+}
+const settings = loadSettings();
+function applySettings() {
+  // Graphics quality.
+  if (settings.quality === "high") {
+    renderer.shadowMap.enabled = true;
+    bloomPass.enabled = true;
+  } else if (settings.quality === "medium") {
+    renderer.shadowMap.enabled = false;
+    bloomPass.enabled = true;
+  } else {
+    renderer.shadowMap.enabled = false;
+    bloomPass.enabled = false;
+  }
+  // Volume — pipe through audio module's master gain.
+  setMasterVolume(settings.volume / 100);
+  setAudioMuted(settings.volume === 0 || isAudioMuted());
+  // FOV.
+  camera.fov = settings.fov;
+  camera.updateProjectionMatrix();
+  // Shake — scale the global shake intensity multiplier.
+  shakeMultiplier = settings.shake / 100;
+}
+applySettings();
+const settingsOverlay = document.getElementById("settings-overlay");
+function syncSettingsUI() {
+  document.getElementById("setting-quality").value = settings.quality;
+  document.getElementById("setting-volume").value = settings.volume;
+  document.getElementById("setting-fov").value = settings.fov;
+  document.getElementById("setting-shake").value = settings.shake;
+  document.getElementById("setting-assist").checked = !!settings.assist;
+}
+syncSettingsUI();
+for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-shake", "setting-assist"]) {
+  const el = document.getElementById(id);
+  if (!el) continue;
+  el.addEventListener("input", () => {
+    settings.quality = document.getElementById("setting-quality").value;
+    settings.volume = parseInt(document.getElementById("setting-volume").value, 10);
+    settings.fov = parseInt(document.getElementById("setting-fov").value, 10);
+    settings.shake = parseInt(document.getElementById("setting-shake").value, 10);
+    settings.assist = document.getElementById("setting-assist").checked;
+    saveSettings(settings);
+    applySettings();
+  });
+}
+document.getElementById("settings-back")?.addEventListener("click", () => {
+  settingsOverlay.hidden = true;
+});
+
+// ---- First-time tutorial ----
+const TUTORIAL_KEY = "apex-akina-3d:seenTutorial";
+const tutorialOverlay = document.getElementById("tutorial-overlay");
+function maybeShowTutorial() {
+  try {
+    if (!localStorage.getItem(TUTORIAL_KEY)) {
+      tutorialOverlay.hidden = false;
+      overlay.hidden = true;
+    }
+  } catch (_) {}
+}
+document.getElementById("tutorial-go")?.addEventListener("click", () => {
+  try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch (_) {}
+  tutorialOverlay.hidden = true;
+  overlay.hidden = false;
+});
+maybeShowTutorial();
 
 // Mute toggle, persisted.
 const MUTE_KEY = "apex-akina-3d:muted";

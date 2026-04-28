@@ -8,8 +8,10 @@ let master = null;
 let osc1, osc2, engineGain, engineLowpass;
 let pulseLfo, pulseLfoGain;
 let tireNoise, tireGain, tireBandpass;
+let windNoise, windGain, windBandpass;
 let musicGain, musicScheduler, musicBeatTime, musicBeatIdx;
 let muted = false;
+let masterVolume = 0.4;
 
 const PROFILE = {
   type1: "sawtooth", type2: "triangle",
@@ -20,11 +22,27 @@ const PROFILE = {
   body: 0.14
 };
 
-const MUSIC_TEMPO = 96;
-const MUSIC_BEAT_SEC = 60 / MUSIC_TEMPO / 2;
-const ARP = [146.83, 174.61, 220, 261.63, 220, 261.63, 329.63, 220,
-             146.83, 174.61, 220, 261.63, 174.61, 220, 261.63, 329.63];
-const BASS = [73.42, 0, 87.31, 0, 73.42, 0, 87.31, 0];
+// Default music profile (replaced when a track is selected).
+let MUSIC_TEMPO = 96;
+let MUSIC_BEAT_SEC = 60 / MUSIC_TEMPO / 2;
+let ARP = [146.83, 174.61, 220, 261.63, 220, 261.63, 329.63, 220,
+           146.83, 174.61, 220, 261.63, 174.61, 220, 261.63, 329.63];
+let BASS = [73.42, 0, 87.31, 0, 73.42, 0, 87.31, 0];
+
+export function setMusicProfile(profile) {
+  if (!profile) return;
+  if (profile.tempo) {
+    MUSIC_TEMPO = profile.tempo;
+    MUSIC_BEAT_SEC = 60 / MUSIC_TEMPO / 2;
+  }
+  if (profile.arp && profile.arp.length) ARP = profile.arp;
+  if (profile.bass && profile.bass.length) BASS = profile.bass;
+  // Reset the scheduler so the new profile takes effect on the next beat.
+  if (ctx) {
+    musicBeatTime = ctx.currentTime + 0.1;
+    musicBeatIdx = 0;
+  }
+}
 
 export function ensureAudio() {
   if (ctx) {
@@ -36,7 +54,7 @@ export function ensureAudio() {
   try {
     ctx = new Ctx();
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.4;
+    master.gain.value = muted ? 0 : masterVolume;
     master.connect(ctx.destination);
 
     // Engine
@@ -92,6 +110,24 @@ export function ensureAudio() {
     tireBandpass.connect(tireGain);
     tireGain.connect(master);
     tireNoise.start();
+
+    // Wind noise — separate buffer, low-pass swept by speed.
+    const wbuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.0), ctx.sampleRate);
+    const wdata = wbuf.getChannelData(0);
+    for (let i = 0; i < wdata.length; i++) wdata[i] = (Math.random() * 2 - 1) * 0.5;
+    windNoise = ctx.createBufferSource();
+    windNoise.buffer = wbuf;
+    windNoise.loop = true;
+    windBandpass = ctx.createBiquadFilter();
+    windBandpass.type = "lowpass";
+    windBandpass.frequency.value = 280;
+    windBandpass.Q.value = 0.6;
+    windGain = ctx.createGain();
+    windGain.gain.value = 0;
+    windNoise.connect(windBandpass);
+    windBandpass.connect(windGain);
+    windGain.connect(master);
+    windNoise.start();
 
     // Music bus
     musicGain = ctx.createGain();
@@ -196,9 +232,81 @@ export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, rac
 
 export function setAudioMuted(value) {
   muted = !!value;
-  if (master) master.gain.setTargetAtTime(muted ? 0 : 0.4, ctx.currentTime, 0.05);
+  if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : masterVolume, ctx.currentTime, 0.05);
 }
 
 export function isAudioMuted() {
   return muted;
+}
+
+export function setMasterVolume(vol) {
+  masterVolume = Math.max(0, Math.min(1, vol));
+  if (master && ctx && !muted) master.gain.setTargetAtTime(masterVolume, ctx.currentTime, 0.05);
+}
+
+// Update wind noise amplitude based on current speed fraction (0..1).
+export function updateWind(speedFraction) {
+  if (!ctx || !windGain) return;
+  const sp = Math.max(0, Math.min(1, speedFraction));
+  const target = sp * sp * 0.18;     // quadratic, peaks at ~0.18 gain
+  windGain.gain.setTargetAtTime(target, ctx.currentTime, 0.08);
+  windBandpass.frequency.setTargetAtTime(220 + sp * 1500, ctx.currentTime, 0.08);
+}
+
+// One-shot countdown beep (T-1 / T-2 / T-3 lower pitch + GO higher chord).
+export function playCountdownBeep(level = 0) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const freq = level === "go" ? 880 : 440;
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (level === "go" ? 0.5 : 0.25));
+  osc.connect(g);
+  g.connect(master);
+  osc.start(t);
+  osc.stop(t + 0.6);
+  if (level === "go") {
+    // 5th + octave for the chord punch.
+    for (const f of [1320, 1760]) {
+      const o2 = ctx.createOscillator();
+      o2.type = "triangle";
+      o2.frequency.value = f;
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0.0001, t);
+      g2.gain.exponentialRampToValueAtTime(0.10, t + 0.01);
+      g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+      o2.connect(g2);
+      g2.connect(master);
+      o2.start(t);
+      o2.stop(t + 0.7);
+    }
+  }
+}
+
+// Gear-shift "thunk" — a quick filtered noise burst.
+export function playShift(direction = 1) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const len = 0.10;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.6;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = direction > 0 ? 380 : 240;
+  bp.Q.value = 5;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(master);
+  src.start(t);
 }

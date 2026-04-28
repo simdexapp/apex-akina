@@ -355,8 +355,8 @@ button:hover { filter: brightness(1.08); }
 
 .minimap {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  right: 16px;
+  top: 78px;
   width: 180px;
   height: 120px;
   border: 1px solid var(--line);
@@ -543,6 +543,250 @@ button:hover { filter: brightness(1.08); }
   background: transparent;
   padding: 2px;
   cursor: pointer;
+}
+
+.garage-car .pickers select {
+  width: 100%;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(2, 4, 10, 0.85);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.garage-car .pickers select:focus {
+  outline: none;
+  border-color: var(--cyan);
+}
+
+.garage-car .pickers .spoiler-pick {
+  grid-column: 1 / -1;
+}
+
+/* ---- Speedometer arc ---- */
+.speedo {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 220px;
+  height: 150px;
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 24px rgba(46, 233, 255, 0.18));
+}
+
+.speedo svg { display: block; }
+
+.speedo-readout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+  pointer-events: none;
+}
+
+.speedo-readout strong {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 0 14px rgba(46, 233, 255, 0.35);
+}
+
+.speedo-readout .unit {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.gear-pill {
+  position: absolute;
+  bottom: 4px;
+  right: 14px;
+  min-width: 28px;
+  text-align: center;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 900;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--cyan), var(--gold));
+  color: #05070c;
+  box-shadow: 0 0 14px rgba(46, 233, 255, 0.45);
+}
+
+.gear-pill.is-shifting { animation: shift-pulse 0.18s ease-out; }
+
+@keyframes shift-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.18); filter: brightness(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* ---- Boost FX overlay ---- */
+.boost-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse at center, transparent 35%, rgba(255, 49, 92, 0.18) 75%, rgba(255, 49, 92, 0.42) 100%);
+}
+
+.boost-fx.is-active { opacity: 1; }
+
+.boost-fx .speedlines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.0) 0 8%,
+      rgba(255, 255, 255, 0.06) 8% 9%,
+      rgba(255, 255, 255, 0.0) 9% 18%);
+  mask-image: radial-gradient(ellipse at center, transparent 30%, #000 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 30%, #000 75%);
+  animation: speedlines 0.6s linear infinite;
+}
+
+@keyframes speedlines {
+  0%   { transform: scale(1.0); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ---- Tutorial control grid ---- */
+.control-grid {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.control-grid li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(8, 13, 22, 0.68);
+  font-size: 12px;
+}
+
+.control-grid kbd {
+  display: inline-block;
+  min-width: 26px;
+  text-align: center;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  color: var(--ink);
+}
+
+.control-grid span {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+/* ---- Settings rows ---- */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(8, 13, 22, 0.68);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.settings-row > span {
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.settings-row select,
+.settings-row input[type="range"] {
+  width: 220px;
+}
+
+.settings-row input[type="range"] { accent-color: var(--cyan); }
+
+.settings-row select {
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(2, 4, 10, 0.85);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+
+/* ---- Final-lap glow on lap badge ---- */
+.hud-stack.is-final {
+  border-color: var(--hot);
+  background: linear-gradient(180deg, rgba(255, 49, 92, 0.30), rgba(8, 13, 22, 0.85));
+  animation: final-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes final-pulse {
+  from { box-shadow: 0 0 0 0 rgba(255, 49, 92, 0.0); }
+  to   { box-shadow: 0 0 18px 2px rgba(255, 49, 92, 0.45); }
+}
+
+/* ---- Race callout (centered notification) ---- */
+.race-callout {
+  position: absolute;
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.92);
+  padding: 14px 26px;
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  background: rgba(8, 13, 22, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-shadow: 0 0 18px rgba(255, 209, 102, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease, transform 220ms cubic-bezier(.2,.9,.2,1.1);
+  z-index: 5;
+}
+
+.race-callout.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .garage-actions, .prerace-actions {
