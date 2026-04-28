@@ -117,13 +117,39 @@ function makeRivalMesh(variant) {
     lip.position.set(0, h * 0.18, -l * 0.44);
     group.add(lip);
   }
-  // Tail lights
+  // Tail lights — match player's full-width LED bar look.
   const tailMat = new THREE.MeshBasicMaterial({ color: 0xff315c });
   for (const side of [-1, 1]) {
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.12, 0.08), tailMat);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.08), tailMat);
     tail.position.set(side * w * 0.30, 0.62, -l * 0.50);
     group.add(tail);
   }
+  const ledBar = new THREE.Mesh(new THREE.BoxGeometry(w * 0.55, 0.04, 0.05), tailMat);
+  ledBar.position.set(0, 0.62, -l * 0.50);
+  group.add(ledBar);
+
+  // HP bar — small backing + foreground that scales with HP. Hidden when
+  // HP is full (>= 80). Stored in userData so tickRivals can update it.
+  const hpBg = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 0.18),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false })
+  );
+  hpBg.position.set(0, h + 1.0, 0);
+  hpBg.renderOrder = 999;
+  hpBg.visible = false;
+  group.add(hpBg);
+  const hpFill = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, 0.10),
+    new THREE.MeshBasicMaterial({ color: 0x4adf80, depthTest: false })
+  );
+  hpFill.position.set(0, h + 1.0, 0.001);
+  hpFill.renderOrder = 1000;
+  hpFill.visible = false;
+  group.add(hpFill);
+  group.userData.hpBg = hpBg;
+  group.userData.hpFill = hpFill;
+  group.userData.hpFillBaseW = 1.5;
+
   return group;
 }
 
@@ -323,6 +349,22 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
       r.mesh.rotation.z = wobble;
     } else if (r.mesh) {
       r.mesh.rotation.z = 0;
+    }
+    // HP bar: visible when damaged. Color: green > 60, gold > 30, red < 30.
+    const hpBg = r.mesh?.userData?.hpBg;
+    const hpFill = r.mesh?.userData?.hpFill;
+    if (hpBg && hpFill) {
+      const damaged = (r.hp ?? 100) < 80;
+      hpBg.visible = damaged;
+      hpFill.visible = damaged;
+      if (damaged) {
+        const frac = Math.max(0, Math.min(1, (r.hp || 0) / 100));
+        const baseW = r.mesh.userData.hpFillBaseW;
+        hpFill.scale.x = frac;
+        hpFill.position.x = -(baseW * (1 - frac)) / 2;   // anchor left
+        const col = frac > 0.6 ? 0x4adf80 : (frac > 0.3 ? 0xffd166 : 0xff315c);
+        hpFill.material.color.setHex(col);
+      }
     }
 
     // Advance arclength. Don't modulo while still on the negative-s grid —
