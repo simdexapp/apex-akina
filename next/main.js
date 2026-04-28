@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=20";
-import { buildScenery } from "./scenery.js?v=20";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=20";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=20";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=20";
+import { buildTrack, getTrackList } from "./track.js?v=21";
+import { buildScenery } from "./scenery.js?v=21";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=21";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=21";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=21";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=20";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=20";
-import { createGhost, createGhostMesh } from "./ghost.js?v=20";
-import { createReplay } from "./replay.js?v=20";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=20";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=20";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=21";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=21";
+import { createGhost, createGhostMesh } from "./ghost.js?v=21";
+import { createReplay } from "./replay.js?v=21";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=21";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=21";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=20";
+} from "./profile.js?v=21";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1034,12 +1034,11 @@ function loop(now) {
       }
       // Final sector record at lap end.
       recordSector(3, nowS - sectorState.lapStart);
-      // Ghost finish lap (time-trial only).
-      if (gameMode === "timeTrial" && ghost) {
+      // Ghost finish lap (time-trial / hot-lap).
+      if ((gameMode === "timeTrial" || gameMode === "hotlap") && ghost) {
         const result = ghost.finishLap(performance.now() / 1000);
         if (result.isBest) flashCallout("New PB", 1200);
         bestLapDisplay = ghost.bestTime();
-        // Record into the local TT leaderboard.
         if (lapTime > 1) recordTTLap(track.id, car.shape, lapTime);
       }
     }
@@ -1394,8 +1393,8 @@ function showFinish(standings) {
   document.getElementById("finish-stats").textContent =
     `${ordinal(standings.place)} of ${standings.entries.length} · ${formatTime(raceTime)}` +
     (best ? ` · best lap ${formatTime(best)}` : "") + extra;
-  // Time-trial leaderboard (top 5 saved laps for this track).
-  if (gameMode === "timeTrial") {
+  // Time-trial / hot-lap leaderboard (top 5 saved laps for this track).
+  if (gameMode === "timeTrial" || gameMode === "hotlap") {
     const board = ttBoard[track.id] || [];
     const html = board.length
       ? board.map((e, i) => `<li><span>${i + 1}</span><span>${formatTime(e.time)}</span><span>${e.car}</span></li>`).join("")
@@ -1468,6 +1467,10 @@ function startRace() {
   overlay.hidden = true;
   finishOverlay.hidden = true;
   ensureAudio();
+  // Hot lap — 1 lap, no rivals.
+  if (gameMode === "hotlap") {
+    raceLapsOverride = 1;
+  }
   // If career mode is active, force the round's track + laps.
   if (gameMode === "career") {
     const round = currentRound();
@@ -1528,7 +1531,7 @@ function startRace() {
   resetSectors();
   lastPlayerPlace = 15;
   // Hide rivals in time trial.
-  for (const r of rivals) r.mesh.visible = (gameMode === "race");
+  for (const r of rivals) r.mesh.visible = (gameMode === "race" || gameMode === "career");
   if (car) {
     car.boostMeter = 0.5;
     car.gear = 1;
@@ -1746,7 +1749,7 @@ function renderModePicker() {
   if (gameMode === "career") renderCareerPanel();
 }
 
-const VALID_MODES = ["race", "timeTrial", "career"];
+const VALID_MODES = ["race", "timeTrial", "career", "hotlap"];
 const modePickerEl = document.getElementById("mode-picker");
 if (modePickerEl) {
   for (const card of modePickerEl.querySelectorAll(".mode-card")) {
