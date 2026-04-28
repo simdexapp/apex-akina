@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=37";
-import { buildScenery, tickAmbient } from "./scenery.js?v=37";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=37";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=37";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=37";
+import { buildTrack, getTrackList } from "./track.js?v=38";
+import { buildScenery, tickAmbient } from "./scenery.js?v=38";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=38";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=38";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=38";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=37";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=37";
-import { createGhost, createGhostMesh } from "./ghost.js?v=37";
-import { createReplay } from "./replay.js?v=37";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=37";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=37";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=37";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=37";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=38";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=38";
+import { createGhost, createGhostMesh } from "./ghost.js?v=38";
+import { createReplay } from "./replay.js?v=38";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=38";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=38";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=38";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=38";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=37";
+} from "./profile.js?v=38";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -694,6 +694,41 @@ function renderRank() {
   }
 }
 renderRank();
+
+function renderPlaylist() {
+  const wrap = document.getElementById("daily-playlist");
+  const list = document.getElementById("playlist-list");
+  if (!wrap || !list) return;
+  const slots = getDailyPlaylist();
+  wrap.hidden = false;
+  list.innerHTML = slots.map((s, i) => `
+    <li data-track="${s.trackId}" data-car="${s.car}" data-mode="${s.mode}" class="${s.completed ? "is-done" : ""}">
+      <span class="pl-num">${i + 1}</span>
+      <span class="pl-label">${s.label}</span>
+      <span class="pl-status">${s.completed ? "✓ DONE" : s.mode.toUpperCase()}</span>
+    </li>
+  `).join("");
+  for (const li of list.querySelectorAll("li")) {
+    li.addEventListener("click", () => {
+      const t = li.dataset.track, c = li.dataset.car, m = li.dataset.mode;
+      if (["race", "timeTrial", "career", "hotlap"].includes(m)) {
+        gameMode = m;
+        try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
+        renderModePicker();
+      }
+      if (TRACKS_LIST.find((tt) => tt.id === t)) {
+        loadTrack(t);
+        renderTrackPicker();
+      }
+      if (CAR_SHAPES[c] && c !== car.shape) {
+        swapCar(c);
+        renderCarPicker();
+      }
+      flashCallout("Playlist loaded — Drop In", 1200);
+    });
+  }
+}
+renderPlaylist();
 
 // Achievement toast renderer.
 onAchievementToast((ach) => {
@@ -1408,6 +1443,24 @@ function loop(now) {
       boostUsed: raceCtx.boostUsed === true
     };
     checkAchievements(profile, ctx);
+    // Daily playlist check.
+    const pl = checkPlaylistEntry(ctx);
+    if (pl) {
+      flashCallout(`Playlist · ${pl.label} done!`, 1500);
+      const stack = document.getElementById("toast-stack");
+      if (stack) {
+        const el = document.createElement("div");
+        el.className = "toast";
+        el.style.borderColor = "var(--cyan)";
+        el.innerHTML = `<span class="label">Playlist Complete</span><strong>${pl.label}</strong><small>+ bonus rank pts</small>`;
+        stack.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+      }
+      // Bonus 5 fake "races" worth of points (handled by win bump already).
+      // Re-render the playlist + rank.
+      renderPlaylist();
+      renderRank();
+    }
     // Daily challenge check.
     const dc = checkDailyChallenge(ctx);
     if (dc) {
@@ -2131,7 +2184,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=37");
+  const mod = await import("./garagePreview.js?v=38");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

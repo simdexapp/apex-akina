@@ -4,6 +4,83 @@
 // see the same one if signed in to nothing.
 
 const CHALLENGE_KEY = "apex-akina-3d:dailyChallenge";
+const PLAYLIST_KEY = "apex-akina-3d:dailyPlaylist";
+
+// Featured race configs the daily playlist can pick from. Each becomes one
+// of the day's 3 featured slots. Picking keys off the date so the same 3
+// surface to everyone on the same day.
+const PLAYLIST_POOL = [
+  { id: "lakeside-gt",     trackId: "lakeside",     car: "gt",     mode: "race",      laps: 3, label: "Lakeside · GT Coupe" },
+  { id: "bayside-drift",   trackId: "bayside",      car: "drift",  mode: "timeTrial", laps: 1, label: "Bayside · Drift TT" },
+  { id: "highway-muscle",  trackId: "highway",      car: "muscle", mode: "race",      laps: 3, label: "Highway · Muscle GT" },
+  { id: "neon-super",      trackId: "neon",         car: "super",  mode: "race",      laps: 3, label: "Neon · Wedge Super" },
+  { id: "akagi-rally",     trackId: "mountainpass", car: "rally",  mode: "race",      laps: 3, label: "Akagi · Rally Sedan" },
+  { id: "akagi-tt",        trackId: "mountainpass", car: "drift",  mode: "timeTrial", laps: 1, label: "Akagi · Drift TT" },
+  { id: "city-kei",        trackId: "city",         car: "kei",    mode: "hotlap",    laps: 1, label: "City · Kei Hot Lap" },
+  { id: "rural-gt",        trackId: "rural",        car: "gt",     mode: "race",      laps: 3, label: "Hakone · GT Coupe" },
+  { id: "drift-court",     trackId: "drift",        car: "drift",  mode: "race",      laps: 3, label: "Daikoku · Drift Coupe" },
+  { id: "lakeside-tt",     trackId: "lakeside",     car: "kei",    mode: "timeTrial", laps: 1, label: "Lakeside · Kei TT" },
+  { id: "neon-hotlap",     trackId: "neon",         car: "super",  mode: "hotlap",    laps: 1, label: "Neon · Super Hot Lap" }
+];
+
+// Hash a date string into 3 distinct pool indices.
+function pickPlaylistIndices(dateStr) {
+  let h = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    h = ((h << 5) - h) + dateStr.charCodeAt(i);
+    h |= 0;
+  }
+  const used = new Set();
+  const out = [];
+  let probe = Math.abs(h);
+  while (out.length < 3 && out.length < PLAYLIST_POOL.length) {
+    const idx = probe % PLAYLIST_POOL.length;
+    if (!used.has(idx)) { used.add(idx); out.push(idx); }
+    probe = Math.floor(probe / 7) + 1;
+  }
+  return out;
+}
+
+let playlistState = null;
+function loadPlaylistState() {
+  if (playlistState) return playlistState;
+  try { playlistState = JSON.parse(localStorage.getItem(PLAYLIST_KEY) || "{}"); }
+  catch (_) { playlistState = {}; }
+  return playlistState;
+}
+function savePlaylistState() {
+  try { localStorage.setItem(PLAYLIST_KEY, JSON.stringify(playlistState)); } catch (_) {}
+}
+
+export function getDailyPlaylist() {
+  const today = todayKey();
+  const indices = pickPlaylistIndices(today);
+  const state = loadPlaylistState();
+  const completed = state[today] || [];
+  return indices.map((idx) => {
+    const slot = PLAYLIST_POOL[idx];
+    return { ...slot, completed: completed.includes(slot.id) };
+  });
+}
+
+// Mark a playlist slot complete if the player just won this exact config.
+// Returns the slot if it was newly completed.
+export function checkPlaylistEntry(ctx) {
+  if (!ctx.won) return null;
+  const today = todayKey();
+  const slots = getDailyPlaylist();
+  for (const slot of slots) {
+    if (slot.completed) continue;
+    if (ctx.trackId === slot.trackId && ctx.car === slot.car && ctx.mode === slot.mode) {
+      const state = loadPlaylistState();
+      if (!state[today]) state[today] = [];
+      state[today].push(slot.id);
+      savePlaylistState();
+      return slot;
+    }
+  }
+  return null;
+}
 
 const POOL = [
   { id: "win-lakeside",    text: "Win a race on Lakeside.",                        check: (ctx) => ctx.won && ctx.trackId === "lakeside" },

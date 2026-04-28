@@ -3,7 +3,7 @@
 // car spinning on a turntable. Live-updates when liveries change.
 
 import * as THREE from "three";
-import { createCar, CAR_SHAPES } from "./car.js?v=37";
+import { createCar, CAR_SHAPES } from "./car.js?v=38";
 
 export function createGaragePreview(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
