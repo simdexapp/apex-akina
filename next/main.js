@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=14";
-import { buildScenery } from "./scenery.js?v=14";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=14";
-import { createInput, initTouchControls } from "./input.js?v=14";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=14";
+import { buildTrack, getTrackList } from "./track.js?v=15";
+import { buildScenery } from "./scenery.js?v=15";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=15";
+import { createInput, initTouchControls } from "./input.js?v=15";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=15";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=14";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=14";
-import { createGhost, createGhostMesh } from "./ghost.js?v=14";
-import { createReplay } from "./replay.js?v=14";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=14";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=14";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=15";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=15";
+import { createGhost, createGhostMesh } from "./ghost.js?v=15";
+import { createReplay } from "./replay.js?v=15";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=15";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=15";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=14";
+} from "./profile.js?v=15";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -293,6 +293,47 @@ function loadTrack(id) {
   // Apply time-of-day override (if user picked dawn/day/sunset/night).
   if (typeof applyTimeOfDay === "function") applyTimeOfDay();
   try { localStorage.setItem(TRACK_KEY, id); } catch (_) {}
+}
+
+// Time-of-day color recipes — applied as a tint over the track's palette.
+// Defined here (before loadTrack call) so applyTimeOfDay can run during init.
+// Values for `settings.time` are read lazily so settings can load after.
+const TOD_RECIPES = {
+  auto:   null,
+  dawn:   { sky: { top: "#1a2c5e", mid: "#9c5878", bottom: "#ffd2a4" }, fog: 0x6a4a78, ambient: 0x9bb6ff, ambientI: 0.42, moon: 0xfde8c8, moonI: 2.2, hemiSky: 0xc8d8ff, hemiGround: 0x7a4a60, hemiI: 1.4 },
+  day:    { sky: { top: "#3a72c8", mid: "#76b8e8", bottom: "#e8eef8" }, fog: 0x9cb0c8, ambient: 0xeef4ff, ambientI: 0.65, moon: 0xffffff, moonI: 3.6, hemiSky: 0xa8c8ff, hemiGround: 0x6a7080, hemiI: 1.6 },
+  sunset: { sky: { top: "#1a1a4e", mid: "#a04088", bottom: "#ff7838" }, fog: 0x4a1a52, ambient: 0xb098cc, ambientI: 0.40, moon: 0xff9c5c, moonI: 2.6, hemiSky: 0xa8c8ff, hemiGround: 0x4a3060, hemiI: 1.0 },
+  night:  { sky: { top: "#080a1a", mid: "#1a1a3a", bottom: "#3a4070" }, fog: 0x10122a, ambient: 0x6088b8, ambientI: 0.30, moon: 0x9cb6ff, moonI: 1.6, hemiSky: 0x6688ff, hemiGround: 0x150828, hemiI: 0.7 }
+};
+
+function applyTimeOfDay() {
+  let tod = "auto";
+  try { tod = settings.time || "auto"; } catch (_) { /* settings still in TDZ on first call */ }
+  const recipe = TOD_RECIPES[tod] || null;
+  if (!recipe || !track) {
+    if (track) {
+      skyUniforms.topColor.value.set(track.palette.sky.top);
+      skyUniforms.midColor.value.set(track.palette.sky.mid);
+      skyUniforms.bottomColor.value.set(track.palette.sky.bottom);
+      scene.fog.color.setHex(track.palette.fog);
+      moonLight.color.setHex(track.palette.moonLight);
+      ambient.intensity = 0.35;
+      hemi.intensity = 1.2;
+      moonLight.intensity = 2.4;
+    }
+    return;
+  }
+  skyUniforms.topColor.value.set(recipe.sky.top);
+  skyUniforms.midColor.value.set(recipe.sky.mid);
+  skyUniforms.bottomColor.value.set(recipe.sky.bottom);
+  scene.fog.color.setHex(recipe.fog);
+  ambient.color.setHex(recipe.ambient);
+  ambient.intensity = recipe.ambientI;
+  moonLight.color.setHex(recipe.moon);
+  moonLight.intensity = recipe.moonI;
+  hemi.color.setHex(recipe.hemiSky);
+  hemi.groundColor.setHex(recipe.hemiGround);
+  hemi.intensity = recipe.hemiI;
 }
 
 loadTrack(initialTrackId);
@@ -1836,44 +1877,6 @@ document.getElementById("pause-settings")?.addEventListener("click", () => {
 const SETTINGS_KEY = "apex-akina-3d:settings";
 const defaultSettings = { quality: "high", volume: 80, music: 60, sfx: 100, fov: 70, shake: 100, assist: true, difficulty: "normal", time: "auto" };
 
-// Time-of-day color recipes — applied as a tint over the track's palette.
-// Each recipe override the sky/lights/fog when the player picks a TOD.
-const TOD_RECIPES = {
-  auto:   null,  // use track's own palette unchanged
-  dawn:   { sky: { top: "#1a2c5e", mid: "#9c5878", bottom: "#ffd2a4" }, fog: 0x6a4a78, ambient: 0x9bb6ff, ambientI: 0.42, moon: 0xfde8c8, moonI: 2.2, hemiSky: 0xc8d8ff, hemiGround: 0x7a4a60, hemiI: 1.4 },
-  day:    { sky: { top: "#3a72c8", mid: "#76b8e8", bottom: "#e8eef8" }, fog: 0x9cb0c8, ambient: 0xeef4ff, ambientI: 0.65, moon: 0xffffff, moonI: 3.6, hemiSky: 0xa8c8ff, hemiGround: 0x6a7080, hemiI: 1.6 },
-  sunset: { sky: { top: "#1a1a4e", mid: "#a04088", bottom: "#ff7838" }, fog: 0x4a1a52, ambient: 0xb098cc, ambientI: 0.40, moon: 0xff9c5c, moonI: 2.6, hemiSky: 0xa8c8ff, hemiGround: 0x4a3060, hemiI: 1.0 },
-  night:  { sky: { top: "#080a1a", mid: "#1a1a3a", bottom: "#3a4070" }, fog: 0x10122a, ambient: 0x6088b8, ambientI: 0.30, moon: 0x9cb6ff, moonI: 1.6, hemiSky: 0x6688ff, hemiGround: 0x150828, hemiI: 0.7 }
-};
-
-function applyTimeOfDay() {
-  const recipe = TOD_RECIPES[settings.time] || null;
-  if (!recipe || !track) {
-    // Auto — restore from track palette.
-    if (track) {
-      skyUniforms.topColor.value.set(track.palette.sky.top);
-      skyUniforms.midColor.value.set(track.palette.sky.mid);
-      skyUniforms.bottomColor.value.set(track.palette.sky.bottom);
-      scene.fog.color.setHex(track.palette.fog);
-      moonLight.color.setHex(track.palette.moonLight);
-      ambient.intensity = 0.35;
-      hemi.intensity = 1.2;
-      moonLight.intensity = 2.4;
-    }
-    return;
-  }
-  skyUniforms.topColor.value.set(recipe.sky.top);
-  skyUniforms.midColor.value.set(recipe.sky.mid);
-  skyUniforms.bottomColor.value.set(recipe.sky.bottom);
-  scene.fog.color.setHex(recipe.fog);
-  ambient.color.setHex(recipe.ambient);
-  ambient.intensity = recipe.ambientI;
-  moonLight.color.setHex(recipe.moon);
-  moonLight.intensity = recipe.moonI;
-  hemi.color.setHex(recipe.hemiSky);
-  hemi.groundColor.setHex(recipe.hemiGround);
-  hemi.intensity = recipe.hemiI;
-}
 function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
