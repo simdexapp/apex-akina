@@ -9,6 +9,24 @@
   --gold: #ffd166;
 }
 
+/* Color-blind palette — swap red/green pairs for blue/orange + brighter
+   contrast. Activated by .is-colorblind on body. */
+body.is-colorblind {
+  --hot: #ff8c2e;       /* orange instead of red */
+  --cyan: #5ec8ff;      /* lighter cyan, easier with deuteranopia */
+  --gold: #ffe24a;      /* brighter yellow */
+  --line: rgba(94, 200, 255, 0.34);
+}
+
+/* Reduced motion — disables shake animations / heavy transforms. */
+body.is-reduce-motion .race-callout,
+body.is-reduce-motion .countdown-num {
+  animation: none !important;
+  transition: opacity 120ms ease !important;
+}
+body.is-reduce-motion .gear-pill { animation: none !important; }
+body.is-reduce-motion .toast { animation: toast-in 240ms ease-out forwards; }
+
 * { box-sizing: border-box; }
 
 html, body { height: 100%; }
@@ -1218,6 +1236,44 @@ body.is-photo-mode::after {
 
 .track-card[aria-checked="true"] .track-preview {
   opacity: 1;
+}
+
+/* Big animated countdown numbers */
+.countdown-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.countdown-num.is-show {
+  animation: countdown-fade 0.6s ease-out forwards;
+}
+
+.countdown-num::after {
+  content: attr(data-num);
+  font-size: clamp(80px, 18vw, 220px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  text-shadow: 0 0 24px rgba(46, 233, 255, 0.5),
+               6px 6px 0 rgba(255, 49, 92, 0.6);
+}
+
+.countdown-num.is-go::after {
+  color: #4adf80;
+  text-shadow: 0 0 32px rgba(74, 223, 128, 0.8),
+               6px 6px 0 rgba(255, 209, 102, 0.7);
+}
+
+@keyframes countdown-fade {
+  0%   { transform: scale(0.5); opacity: 0; }
+  20%  { transform: scale(1.0); opacity: 1; }
+  80%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
 }
 
 /* Pre-race rotating tip */

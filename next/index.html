@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=19">
     <script type="importmap">
       {
         "imports": {
@@ -188,6 +188,9 @@
           <span></span><span></span><span></span><span></span><span></span>
         </div>
 
+        <!-- Big animated countdown number -->
+        <div class="countdown-num" id="countdown-num"></div>
+
         <div class="overlay" id="finish-overlay" hidden>
           <div class="title-card">
             <p class="eyebrow">Race complete</p>
@@ -274,6 +277,14 @@
               <input id="setting-assist" type="checkbox" checked/>
             </label>
             <label class="settings-row">
+              <span>Color-blind palette</span>
+              <input id="setting-cb" type="checkbox"/>
+            </label>
+            <label class="settings-row">
+              <span>Reduce motion (less shake/blur)</span>
+              <input id="setting-reduce-motion" type="checkbox"/>
+            </label>
+            <label class="settings-row">
               <span>Time of day</span>
               <select id="setting-time">
                 <option value="auto" selected>Auto (per track)</option>
@@ -318,6 +329,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=18"></script>
+    <script type="module" src="main.js?v=19"></script>
   </body>
 </html>

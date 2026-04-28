@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=18";
-import { buildScenery } from "./scenery.js?v=18";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=18";
-import { createInput, initTouchControls } from "./input.js?v=18";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=18";
+import { buildTrack, getTrackList } from "./track.js?v=19";
+import { buildScenery } from "./scenery.js?v=19";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=19";
+import { createInput, initTouchControls } from "./input.js?v=19";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=19";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=18";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=18";
-import { createGhost, createGhostMesh } from "./ghost.js?v=18";
-import { createReplay } from "./replay.js?v=18";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=18";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=18";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=19";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=19";
+import { createGhost, createGhostMesh } from "./ghost.js?v=19";
+import { createReplay } from "./replay.js?v=19";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=19";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=19";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=18";
+} from "./profile.js?v=19";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1574,26 +1574,40 @@ function runIntroCamera(onDone) {
 }
 
 const startLightsEl = document.getElementById("start-lights");
+const countdownEl = document.getElementById("countdown-num");
+function showCountdownNum(text, isGo = false) {
+  if (!countdownEl) return;
+  countdownEl.classList.remove("is-show", "is-go");
+  void countdownEl.offsetWidth;     // restart animation
+  countdownEl.setAttribute("data-num", text);
+  countdownEl.classList.add("is-show");
+  if (isGo) countdownEl.classList.add("is-go");
+}
+
 function runStartLights() {
   if (!startLightsEl) { running = true; return; }
   startLightsEl.hidden = false;
   const bulbs = Array.from(startLightsEl.children);
   bulbs.forEach((b) => b.classList.remove("is-lit"));
   let i = 0;
+  // Big animated count "3 / 2 / 1" mapping (5 bulbs → first 2 silent, then 3, 2, 1).
+  const COUNT_TEXT = ["", "", "3", "2", "1"];
   const interval = setInterval(() => {
     if (i < bulbs.length) {
       bulbs[i].classList.add("is-lit");
-      // Beep on each bulb except the last (which is the "GO" cue).
+      const txt = COUNT_TEXT[i];
+      if (txt) showCountdownNum(txt);
       if (i < bulbs.length - 1) playCountdownBeep("tick");
       i++;
     } else {
-      // GO — extinguish all and start the race.
+      // GO.
       clearInterval(interval);
       bulbs.forEach((b) => b.classList.remove("is-lit"));
       setTimeout(() => { startLightsEl.hidden = true; }, 220);
       running = true;
       if (car) car.raceLiveTime = 0;
       playCountdownBeep("go");
+      showCountdownNum("GO", true);
       flashCallout("GO", 700);
     }
   }, 600);
@@ -1902,6 +1916,12 @@ window.addEventListener("keydown", (e) => {
     spectatorMode = !spectatorMode;
     document.body.classList.toggle("is-spectator", spectatorMode);
   }
+  if (e.code === "KeyR" && (running || finishShown)) {
+    // Quick restart current race.
+    spectatorMode = false; photoMode = false;
+    document.body.classList.remove("is-spectator", "is-photo-mode");
+    startRace();
+  }
 });
 
 // FPS counter state.
@@ -1955,7 +1975,7 @@ document.getElementById("pause-settings")?.addEventListener("click", () => {
 
 // ---- Settings overlay ----
 const SETTINGS_KEY = "apex-akina-3d:settings";
-const defaultSettings = { quality: "high", volume: 80, music: 60, sfx: 100, fov: 70, shake: 100, assist: true, difficulty: "normal", time: "auto" };
+const defaultSettings = { quality: "high", volume: 80, music: 60, sfx: 100, fov: 70, shake: 100, assist: true, difficulty: "normal", time: "auto", cb: false, reduceMotion: false };
 
 function loadSettings() {
   try {
@@ -2016,9 +2036,13 @@ function syncSettingsUI() {
   if (diffEl) diffEl.value = settings.difficulty || "normal";
   const tEl = document.getElementById("setting-time");
   if (tEl) tEl.value = settings.time || "auto";
+  const cbEl = document.getElementById("setting-cb");
+  if (cbEl) cbEl.checked = !!settings.cb;
+  const rmEl = document.getElementById("setting-reduce-motion");
+  if (rmEl) rmEl.checked = !!settings.reduceMotion;
 }
 syncSettingsUI();
-for (const id of ["setting-quality", "setting-volume", "setting-music", "setting-sfx", "setting-fov", "setting-shake", "setting-assist", "setting-difficulty", "setting-time"]) {
+for (const id of ["setting-quality", "setting-volume", "setting-music", "setting-sfx", "setting-fov", "setting-shake", "setting-assist", "setting-difficulty", "setting-time", "setting-cb", "setting-reduce-motion"]) {
   const el = document.getElementById(id);
   if (!el) continue;
   el.addEventListener("input", () => {
@@ -2032,11 +2056,18 @@ for (const id of ["setting-quality", "setting-volume", "setting-music", "setting
     settings.difficulty = document.getElementById("setting-difficulty").value;
     const tEl = document.getElementById("setting-time");
     if (tEl) settings.time = tEl.value;
+    settings.cb = document.getElementById("setting-cb")?.checked || false;
+    settings.reduceMotion = document.getElementById("setting-reduce-motion")?.checked || false;
+    document.body.classList.toggle("is-colorblind", settings.cb);
+    document.body.classList.toggle("is-reduce-motion", settings.reduceMotion);
     saveSettings(settings);
     applySettings();
     applyTimeOfDay();
   });
 }
+// Apply on init too.
+document.body.classList.toggle("is-colorblind", !!settings.cb);
+document.body.classList.toggle("is-reduce-motion", !!settings.reduceMotion);
 
 // Fullscreen toggle.
 document.getElementById("settings-fullscreen")?.addEventListener("click", () => {
