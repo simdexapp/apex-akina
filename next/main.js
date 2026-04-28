@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=16";
-import { buildScenery } from "./scenery.js?v=16";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=16";
-import { createInput, initTouchControls } from "./input.js?v=16";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=16";
+import { buildTrack, getTrackList } from "./track.js?v=17";
+import { buildScenery } from "./scenery.js?v=17";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=17";
+import { createInput, initTouchControls } from "./input.js?v=17";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=17";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=16";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=16";
-import { createGhost, createGhostMesh } from "./ghost.js?v=16";
-import { createReplay } from "./replay.js?v=16";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=16";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=16";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=17";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=17";
+import { createGhost, createGhostMesh } from "./ghost.js?v=17";
+import { createReplay } from "./replay.js?v=17";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=17";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=17";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=16";
+} from "./profile.js?v=17";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1280,7 +1280,7 @@ function drawMinimap() {
   const w = minimapCanvas.width;
   const h = minimapCanvas.height;
   minimapCtx.clearRect(0, 0, w, h);
-  // Compute bounds of the track points.
+  // Bounds.
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of track.controlPoints) {
     if (p.x < minX) minX = p.x;
@@ -1288,16 +1288,16 @@ function drawMinimap() {
     if (p.z < minZ) minZ = p.z;
     if (p.z > maxZ) maxZ = p.z;
   }
-  const pad = 12;
+  const pad = 14;
   const sx = (w - pad * 2) / (maxX - minX || 1);
   const sz = (h - pad * 2) / (maxZ - minZ || 1);
   const s = Math.min(sx, sz);
   const cx = (x) => pad + (x - minX) * s;
   const cz = (z) => pad + (z - minZ) * s;
 
-  // Track outline.
-  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.65)";
-  minimapCtx.lineWidth = 2;
+  // Track outline glow + line.
+  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.18)";
+  minimapCtx.lineWidth = 6;
   minimapCtx.beginPath();
   for (let i = 0; i < track.points.length; i++) {
     const p = track.points[i];
@@ -1306,22 +1306,47 @@ function drawMinimap() {
   }
   minimapCtx.closePath();
   minimapCtx.stroke();
+  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.85)";
+  minimapCtx.lineWidth = 1.5;
+  minimapCtx.stroke();
 
-  // Rival dots.
+  // Start marker — hot pink dot at point 0.
+  const sp = track.points[0];
+  minimapCtx.fillStyle = "#ff315c";
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx(sp.x), cz(sp.z), 2.5, 0, Math.PI * 2);
+  minimapCtx.fill();
+
+  // Rival dots — color by personality, fade for far-back rivals.
+  const PERSONALITY_COLORS = {
+    aggressive: "#ff5e3a", smooth: "#4adf80", consistent: "#ffd166", wildcard: "#a66cff"
+  };
   for (const r of rivals) {
-    minimapCtx.fillStyle = "rgba(255, 209, 102, 0.85)";
+    const col = PERSONALITY_COLORS[r.personality?.id] || "#ffd166";
+    minimapCtx.fillStyle = col;
     minimapCtx.beginPath();
-    minimapCtx.arc(cx(r.mesh.position.x), cz(r.mesh.position.z), 2.5, 0, Math.PI * 2);
+    minimapCtx.arc(cx(r.mesh.position.x), cz(r.mesh.position.z), 2.4, 0, Math.PI * 2);
     minimapCtx.fill();
   }
-  // Player dot.
-  minimapCtx.fillStyle = "#ff315c";
-  minimapCtx.shadowColor = "#ff315c";
-  minimapCtx.shadowBlur = 6;
+
+  // Player — triangle pointing in heading direction.
+  const px = cx(car.group.position.x);
+  const py = cz(car.group.position.z);
+  const yaw = car.heading;
+  minimapCtx.save();
+  minimapCtx.translate(px, py);
+  minimapCtx.rotate(-yaw);            // canvas Y is inverted vs world Z
+  minimapCtx.fillStyle = "#fbfdff";
+  minimapCtx.shadowColor = "#fbfdff";
+  minimapCtx.shadowBlur = 8;
   minimapCtx.beginPath();
-  minimapCtx.arc(cx(car.group.position.x), cz(car.group.position.z), 4, 0, Math.PI * 2);
+  minimapCtx.moveTo(0, -5);            // tip
+  minimapCtx.lineTo(-3.5, 4);
+  minimapCtx.lineTo(3.5, 4);
+  minimapCtx.closePath();
   minimapCtx.fill();
   minimapCtx.shadowBlur = 0;
+  minimapCtx.restore();
 }
 
 let finishShown = false;

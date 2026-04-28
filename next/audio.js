@@ -365,7 +365,8 @@ export function playBrakeHiss() {
   src.stop(t + len + 0.05);
 }
 
-// Gear-shift "thunk" — a quick filtered noise burst.
+// Gear-shift "thunk" — a quick filtered noise burst plus, on downshift, a
+// rev-match blip (short pitched tone above the engine note).
 export function playShift(direction = 1) {
   if (!ctx) return;
   const t = ctx.currentTime;
@@ -387,4 +388,26 @@ export function playShift(direction = 1) {
   bp.connect(g);
   g.connect(sfxBus);
   src.start(t);
+
+  // Rev-match blip on downshift.
+  if (direction < 0) {
+    const blipOsc = ctx.createOscillator();
+    blipOsc.type = "sawtooth";
+    blipOsc.frequency.setValueAtTime(180, t);
+    blipOsc.frequency.exponentialRampToValueAtTime(260, t + 0.06);
+    blipOsc.frequency.exponentialRampToValueAtTime(150, t + 0.14);
+    const blipLp = ctx.createBiquadFilter();
+    blipLp.type = "lowpass";
+    blipLp.frequency.value = 1200;
+    blipLp.Q.value = 4;
+    const blipG = ctx.createGain();
+    blipG.gain.setValueAtTime(0.0001, t);
+    blipG.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+    blipG.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    blipOsc.connect(blipLp);
+    blipLp.connect(blipG);
+    blipG.connect(sfxBus);
+    blipOsc.start(t);
+    blipOsc.stop(t + 0.20);
+  }
 }
