@@ -2,27 +2,27 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=44";
-import { buildScenery, tickAmbient } from "./scenery.js?v=44";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=44";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=44";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=44";
+import { buildTrack, getTrackList } from "./track.js?v=45";
+import { buildScenery, tickAmbient } from "./scenery.js?v=45";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=45";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=45";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=45";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=44";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=44";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=44";
-import { createReplay } from "./replay.js?v=44";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=44";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=44";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=44";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=44";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=44";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=45";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=45";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=45";
+import { createReplay } from "./replay.js?v=45";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=45";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=45";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=45";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=45";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=45";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=44";
+} from "./profile.js?v=45";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -312,6 +312,46 @@ function loadTrack(id) {
   // Apply time-of-day override (if user picked dawn/day/sunset/night).
   if (typeof applyTimeOfDay === "function") applyTimeOfDay();
   try { localStorage.setItem(TRACK_KEY, id); } catch (_) {}
+}
+
+// Show the season-briefing card when a championship starts. Auto-dismisses
+// in 5s or on tap. Shows full round list with boss-race callouts.
+function showChampIntro(champId) {
+  const champ = CHAMPIONSHIPS[champId];
+  if (!champ) return;
+  const el = document.getElementById("champ-intro");
+  if (!el) return;
+  document.getElementById("ci-name").textContent = champ.name;
+  document.getElementById("ci-desc").textContent = champ.description;
+  document.getElementById("ci-rounds").textContent = `${champ.rounds.length} rounds`;
+  document.getElementById("ci-diff").textContent = `${champ.difficulty} AI`;
+  const list = document.getElementById("ci-rounds-list");
+  if (list) {
+    list.innerHTML = "";
+    champ.rounds.forEach((r, i) => {
+      const li = document.createElement("li");
+      const isBoss = typeof r.boss === "number";
+      if (isBoss) li.classList.add("is-boss");
+      const trackName = TRACKS_LIST.find((t) => t.id === r.trackId)?.name || r.trackId;
+      li.innerHTML = `
+        <span class="ci-num">${i + 1}.</span>
+        <span class="ci-track">${trackName}</span>
+        ${isBoss ? `<span class="ci-boss-tag">Boss</span>` : ""}
+        <span class="ci-laps">${r.laps} LAPS</span>
+      `;
+      list.appendChild(li);
+    });
+  }
+  el.hidden = false;
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    el.hidden = true;
+    el.removeEventListener("click", dismiss);
+  };
+  el.addEventListener("click", dismiss);
+  setTimeout(dismiss, 5500);
 }
 
 // Time-of-day color recipes — applied as a tint over the track's palette.
@@ -2270,6 +2310,7 @@ function renderCareerPanel() {
         if (round) loadTrack(round.trackId);
         renderCareerPanel();
         renderTrackPicker();
+        showChampIntro(id);
       });
       wrap.appendChild(btn);
     }
@@ -2402,7 +2443,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=44");
+  const mod = await import("./garagePreview.js?v=45");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

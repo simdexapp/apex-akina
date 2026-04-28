@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=44">
+    <link rel="stylesheet" href="styles.css?v=45">
     <script type="importmap">
       {
         "imports": {
@@ -234,6 +234,22 @@
           </div>
         </div>
 
+        <!-- Championship intro card — cinematic season opener -->
+        <div class="champ-intro" id="champ-intro" hidden>
+          <div class="champ-intro-card">
+            <span class="ci-eyebrow">Season Briefing</span>
+            <h2 class="ci-name" id="ci-name">…</h2>
+            <p class="ci-desc" id="ci-desc">…</p>
+            <div class="ci-meta">
+              <span id="ci-rounds">…</span>
+              <span class="ci-dot">·</span>
+              <span id="ci-diff">…</span>
+            </div>
+            <ol class="ci-rounds-list" id="ci-rounds-list"></ol>
+            <p class="ci-hint">Tap to begin</p>
+          </div>
+        </div>
+
         <div class="overlay" id="finish-overlay" hidden>
           <div class="title-card">
             <p class="eyebrow">Race complete</p>
@@ -408,6 +424,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=44"></script>
+    <script type="module" src="main.js?v=45"></script>
   </body>
 </html>

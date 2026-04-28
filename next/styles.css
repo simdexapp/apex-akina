@@ -2398,6 +2398,160 @@ body.is-photo-mode::after {
   100% { transform: scale(1.0); opacity: 1; }
 }
 
+/* Championship intro — full season briefing shown when starting a career */
+.champ-intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 8;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(46,233,255,0.14), transparent 60%),
+    rgba(5, 8, 15, 0.78);
+  cursor: pointer;
+  animation: champ-intro-fade 0.45s ease-out forwards;
+}
+
+.champ-intro[hidden] { display: none !important; }
+
+.champ-intro-card {
+  text-align: center;
+  padding: 28px 36px;
+  border: 2px solid var(--cyan);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(46,233,255,0.16), rgba(8,13,22,0.95));
+  box-shadow:
+    0 0 70px rgba(46, 233, 255, 0.40),
+    0 0 28px rgba(255, 215, 0, 0.18) inset;
+  max-width: 520px;
+  width: min(92%, 520px);
+  animation: champ-intro-pop 0.6s cubic-bezier(.2,.9,.2,1.1) forwards;
+}
+
+.ci-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+
+.ci-name {
+  margin: 0 0 8px;
+  font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 0 0 18px rgba(46, 233, 255, 0.55);
+}
+
+.ci-desc {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-style: italic;
+  color: #c8d4e6;
+  line-height: 1.45;
+}
+
+.ci-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.ci-meta .ci-dot { color: rgba(46,233,255,0.5); }
+
+.ci-rounds-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ci-rounds-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(46, 233, 255, 0.06);
+  border: 1px solid rgba(46, 233, 255, 0.18);
+  font-size: 12px;
+  color: var(--ink);
+}
+.ci-rounds-list li.is-boss {
+  background: rgba(255, 49, 92, 0.10);
+  border-color: rgba(255, 49, 92, 0.35);
+}
+.ci-rounds-list li .ci-num {
+  font-weight: 900;
+  color: var(--gold);
+  width: 22px;
+  text-align: right;
+}
+.ci-rounds-list li .ci-track {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.ci-rounds-list li .ci-laps {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.10em;
+}
+.ci-rounds-list li .ci-boss-tag {
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--hot);
+  color: #fff;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ci-hint {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  animation: ci-hint-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes champ-intro-fade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes champ-intro-pop {
+  0%   { transform: scale(0.90) translateY(8px); opacity: 0; }
+  60%  { transform: scale(1.02) translateY(0); opacity: 1; }
+  100% { transform: scale(1.0) translateY(0); opacity: 1; }
+}
+
+@keyframes ci-hint-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1.0; }
+}
+
 /* Contextual tutorial tooltips that appear in-race for first-time players */
 .tut-hint {
   position: absolute;
