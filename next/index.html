@@ -15,6 +15,15 @@
     </script>
   </head>
   <body>
+    <!-- Splash screen — hidden once main.js boots and removes it. -->
+    <div class="splash" id="splash">
+      <div class="splash-card">
+        <p class="splash-eyebrow">Apex Akina · 3D Engine</p>
+        <h1 class="splash-title">APEX<br>AKINA</h1>
+        <div class="splash-loader"><span></span></div>
+        <p class="splash-status" id="splash-status">Loading shaders…</p>
+      </div>
+    </div>
     <main class="shell">
       <section class="game-frame" aria-label="Apex Akina 3D">
         <canvas id="game"></canvas>
@@ -265,6 +274,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=5"></script>
+    <script type="module" src="main.js?v=6"></script>
   </body>
 </html>

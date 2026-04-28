@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=5";
-import { buildScenery } from "./scenery.js?v=5";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=5";
-import { createInput, initTouchControls } from "./input.js?v=5";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=5";
+import { buildTrack, getTrackList } from "./track.js?v=6";
+import { buildScenery } from "./scenery.js?v=6";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=6";
+import { createInput, initTouchControls } from "./input.js?v=6";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=6";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=5";
-import { MUSIC_PROFILES } from "./tracks-data.js?v=5";
-import { createGhost, createGhostMesh } from "./ghost.js?v=5";
-import { createReplay } from "./replay.js?v=5";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=5";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=5";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=6";
+import { MUSIC_PROFILES } from "./tracks-data.js?v=6";
+import { createGhost, createGhostMesh } from "./ghost.js?v=6";
+import { createReplay } from "./replay.js?v=6";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=6";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=6";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=5";
+} from "./profile.js?v=6";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -950,6 +950,26 @@ function loop(now) {
     });
   }
 
+  // Spectator mode — orbit the race leader.
+  if (spectatorMode && rivals && rivals.length) {
+    spectatorYaw += dt * 0.4;
+    // Find the leader (most laps × trackLen + arclength).
+    const trackLen = track.length;
+    let leader = car;
+    let leaderTotal = lap * trackLen + track.project(car.group.position).s;
+    for (const r of rivals) {
+      const total = (r.laps || 0) * trackLen + r.s;
+      if (total > leaderTotal) { leader = r.mesh ? r : null; leaderTotal = total; }
+    }
+    const target = leader === car ? car.group.position : leader.mesh.position;
+    const dist = 18;
+    camera.position.set(
+      target.x + Math.sin(spectatorYaw) * dist,
+      target.y + 6,
+      target.z + Math.cos(spectatorYaw) * dist
+    );
+    camera.lookAt(target.x, target.y + 1.2, target.z);
+  }
   // Photo mode camera + replay playback + FPS overlay.
   if (photoMode) tickPhotoMode(dt);
   if (replayPlaying) tickReplay(dt);
@@ -1470,6 +1490,10 @@ window.addEventListener("keydown", (e) => {
     photoMode = !photoMode;
     document.body.classList.toggle("is-photo-mode", photoMode);
   }
+  if (e.code === "KeyV" && running) {
+    spectatorMode = !spectatorMode;
+    document.body.classList.toggle("is-spectator", spectatorMode);
+  }
 });
 
 // FPS counter state.
@@ -1477,6 +1501,10 @@ let fpsOverlayEnabled = false;
 let fpsLastSample = performance.now();
 let fpsFrameCount = 0;
 let fpsValue = 60;
+
+// Spectator mode — orbits the race leader at a cinematic distance.
+let spectatorMode = false;
+let spectatorYaw = 0;
 
 // Photo mode — pause physics + switch to a free-fly camera that the player
 // can orbit with arrow keys.
@@ -1628,5 +1656,14 @@ if (muteBtn) {
     try { localStorage.setItem(MUTE_KEY, next ? "1" : "0"); } catch (_) {}
   });
 }
+
+// Hide splash now that the engine has booted + first frame is queued.
+requestAnimationFrame(() => {
+  const splash = document.getElementById("splash");
+  if (splash) {
+    splash.classList.add("is-fading");
+    setTimeout(() => splash.remove(), 320);
+  }
+});
 
 requestAnimationFrame(loop);

@@ -26,6 +26,82 @@ body {
 
 .shell { height: 100%; display: grid; place-items: center; padding: clamp(8px, 2vw, 24px); }
 
+/* Splash screen */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,49,92,0.20), transparent 45%),
+    radial-gradient(circle at 80% 90%, rgba(46,233,255,0.20), transparent 45%),
+    #060710;
+  transition: opacity 280ms ease;
+}
+
+.splash.is-fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.splash-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.20em;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.splash-title {
+  margin: 0;
+  font-size: clamp(48px, 9vw, 96px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 5px 5px 0 rgba(255, 49, 92, 0.78), -3px -3px 0 rgba(46, 233, 255, 0.55);
+}
+
+.splash-loader {
+  width: 220px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.splash-loader > span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, var(--cyan), var(--gold), var(--hot));
+  animation: splash-loader 1.2s ease-in-out infinite;
+}
+
+@keyframes splash-loader {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(380%); }
+}
+
+.splash-status {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .game-frame {
   position: relative;
   width: min(100%, 1400px);
@@ -975,6 +1051,24 @@ body.is-replay .leaderboard,
 body.is-replay .minimap,
 body.is-replay .touch-pad {
   display: none !important;
+}
+
+body.is-spectator::after {
+  content: "SPECTATOR — V to exit";
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: var(--panel);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  z-index: 10;
 }
 
 body.is-replay::after {
