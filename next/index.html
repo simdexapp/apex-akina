@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=13">
+    <link rel="stylesheet" href="styles.css?v=14">
     <script type="importmap">
       {
         "imports": {
@@ -267,6 +267,16 @@
               <input id="setting-assist" type="checkbox" checked/>
             </label>
             <label class="settings-row">
+              <span>Time of day</span>
+              <select id="setting-time">
+                <option value="auto" selected>Auto (per track)</option>
+                <option value="dawn">Dawn</option>
+                <option value="day">Day</option>
+                <option value="sunset">Sunset</option>
+                <option value="night">Night</option>
+              </select>
+            </label>
+            <label class="settings-row">
               <span>AI difficulty</span>
               <select id="setting-difficulty">
                 <option value="easy">Easy (slower AI, generous draft)</option>
@@ -301,6 +311,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=13"></script>
+    <script type="module" src="main.js?v=14"></script>
   </body>
 </html>
