@@ -112,10 +112,11 @@ export function createRivals(track, count = 14) {
       s: -((i + 1) * 14),
       lane: homeLane,
       homeLane,
-      // Tiered target speeds: front pack 64-72, mid 54-60, back 46-52 m/s.
-      targetSpeed: i < 4 ? 64 + Math.random() * 8
-                  : i < 9 ? 54 + Math.random() * 6
-                  : 46 + Math.random() * 6,
+      // Tiered target speeds scaled to BASE_MAX_SPEED 78 — front fights the player, mid hangs in, back holds station.
+      // Player base 78, *1.04 (gt) = 81, +25% boost = 101 briefly. Front pack 72-80 fights without boost.
+      targetSpeed: i < 4 ? 72 + Math.random() * 8
+                  : i < 9 ? 62 + Math.random() * 8
+                  : 52 + Math.random() * 8,
       baseTargetSpeed: 0,  // populated below; used for rubber-band
       speed: 0,
       laps: 0,

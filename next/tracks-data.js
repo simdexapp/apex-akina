@@ -9,15 +9,14 @@ export const TRACKS = {
     name: "Akina Pass",
     description: "Mountain hairpins, dramatic climbs and dives.",
     palette: {
-      sky: { top: "#0a0f2c", mid: "#3a1656", bottom: "#ff5f4c" },
-      fog: 0x1a1240,
-      kerbA: 0xff385f, kerbB: 0xfbfdff,
-      ground: 0x0d1024,
-      moonLight: 0xb6c8ff,
-      fillRed: 0xff315c,
-      fillCyan: 0x2ee9ff
+      sky: { top: "#08101e", mid: "#1c1b3a", bottom: "#5a4060" },
+      fog: 0x1a1830,
+      kerbA: 0xc73d56, kerbB: 0xeaeef5,
+      ground: 0x0a0f1a,
+      moonLight: 0xc8d0e8,
+      fillRed: 0xc23a55,
+      fillCyan: 0x4a8aa8
     },
-    // Climbing right turn → ridge straight → big descent → hairpin → long climbing left → bridge crossing → final
     points: [
       v(0, 0, 0),
       v(70, 0.5, 40),
@@ -43,13 +42,13 @@ export const TRACKS = {
     name: "Bayside Boulevard",
     description: "Long ocean straights, sweeping cambered curves.",
     palette: {
-      sky: { top: "#0c1840", mid: "#1f4a8a", bottom: "#5fc5ff" },
-      fog: 0x152e58,
-      kerbA: 0xff4a3a, kerbB: 0xfbfdff,
-      ground: 0x081428,
+      sky: { top: "#0a1430", mid: "#1a3460", bottom: "#3a6080" },
+      fog: 0x16284a,
+      kerbA: 0xc24c3a, kerbB: 0xeaeef5,
+      ground: 0x06121e,
       moonLight: 0xc8d8ff,
-      fillRed: 0xff6b2a,
-      fillCyan: 0x5fc5ff
+      fillRed: 0xa84838,
+      fillCyan: 0x4a86b0
     },
     points: [
       v(0, 0, 0), v(80, 0.2, 60), v(160, 0.4, 140),
@@ -64,13 +63,13 @@ export const TRACKS = {
     name: "Akagi Loop",
     description: "Tight switchbacks. No room to breathe.",
     palette: {
-      sky: { top: "#0d1a2a", mid: "#2a3818", bottom: "#d68a3a" },
-      fog: 0x101a14,
-      kerbA: 0xffb834, kerbB: 0xfff4d0,
-      ground: 0x0a1310,
-      moonLight: 0xe8d8a0,
-      fillRed: 0xd68a3a,
-      fillCyan: 0x88c060
+      sky: { top: "#0c1722", mid: "#22321c", bottom: "#7a5a3a" },
+      fog: 0x101a16,
+      kerbA: 0xc09038, kerbB: 0xe8dcb8,
+      ground: 0x081210,
+      moonLight: 0xd0c898,
+      fillRed: 0x9c6c30,
+      fillCyan: 0x6a8c58
     },
     // Tighter control points for hairpin feel.
     points: [
@@ -87,13 +86,13 @@ export const TRACKS = {
     name: "Neon Highway",
     description: "Cyberpunk overpass. Long blasts.",
     palette: {
-      sky: { top: "#0e0220", mid: "#360a55", bottom: "#ff2da8" },
-      fog: 0x1a0535,
-      kerbA: 0xff2da8, kerbB: 0x39f0ff,
-      ground: 0x080518,
-      moonLight: 0xff80c0,
-      fillRed: 0xff2da8,
-      fillCyan: 0x39f0ff
+      sky: { top: "#0c0820", mid: "#2a1240", bottom: "#a83778" },
+      fog: 0x180a30,
+      kerbA: 0xc83a8a, kerbB: 0x4cb8c8,
+      ground: 0x070416,
+      moonLight: 0xd896b8,
+      fillRed: 0xa8307a,
+      fillCyan: 0x3098a8
     },
     points: [
       v(0, 0, 0), v(80, 0, 60), v(180, 0.3, 80),

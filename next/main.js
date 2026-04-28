@@ -13,7 +13,7 @@ const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -177,7 +177,8 @@ loadTrack(initialTrackId);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 1500);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.85, 0.45, 0.62);
+// Restrained bloom — keep the lights glowing but stop everything from looking neon-soaked.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.42, 0.55, 0.78);
 composer.addPass(bloomPass);
 
 function resize() {
