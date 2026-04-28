@@ -2,25 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=33";
-import { buildScenery, tickAmbient } from "./scenery.js?v=33";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=33";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=33";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=33";
+import { buildTrack, getTrackList } from "./track.js?v=34";
+import { buildScenery, tickAmbient } from "./scenery.js?v=34";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=34";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=34";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=34";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=33";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=33";
-import { createGhost, createGhostMesh } from "./ghost.js?v=33";
-import { createReplay } from "./replay.js?v=33";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=33";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=33";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=33";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=34";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=34";
+import { createGhost, createGhostMesh } from "./ghost.js?v=34";
+import { createReplay } from "./replay.js?v=34";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=34";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=34";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=34";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=33";
+} from "./profile.js?v=34";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -832,6 +832,14 @@ function tick(dt) {
     vibrate(0.30, 0.08, 90);
   }
   car._wasBraking = i.brake;
+
+  // Steering-wheel mesh inside cabin rotates with input (visible from cinema cam).
+  const sw = car.group?.userData?.steeringWheel;
+  if (sw) {
+    const target = -(i.steer || 0) * 1.6;
+    sw._cur = (sw._cur ?? 0) + (target - (sw._cur ?? 0)) * Math.min(1, dt * 14);
+    sw.rotation.z = sw._cur;
+  }
 
   // Brake light intensity — bump when braking, fade otherwise.
   const tailMats = car.group?.userData?.tailMats;

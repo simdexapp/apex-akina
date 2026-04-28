@@ -488,11 +488,47 @@ function buildBody(shape) {
     vent.position.set(side * shape.width * 0.51, shape.height * 0.55, shape.length * 0.18);
     vent.rotation.y = side * 0.15;
     group.add(vent);
-    // Smaller secondary slit
     const vent2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.22), vMat);
     vent2.position.set(side * shape.width * 0.51, shape.height * 0.42, shape.length * 0.10);
     group.add(vent2);
   }
+
+  // Hood scoop — bonnet-mounted air intake, prominent on muscle / drift /
+  // super shapes. Skipped on small kei + GT for clean lines.
+  if (["wing", "deck"].includes(shape.spoiler)) {
+    const scoopMat = pbr(0x05070d, 0.45, 0.55);
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.10, 0.50), scoopMat);
+    scoop.position.set(0, shape.height * 0.85 + shape.height * 0.55 + 0.04, shape.length * 0.20);
+    group.add(scoop);
+    // Open intake slot at front of scoop.
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.05, 0.04), pbr(0x000000));
+    slot.position.set(0, shape.height * 0.85 + shape.height * 0.55 + 0.04, shape.length * 0.20 + 0.24);
+    group.add(slot);
+  }
+
+  // Steering wheel — small dark disc visible through the windshield.
+  // Stored in userData so the runtime can rotate it with car.steer.
+  const wheelGroup = new THREE.Group();
+  const wheelDisc = new THREE.Mesh(
+    new THREE.TorusGeometry(0.16, 0.025, 6, 16),
+    pbr(0x05070d, 0.4, 0.6)
+  );
+  wheelDisc.rotation.x = Math.PI / 2 - 0.35;     // tilted toward driver
+  wheelGroup.add(wheelDisc);
+  // Center hub
+  const hubM = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.04, 10),
+    pbr(0x141828, 0.4, 0.6)
+  );
+  hubM.rotation.x = Math.PI / 2 - 0.35;
+  wheelGroup.add(hubM);
+  wheelGroup.position.set(
+    -shape.cabin.w * 0.20,                                       // driver's side (left in JDM RHD = right; left for now)
+    shape.height * 0.85 + shape.cabin.h * 0.55,
+    shape.cabin.z + shape.cabin.l * 0.10
+  );
+  group.add(wheelGroup);
+  group.userData.steeringWheel = wheelGroup;
 
   // Brake calipers — small colored boxes inside each wheel for detail.
   const caliperMat = new THREE.MeshStandardMaterial({ color: 0xff4a3a, metalness: 0.5, roughness: 0.4 });
