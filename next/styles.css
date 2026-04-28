@@ -959,6 +959,18 @@ button:hover { filter: brightness(1.08); }
   .back-link { padding: 4px 8px; font-size: 11px; }
 }
 
+/* Phone-friendly pre-race: tighter cards, single-column on small widths. */
+@media (max-width: 700px) {
+  .title-card { padding: 18px 16px; }
+  .title-card h1 { font-size: 28px; }
+  .title-card p { font-size: 13px; }
+  .track-picker, .mode-picker { gap: 6px; grid-template-columns: 1fr; }
+  .mode-card, .track-card { padding: 8px 10px; }
+  .mode-card .name, .track-card .name { font-size: 12px; }
+  .mode-card .desc, .track-card .desc { font-size: 10px; }
+  .track-preview { height: 50px; max-width: 100%; }
+}
+
 /* Phone portrait — stack things differently. */
 @media (max-width: 540px) {
   .hud-stack { padding: 2px 6px; min-width: 40px; }
@@ -1142,6 +1154,28 @@ body.is-photo-mode::after {
 
 .track-card[aria-checked="true"] .track-preview {
   opacity: 1;
+}
+
+/* Pre-race rotating tip */
+.race-tip {
+  margin-top: 16px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--cyan);
+  background: rgba(46, 233, 255, 0.08);
+  font-size: 11px;
+  color: var(--ink);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.race-tip::before {
+  content: "Tip · ";
+  color: var(--cyan);
+  font-weight: 900;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-size: 9px;
 }
 
 /* Rival driver-name labels — projected from world to screen each frame */

@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=10";
-import { buildScenery } from "./scenery.js?v=10";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=10";
-import { createInput, initTouchControls } from "./input.js?v=10";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=10";
+import { buildTrack, getTrackList } from "./track.js?v=11";
+import { buildScenery } from "./scenery.js?v=11";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=11";
+import { createInput, initTouchControls } from "./input.js?v=11";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=11";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=10";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=10";
-import { createGhost, createGhostMesh } from "./ghost.js?v=10";
-import { createReplay } from "./replay.js?v=10";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=10";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=10";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=11";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=11";
+import { createGhost, createGhostMesh } from "./ghost.js?v=11";
+import { createReplay } from "./replay.js?v=11";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=11";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=11";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=10";
+} from "./profile.js?v=11";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -558,6 +558,29 @@ const NEAR_MISS_INNER = 2.4; // inside this is a real collision
 // ---- Loop ----
 const input = createInput();
 initTouchControls();
+
+// Pre-race rotating tip.
+const RACE_TIPS = [
+  "Tail an AI within 22m to draft. Hold the line for a top-speed bump.",
+  "Hold throttle the moment GO drops for a Perfect Launch surge.",
+  "Brake INTO a corner to rotate the rear — trail-braking is fast.",
+  "Drift charge scales with duration. Long clean slides = bigger boost.",
+  "Steer-with the drift to extend; counter-flick to snap out.",
+  "Press C to cycle camera modes (chase / hood / cinema).",
+  "P enters Photo Mode — orbit cam, perfect for screenshots.",
+  "V switches to Spectator Cam during a race.",
+  "Esc pauses. F3 toggles the FPS counter.",
+  "Customize spoilers + chrome accents per car in the Garage.",
+  "Career Mode runs a full championship across multiple tracks.",
+  "Master the Drift Coupe to unlock effortless slides.",
+  "The Hyper GT punishes corners but eats straights.",
+  "Difficulty: Brutal removes rubber-band. AI runs full pace.",
+  "Replays save each race — hit Watch Replay on the finish screen."
+];
+{
+  const tipEl = document.getElementById("race-tip");
+  if (tipEl) tipEl.textContent = RACE_TIPS[Math.floor(Math.random() * RACE_TIPS.length)];
+}
 
 // Achievement toast renderer.
 onAchievementToast((ach) => {
