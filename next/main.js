@@ -2,24 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=24";
-import { buildScenery } from "./scenery.js?v=24";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=24";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=24";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=24";
+import { buildTrack, getTrackList } from "./track.js?v=25";
+import { buildScenery } from "./scenery.js?v=25";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=25";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=25";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=25";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=24";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=24";
-import { createGhost, createGhostMesh } from "./ghost.js?v=24";
-import { createReplay } from "./replay.js?v=24";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=24";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=24";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=25";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=25";
+import { createGhost, createGhostMesh } from "./ghost.js?v=25";
+import { createReplay } from "./replay.js?v=25";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=25";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=25";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=25";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=24";
+} from "./profile.js?v=25";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -571,6 +572,7 @@ function bumpCombo(amount, label) {
   const before = combo;
   combo += amount;
   comboTimer = COMBO_DECAY;
+  if (combo > (raceCtx.maxCombo || 0)) raceCtx.maxCombo = combo;
   if (Math.floor(combo / 5) > Math.floor(before / 5)) {
     if (car) car.boostMeter = Math.min(1, car.boostMeter + 0.25);
     flashCallout(`x${Math.floor(combo / 5) * 5}!`, 1100);
@@ -644,6 +646,19 @@ const RACE_TIPS = [
   const tipEl = document.getElementById("race-tip");
   if (tipEl) tipEl.textContent = RACE_TIPS[Math.floor(Math.random() * RACE_TIPS.length)];
 }
+
+function renderDailyChallenge() {
+  const card = document.getElementById("daily-challenge");
+  const text = document.getElementById("dc-text");
+  const status = document.getElementById("dc-status");
+  if (!card || !text || !status) return;
+  const today = getTodaysChallenge();
+  card.hidden = false;
+  text.textContent = today.text;
+  status.textContent = today.completed ? "✓ Done" : "Pending";
+  status.classList.toggle("is-done", today.completed);
+}
+renderDailyChallenge();
 
 // Achievement toast renderer.
 onAchievementToast((ach) => {
@@ -804,6 +819,7 @@ function tick(dt) {
     flashCallout("BOOST", 380);
     playTurboWhoosh();
     vibrate(0.6, 0.4, 200);
+    raceCtx.boostUsed = true;
   }
   // Brake hiss on first brake-press at speed.
   if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
@@ -1270,13 +1286,39 @@ function loop(now) {
     }
     // Check achievements with per-race context.
     const profile = loadProfile();
-    checkAchievements(profile, {
+    const ctx = {
       lapTime: bestLapDisplay || bestLapPerTrack[track.id],
       topSpeedKmh: raceCtx.topSpeedKmh,
       driftDuration: raceCtx.longestDrift,
       nearMisses: raceCtx.nearMisses,
-      championshipWin
-    });
+      championshipWin,
+      // Daily-challenge context.
+      won: standings.place === 1,
+      place: standings.place,
+      trackId: track.id,
+      car: car.shape,
+      mode: gameMode,
+      difficulty: settings.difficulty || "normal",
+      maxCombo: raceCtx.maxCombo || 0,
+      boostUsed: raceCtx.boostUsed === true
+    };
+    checkAchievements(profile, ctx);
+    // Daily challenge check.
+    const dc = checkDailyChallenge(ctx);
+    if (dc) {
+      flashCallout("Challenge complete!", 1400);
+      // Toast with daily-challenge styling.
+      const stack = document.getElementById("toast-stack");
+      if (stack) {
+        const el = document.createElement("div");
+        el.className = "toast";
+        el.style.borderColor = "var(--gold)";
+        el.innerHTML = `<span class="label">Daily Challenge</span><strong>Complete!</strong><small>${dc.text}</small>`;
+        stack.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+      }
+    }
+    renderDailyChallenge();
   }
 
   // Spectator mode — orbit the race leader.
@@ -1571,6 +1613,8 @@ function startRace() {
   raceCtx.nearMisses = 0;
   raceCtx.longestDrift = 0;
   raceCtx.kmDriven = 0;
+  raceCtx.maxCombo = 0;
+  raceCtx.boostUsed = false;
   // Sector splits — show panel + reset.
   const sectorsEl = document.getElementById("sectors");
   if (sectorsEl) sectorsEl.hidden = false;
