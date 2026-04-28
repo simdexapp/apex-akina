@@ -303,11 +303,9 @@ function tickParticles(dt) {
   }
 }
 
-// ---- Boost mechanic ----
-let boostFuel = 0.5; // 0..1
-const BOOST_DRAIN = 0.35;
-const BOOST_REGEN = 0.08;
-const BOOST_SPEED_BUMP = 16;
+// Boost meter is owned by the car module now (car.boostMeter). Keep this here
+// for backwards-compat with HUD code: read from the car each frame.
+function readBoost() { return car?.boostMeter ?? 0; }
 
 // ---- Skid marks (drift trails) ----
 const skidGroup = new THREE.Group();
@@ -379,7 +377,7 @@ function bumpCombo(amount, label) {
   combo += amount;
   comboTimer = COMBO_DECAY;
   if (Math.floor(combo / 5) > Math.floor(before / 5)) {
-    boostFuel = Math.min(1, boostFuel + 0.25);
+    if (car) car.boostMeter = Math.min(1, car.boostMeter + 0.25);
     flashCallout(`x${Math.floor(combo / 5) * 5}!`, 1100);
   } else if (label) {
     flashCallout(label, 700);
@@ -431,13 +429,9 @@ function tick(dt) {
   const i = input.read();
   car.tick(dt, i, track);
   // Boost mechanic — input.boost drains fuel, gives speed bump.
-  if (i.boost && boostFuel > 0.02 && Math.abs(car.speed) > 12) {
-    boostFuel = Math.max(0, boostFuel - BOOST_DRAIN * dt);
-    // Push speed up toward ceiling+bump.
-    const bumpedCeil = 65 + BOOST_SPEED_BUMP;
-    car.speed = Math.min(bumpedCeil, car.speed + 24 * dt);
-  } else if (running) {
-    boostFuel = Math.min(1, boostFuel + BOOST_REGEN * dt);
+  // Boost is now driven inside car.tick — passive regen happens here.
+  if (running && !i.boost && !car.driftActive) {
+    car.boostMeter = Math.min(1, car.boostMeter + 0.06 * dt);
   }
 
   tickRivals(rivals, dt, track, car);
@@ -482,8 +476,8 @@ function tick(dt) {
       if (prevDot > 0 && forwardDot <= 0 && nearMissArmed.get(r)) {
         const proximity = 1 - (dist - NEAR_MISS_INNER) / (NEAR_MISS_OUTER - NEAR_MISS_INNER);
         const intensity = Math.max(0.4, Math.min(1, proximity));
-        car.speed = Math.min(car.maxSpeed * BOOST_MUL, car.speed + 4 * intensity);
-        boostFuel = Math.min(1, boostFuel + 0.10 * intensity);
+        car.speed = Math.min(car.maxSpeed * 1.3, car.speed + 4 * intensity);
+        car.boostMeter = Math.min(1, car.boostMeter + 0.12 * intensity);
         bumpCombo(intensity > 0.7 ? 2 : 1, intensity > 0.7 ? "INCH" : "Close");
         nearMissArmed.set(r, false);
       }
@@ -569,7 +563,7 @@ function loop(now) {
 
   // Boost flame opacity reflects boost state.
   if (boostFlame) {
-    const boostOn = lastInput.boost && boostFuel > 0.02 && Math.abs(car.speed) > 12;
+    const boostOn = car.boostT > 0;
     const flicker = 0.7 + Math.sin(performance.now() * 0.03) * 0.25 + Math.random() * 0.1;
     const target = boostOn ? flicker : 0;
     boostFlame.userData.flame1.material.opacity += (target * 0.78 - boostFlame.userData.flame1.material.opacity) * Math.min(1, dt * 18);
@@ -586,7 +580,7 @@ function loop(now) {
   document.getElementById("place").textContent = ordinal(standings.place);
   const best = bestLapPerTrack[track.id];
   document.getElementById("best").textContent = best ? formatTime(best) : "—";
-  document.getElementById("boost-bar").style.width = `${Math.round(boostFuel * 100)}%`;
+  document.getElementById("boost-bar").style.width = `${Math.round(readBoost() * 100)}%`;
 
   // Combo HUD
   const comboStack = document.getElementById("combo-stack");
@@ -729,7 +723,7 @@ function startRace() {
   lap = 1;
   acc = 0;
   cameraInitialised = false;
-  boostFuel = 0.5;
+  if (car) car.boostMeter = 0.5;
   combo = 0;
   comboTimer = 0;
   clearSkids();

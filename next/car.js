@@ -167,79 +167,129 @@ export function createCar(shapeId = "gt") {
     heading: 0,
     steer: 0,
     boostT: 0,
+    // Drift state machine.
+    driftActive: false,
+    driftDuration: 0,
+    driftCharge: 0,    // 0..1 — fills as you sustain a drift
+    driftDir: 0,       // sign of yaw error during the drift
+    boostMeter: 0.5,   // 0..1, displayable
+    boostCooldown: 0,  // refractory between boost activations
+    // Pitch / roll for visible weight transfer.
+    pitch: 0,
+    roll: 0,
+    bodyY: 0,
 
     tick(dt, input, track) {
+      // ---- Steering ----
       const targetSteer = -(input.steer || 0) * STEER_MAX;
-      car.steer += (targetSteer - car.steer) * Math.min(1, dt * 14);
+      car.steer += (targetSteer - car.steer) * Math.min(1, dt * 16);
 
+      // ---- Throttle / brake / coast ----
+      let accelInput = 0; // for body pitch
       if (input.brake) {
         car.speed -= BRAKE * dt;
+        accelInput = -1;
       } else if (input.throttle) {
         car.speed += ACCEL * stats.accel * dt;
+        accelInput = 1;
       } else {
         car.speed -= Math.sign(car.speed) * DRAG * dt;
         if (Math.abs(car.speed) < DRAG * dt) car.speed = 0;
       }
 
-      if (input.boost) {
-        car.speed += ACCEL * 0.6 * dt;
-        car.boostT = 0.4;
+      // ---- Boost ----
+      car.boostCooldown = Math.max(0, car.boostCooldown - dt);
+      const canBoost = input.boost && car.boostMeter > 0.05 && car.boostCooldown <= 0 && Math.abs(car.speed) > 12;
+      if (canBoost) {
+        car.speed += ACCEL * 0.85 * dt;
+        car.boostT = 0.5;
+        car.boostMeter = Math.max(0, car.boostMeter - 0.45 * dt);
+        if (car.boostMeter <= 0.001) car.boostCooldown = 0.7; // force a refractory after burning out
       }
       car.boostT = Math.max(0, car.boostT - dt);
 
       const ceiling = maxSpeed * (car.boostT > 0 ? BOOST_MUL : 1);
       car.speed = Math.max(-maxSpeed * 0.5, Math.min(ceiling, car.speed));
 
+      // ---- Heading change ----
       const speedPct = Math.abs(car.speed) / maxSpeed;
       const yaw = car.steer * STEER_RATE * stats.handling * (1 - speedPct * 0.45) * Math.sign(car.speed || 1) * dt;
       car.heading += yaw;
 
-      const grip = (input.drift ? DRIFT_GRIP : GRIP) * stats.grip;
+      // ---- Drift state machine ----
+      const driftEligible = input.drift && Math.abs(car.steer) > 0.18 && car.speed > 18;
+      if (driftEligible && !car.driftActive) {
+        // Initiate drift — kick the rear out.
+        car.driftActive = true;
+        car.driftDuration = 0;
+        car.driftCharge = 0;
+        car.driftDir = Math.sign(car.steer || 1);
+        car.lateralV += car.driftDir * 6;  // initiation kick
+      } else if (!driftEligible && car.driftActive) {
+        // Drift release — give a boost reward proportional to charge.
+        car.driftActive = false;
+        if (car.driftDuration > 0.5) {
+          const reward = Math.min(0.35, car.driftCharge * 0.5);
+          car.boostMeter = Math.min(1, car.boostMeter + reward);
+          car.boostT = 0.4;
+        }
+        car.driftDuration = 0;
+        car.driftCharge = 0;
+      }
+      if (car.driftActive) {
+        car.driftDuration += dt;
+        // Charge fills with sustained drift; longer drift = more reward, capped.
+        car.driftCharge = Math.min(1, car.driftCharge + dt * 0.7);
+      }
+
+      // ---- Lateral grip & slip ----
+      const grip = (car.driftActive ? DRIFT_GRIP : GRIP) * stats.grip;
       const sideKick = car.steer * STEER_AUTHORITY * stats.handling * speedPct;
-      car.lateralV += sideKick * dt * (input.drift ? 9 : 4);
+      car.lateralV += sideKick * dt * (car.driftActive ? 11 : 4);
       car.lateralV -= car.lateralV * Math.min(1, grip * dt);
 
-      // Move.
+      // ---- Move ----
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
       const fx = sin * car.speed * dt;
       const fz = cos * car.speed * dt;
-      // Lateral component is perpendicular to forward (right-hand rule with Y up).
       const lx = cos * car.lateralV * dt;
       const lz = -sin * car.lateralV * dt;
       car.group.position.x += fx + lx;
       car.group.position.z += fz + lz;
 
-      // Track stickiness + barrier clamp: bounce off the wall if you reach the edge.
+      // ---- Barrier clamp / off-road / track height ----
       if (track) {
         const proj = track.project(car.group.position);
-        const limit = track.halfWidth + 0.85;  // matches barrier offset
+        const limit = track.halfWidth + 0.85;
         if (Math.abs(proj.lateral) > limit) {
-          // Snap player back inside the road and scrub speed (hit the wall).
           const overshoot = Math.abs(proj.lateral) - limit;
           const dirSign = Math.sign(proj.lateral);
-          // Compute the right vector at this segment to push back inward.
           const segIdx = proj.segmentIndex;
           const t = track.tangents[segIdx];
-          const rightX = -t.z;  // right = (-tz, 0, tx) in this convention
+          const rightX = -t.z;
           const rightZ = t.x;
           car.group.position.x -= rightX * dirSign * (overshoot + 0.05);
           car.group.position.z -= rightZ * dirSign * (overshoot + 0.05);
-          // Speed loss on wall scrape, scaled by impact angle.
           car.speed *= 0.86;
-          // Lateral velocity flipped + reduced — bounces off.
           car.lateralV = -car.lateralV * 0.4;
         } else if (Math.abs(proj.lateral) > track.halfWidth) {
-          // On the kerb / shoulder: subtle drag, no clamp yet.
           car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * 0.4 * dt;
         }
-        // Settle vertical position to match track height.
         const target = track.points[proj.segmentIndex].y;
         car.group.position.y += (target + 0.4 - car.group.position.y) * Math.min(1, dt * 8);
       }
 
-      // Apply rotation. Banking roll matches the now-inverted steering convention.
-      car.group.rotation.set(0, car.heading, car.steer * 0.06);
+      // ---- Body weight transfer (visible pitch + roll) ----
+      // Pitch: nose down on brake, up on accel.
+      const pitchTarget = -accelInput * 0.05 * Math.min(1, speedPct * 1.6);
+      car.pitch += (pitchTarget - car.pitch) * Math.min(1, dt * 6);
+      // Roll: lean opposite to corner G-force; intensified during drift.
+      const rollTarget = car.steer * 0.10 * speedPct * (car.driftActive ? 1.6 : 1.0);
+      car.roll += (rollTarget - car.roll) * Math.min(1, dt * 8);
+      // Subtle vertical bob from suspension.
+      car.bodyY = Math.sin(performance.now() * 0.006) * 0.02 * speedPct;
+      car.group.rotation.set(car.pitch, car.heading, car.roll);
     }
   };
 

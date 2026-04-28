@@ -112,8 +112,11 @@ export function createRivals(track, count = 14) {
       s: -((i + 1) * 14),
       lane: homeLane,
       homeLane,
-      // Target speed varied per rival.
-      targetSpeed: 28 + Math.random() * 16,  // 28-44 m/s
+      // Tiered target speeds: front pack chases the player, mid pack dogfights, back pack falls in line.
+      // Player max is ~65 m/s at top end. Front rivals run 56-62, mid 48-55, back 40-47.
+      targetSpeed: i < 4 ? 56 + Math.random() * 6
+                  : i < 9 ? 48 + Math.random() * 7
+                  : 40 + Math.random() * 7,
       speed: 0,
       laps: 0,
       heading: 0
