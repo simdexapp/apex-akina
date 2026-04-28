@@ -164,6 +164,8 @@ body.is-victory::before {
   overflow: hidden;
   background: #02040a;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  container-type: inline-size;       /* enables @container queries below */
+  container-name: gameframe;
 }
 
 #game { display: block; width: 100%; height: 100%; }
@@ -1932,4 +1934,64 @@ body.is-photo-mode::after {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 800;
+}
+
+/* ============================================================
+   Container-query mirror of the phone @media block.
+   Fires when .game-frame's inline-size is narrow, regardless of
+   the actual viewport. Makes the layout responsive in embedded
+   contexts (e.g. desktop dev tools, iframe).
+   ============================================================ */
+@container gameframe (max-width: 540px) {
+  .hud {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    right: 132px;
+    flex-wrap: wrap;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .hud-stack { padding: 2px 6px; min-width: 36px; max-width: 70px; }
+  .hud strong { font-size: 12px; }
+  .label { font-size: 8px; }
+  .hud-top .hud-stack:nth-child(4) { display: none; }
+  .hud-actions {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    gap: 4px;
+  }
+  .hud-actions a.back-link { display: none; }
+  .hud-actions .back-link { padding: 4px 8px; font-size: 12px; min-height: 28px; }
+  .hud-pills { top: calc(max(8px, env(safe-area-inset-top)) + 42px); gap: 4px; }
+  .hud-pill { padding: 3px 8px; font-size: 10px; }
+  .hud-pill strong { font-size: 11px; }
+  .lap-delta { top: calc(max(8px, env(safe-area-inset-top)) + 80px); padding: 3px 10px; }
+  .lap-delta strong { font-size: 13px; }
+  .speedo, .leaderboard, .minimap, .grip-bar, .sectors, .rival-labels { display: none; }
+  .touch-steer {
+    left: max(14px, env(safe-area-inset-left));
+    bottom: max(60px, calc(60px + env(safe-area-inset-bottom)));
+  }
+  .steer-track { width: 160px; height: 160px; }
+  .steer-knob { width: 70px; height: 70px; left: 45px; top: 45px; }
+  .touch-right {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(60px, calc(60px + env(safe-area-inset-bottom)));
+    gap: 12px;
+  }
+  .touch-throttle { width: 110px; height: 110px; font-size: 32px; }
+  .touch-brake { width: 110px; height: 90px; font-size: 30px; }
+  .touch-extras {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(280px, calc(280px + env(safe-area-inset-bottom)));
+    gap: 10px;
+  }
+  .touch-btn { width: 72px; height: 72px; font-size: 24px; }
+}
+@container gameframe (max-width: 380px) {
+  .hud-top .hud-stack:nth-child(3) { display: none; }
+  .steer-track { width: 140px; height: 140px; }
+  .steer-knob { width: 60px; height: 60px; left: 40px; top: 40px; }
+  .touch-throttle { width: 100px; height: 100px; }
+  .touch-brake { width: 100px; height: 80px; }
 }
