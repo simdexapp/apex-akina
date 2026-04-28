@@ -2,25 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=30";
-import { buildScenery, tickAmbient } from "./scenery.js?v=30";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=30";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=30";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=30";
+import { buildTrack, getTrackList } from "./track.js?v=31";
+import { buildScenery, tickAmbient } from "./scenery.js?v=31";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=31";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=31";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=31";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=30";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=30";
-import { createGhost, createGhostMesh } from "./ghost.js?v=30";
-import { createReplay } from "./replay.js?v=30";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=30";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=30";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=30";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=31";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=31";
+import { createGhost, createGhostMesh } from "./ghost.js?v=31";
+import { createReplay } from "./replay.js?v=31";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=31";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=31";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=31";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=30";
+} from "./profile.js?v=31";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -827,6 +827,7 @@ function tick(dt) {
   // Brake hiss on first brake-press at speed.
   if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
     playBrakeHiss();
+    vibrate(0.30, 0.08, 90);
   }
   car._wasBraking = i.brake;
 
@@ -1928,10 +1929,15 @@ function renderGarage() {
   document.getElementById("garage-name").value = profile.name;
   const stats = document.getElementById("garage-stats");
   const longest = (profile.stats.longestRaceMs || 0) / 1000;
+  const races = profile.stats.races || 0;
+  const winRate = races > 0 ? Math.round(((profile.stats.wins || 0) / races) * 100) : 0;
+  const podiumRate = races > 0 ? Math.round(((profile.stats.podiums || 0) / races) * 100) : 0;
   stats.innerHTML = `
-    <div><span class="label">Races</span><span class="value">${profile.stats.races || 0}</span></div>
+    <div><span class="label">Races</span><span class="value">${races}</span></div>
     <div><span class="label">Wins</span><span class="value">${profile.stats.wins || 0}</span></div>
+    <div><span class="label">Win Rate</span><span class="value">${winRate}%</span></div>
     <div><span class="label">Podiums</span><span class="value">${profile.stats.podiums || 0}</span></div>
+    <div><span class="label">Podium Rate</span><span class="value">${podiumRate}%</span></div>
     <div><span class="label">Laps</span><span class="value">${profile.stats.laps || 0}</span></div>
     <div><span class="label">Streak</span><span class="value">${profile.stats.streak || 0}</span></div>
     <div><span class="label">Best Streak</span><span class="value">${profile.stats.bestStreak || 0}</span></div>
@@ -1963,6 +1969,15 @@ function renderGarage() {
     const km = Math.floor(livery.kmDriven || 0);
     const carWins = livery.wins || 0;
     const carRaces = livery.races || 0;
+    // Find best lap with this car across all tracks.
+    let bestLap = Infinity;
+    for (const k of Object.keys(profile.bestLaps || {})) {
+      if (k.endsWith(":" + id)) {
+        const t = profile.bestLaps[k];
+        if (t < bestLap) bestLap = t;
+      }
+    }
+    const bestLapStr = bestLap !== Infinity ? formatTime(bestLap) : "—";
     const div = document.createElement("div");
     div.className = "garage-car";
     div.innerHTML = `
@@ -1971,6 +1986,7 @@ function renderGarage() {
         <span>${carRaces} races</span>
         <span>${carWins} wins</span>
         <span>${km} km</span>
+        <span>PB ${bestLapStr}</span>
       </div>
       <div class="pickers">
         <label><span>Body</span><input type="color" data-car="${id}" data-part="body" value="${hex(livery.body)}"></label>
