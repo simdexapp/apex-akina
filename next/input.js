@@ -60,11 +60,13 @@ export function initTouchControls() {
   bind("touch-drift", "drift");
 }
 
+let _activePad = null;
 function readGamepad() {
   if (typeof navigator === "undefined" || !navigator.getGamepads) return null;
   const pads = navigator.getGamepads();
   for (const pad of pads) {
     if (!pad) continue;
+    _activePad = pad;
     const lx = Math.abs(pad.axes[0] ?? 0) > DEAD ? pad.axes[0] : 0;
     const rt = pad.buttons[7]?.value ?? 0;
     const lt = pad.buttons[6]?.value ?? 0;
@@ -79,7 +81,21 @@ function readGamepad() {
       boost: b || rb
     };
   }
+  _activePad = null;
   return null;
+}
+
+// Vibrate the gamepad (Chrome dual-rumble). Magnitudes 0..1, duration in ms.
+export function vibrate(weak = 0.4, strong = 0.6, duration = 200) {
+  const pad = _activePad;
+  if (!pad || !pad.vibrationActuator) return;
+  try {
+    pad.vibrationActuator.playEffect("dual-rumble", {
+      duration,
+      strongMagnitude: Math.max(0, Math.min(1, strong)),
+      weakMagnitude: Math.max(0, Math.min(1, weak))
+    });
+  } catch (_) {}
 }
 
 export function createInput() {

@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=19";
-import { buildScenery } from "./scenery.js?v=19";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=19";
-import { createInput, initTouchControls } from "./input.js?v=19";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=19";
+import { buildTrack, getTrackList } from "./track.js?v=20";
+import { buildScenery } from "./scenery.js?v=20";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=20";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=20";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=20";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=19";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=19";
-import { createGhost, createGhostMesh } from "./ghost.js?v=19";
-import { createReplay } from "./replay.js?v=19";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=19";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=19";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=20";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=20";
+import { createGhost, createGhostMesh } from "./ghost.js?v=20";
+import { createReplay } from "./replay.js?v=20";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=20";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=20";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=19";
+} from "./profile.js?v=20";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -801,6 +801,7 @@ function tick(dt) {
     fovPunch = Math.max(fovPunch, 9);
     flashCallout("BOOST", 380);
     playTurboWhoosh();
+    vibrate(0.6, 0.4, 200);
   }
   // Brake hiss on first brake-press at speed.
   if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
@@ -815,6 +816,7 @@ function tick(dt) {
     document.body.classList.add("is-damaged");
     cameraShake = Math.max(cameraShake, 0.45);
     setTimeout(() => document.body.classList.remove("is-damaged"), 460);
+    vibrate(0.8, 1.0, 280);
   }
 
   // Drift score popup — when a drift exits with reward, show points.
@@ -1822,6 +1824,18 @@ function renderGarage() {
     <div><span class="label">Podiums</span><span class="value">${profile.stats.podiums || 0}</span></div>
     <div><span class="label">Laps</span><span class="value">${profile.stats.laps || 0}</span></div>
   `;
+  // Achievements grid.
+  const achWrap = document.getElementById("garage-achievements");
+  if (achWrap) {
+    achWrap.innerHTML = "";
+    for (const [id, def] of Object.entries(ACHIEVEMENTS)) {
+      const earned = isAchEarned(id);
+      const card = document.createElement("div");
+      card.className = "achievement-card " + (earned ? "is-earned" : "is-locked");
+      card.innerHTML = `<span class="a-name">${earned ? "✓ " : "🔒 "}${def.name}</span><span class="a-desc">${def.desc}</span>`;
+      achWrap.appendChild(card);
+    }
+  }
   const wrap = document.getElementById("garage-cars");
   wrap.innerHTML = "";
   for (const id of Object.keys(CAR_SHAPES)) {
