@@ -2,23 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=12";
-import { buildScenery } from "./scenery.js?v=12";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=12";
-import { createInput, initTouchControls } from "./input.js?v=12";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=12";
+import { buildTrack, getTrackList } from "./track.js?v=13";
+import { buildScenery } from "./scenery.js?v=13";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=13";
+import { createInput, initTouchControls } from "./input.js?v=13";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=13";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
-  setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=12";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=12";
-import { createGhost, createGhostMesh } from "./ghost.js?v=12";
-import { createReplay } from "./replay.js?v=12";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=12";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=12";
+  setMasterVolume, setMusicVolume, setSfxVolume,
+  updateWind, playCountdownBeep, playShift, setMusicProfile,
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=13";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=13";
+import { createGhost, createGhostMesh } from "./ghost.js?v=13";
+import { createReplay } from "./replay.js?v=13";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=13";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=13";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=12";
+} from "./profile.js?v=13";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -537,6 +538,25 @@ function bumpCombo(amount, label) {
 
 // Lightweight callout shown briefly in centre of screen.
 let calloutEl = null;
+// Drift score popup — float a number above the player car, drifting up + fading.
+function spawnDriftPopup(value) {
+  const wrap = document.querySelector(".game-frame");
+  if (!wrap) return;
+  // Project the player car position to screen.
+  _projVec.set(car.group.position.x, car.group.position.y + 1.4, car.group.position.z);
+  _projVec.project(camera);
+  const rect = canvas.getBoundingClientRect();
+  const x = (_projVec.x * 0.5 + 0.5) * rect.width;
+  const y = (-_projVec.y * 0.5 + 0.5) * rect.height;
+  const el = document.createElement("div");
+  el.className = "drift-popup";
+  el.textContent = `+${value}`;
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 950);
+}
+
 function flashCallout(text, ms) {
   if (!calloutEl) {
     calloutEl = document.createElement("div");
@@ -730,6 +750,21 @@ function tick(dt) {
     playBrakeHiss();
   }
   car._wasBraking = i.brake;
+
+  // Damage flash on barrier hit (rising-edge only, max once per ~half-sec).
+  if (car.barrierHit) {
+    document.body.classList.remove("is-damaged");
+    void document.body.offsetWidth;
+    document.body.classList.add("is-damaged");
+    cameraShake = Math.max(cameraShake, 0.45);
+    setTimeout(() => document.body.classList.remove("is-damaged"), 460);
+  }
+
+  // Drift score popup — when a drift exits with reward, show points.
+  if (car.driftExitReward) {
+    spawnDriftPopup(Math.round(car.driftExitReward * 1000));
+    car.driftExitReward = 0;
+  }
 
   // Track per-race context for achievements.
   const speedKmh = Math.abs(car.speed) * 3.6;
@@ -1797,7 +1832,7 @@ document.getElementById("pause-settings")?.addEventListener("click", () => {
 
 // ---- Settings overlay ----
 const SETTINGS_KEY = "apex-akina-3d:settings";
-const defaultSettings = { quality: "high", volume: 80, fov: 70, shake: 100, assist: true, difficulty: "normal" };
+const defaultSettings = { quality: "high", volume: 80, music: 60, sfx: 100, fov: 70, shake: 100, assist: true, difficulty: "normal" };
 function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1834,6 +1869,8 @@ function applySettings() {
   renderer.setPixelRatio(preset.pixelRatio);
   // Volume — pipe through audio module's master gain.
   setMasterVolume(settings.volume / 100);
+  setMusicVolume((settings.music ?? 60) / 100);
+  setSfxVolume((settings.sfx ?? 100) / 100);
   setAudioMuted(settings.volume === 0 || isAudioMuted());
   // FOV.
   camera.fov = settings.fov;
@@ -1846,6 +1883,8 @@ const settingsOverlay = document.getElementById("settings-overlay");
 function syncSettingsUI() {
   document.getElementById("setting-quality").value = settings.quality;
   document.getElementById("setting-volume").value = settings.volume;
+  document.getElementById("setting-music").value = settings.music;
+  document.getElementById("setting-sfx").value = settings.sfx;
   document.getElementById("setting-fov").value = settings.fov;
   document.getElementById("setting-shake").value = settings.shake;
   document.getElementById("setting-assist").checked = !!settings.assist;
@@ -1853,12 +1892,14 @@ function syncSettingsUI() {
   if (diffEl) diffEl.value = settings.difficulty || "normal";
 }
 syncSettingsUI();
-for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-shake", "setting-assist", "setting-difficulty"]) {
+for (const id of ["setting-quality", "setting-volume", "setting-music", "setting-sfx", "setting-fov", "setting-shake", "setting-assist", "setting-difficulty"]) {
   const el = document.getElementById(id);
   if (!el) continue;
   el.addEventListener("input", () => {
     settings.quality = document.getElementById("setting-quality").value;
     settings.volume = parseInt(document.getElementById("setting-volume").value, 10);
+    settings.music = parseInt(document.getElementById("setting-music").value, 10);
+    settings.sfx = parseInt(document.getElementById("setting-sfx").value, 10);
     settings.fov = parseInt(document.getElementById("setting-fov").value, 10);
     settings.shake = parseInt(document.getElementById("setting-shake").value, 10);
     settings.assist = document.getElementById("setting-assist").checked;
@@ -1867,6 +1908,30 @@ for (const id of ["setting-quality", "setting-volume", "setting-fov", "setting-s
     applySettings();
   });
 }
+
+// Fullscreen toggle.
+document.getElementById("settings-fullscreen")?.addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else document.documentElement.requestFullscreen?.();
+});
+
+// Reset progress — clears stats, achievements, sectors, best laps, career.
+document.getElementById("settings-reset")?.addEventListener("click", () => {
+  if (!window.confirm("Reset ALL progress? Stats, achievements, sectors, ghosts, career — all wiped.")) return;
+  try {
+    localStorage.removeItem("apex-akina-3d:profile");
+    localStorage.removeItem("apex-akina-3d:bestLap");
+    localStorage.removeItem("apex-akina-3d:sectorsBest");
+    localStorage.removeItem("apex-akina-3d:achievements");
+    localStorage.removeItem("apex-akina-3d:career");
+    // Ghost data is keyed per (track, car) so wipe all matching keys.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("apex-akina-3d:ghost:")) localStorage.removeItem(k);
+    }
+  } catch (_) {}
+  location.reload();
+});
 document.getElementById("settings-back")?.addEventListener("click", () => {
   settingsOverlay.hidden = true;
 });

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=13">
     <script type="importmap">
       {
         "imports": {
@@ -247,6 +247,14 @@
               <input id="setting-volume" type="range" min="0" max="100" value="80"/>
             </label>
             <label class="settings-row">
+              <span>Music volume</span>
+              <input id="setting-music" type="range" min="0" max="100" value="60"/>
+            </label>
+            <label class="settings-row">
+              <span>SFX volume</span>
+              <input id="setting-sfx" type="range" min="0" max="100" value="100"/>
+            </label>
+            <label class="settings-row">
               <span>FOV</span>
               <input id="setting-fov" type="range" min="60" max="90" value="70"/>
             </label>
@@ -268,6 +276,8 @@
               </select>
             </label>
             <div class="prerace-actions">
+              <button id="settings-fullscreen" type="button" class="ghost-btn">Fullscreen</button>
+              <button id="settings-reset" type="button" class="ghost-btn">Reset progress…</button>
               <button id="settings-back" type="button" class="ghost-btn">Back</button>
             </div>
           </div>
@@ -291,6 +301,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=12"></script>
+    <script type="module" src="main.js?v=13"></script>
   </body>
 </html>

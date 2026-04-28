@@ -41,13 +41,24 @@ const HEAT_OVERHEAT = 0.97;
 const HEAT_RECOVER = 0.55;
 const HEAT_CAP_MUL = 0.92;
 
-// Gears — RPM range per gear and shift thresholds.
-const GEAR_COUNT = 6;
-const GEAR_RATIOS = [3.6, 2.4, 1.8, 1.4, 1.1, 0.9];   // virtual ratios; not used for physics, only RPM display
-const GEAR_REDLINE_RPM = 7800;
-const GEAR_SHIFT_RPM = 7200;       // shift up at this RPM
-const GEAR_DOWNSHIFT_RPM = 2400;   // shift down below this
-const GEAR_SHIFT_TIME = 0.18;      // throttle cut window during shift
+// Gears — defaults per car. Each shape can override its gearCount/redline/etc.
+const GEAR_COUNT_DEFAULT = 6;
+const GEAR_REDLINE_RPM_DEFAULT = 7800;
+const GEAR_SHIFT_RPM_DEFAULT = 7200;
+const GEAR_DOWNSHIFT_RPM_DEFAULT = 2400;
+const GEAR_SHIFT_TIME = 0.18;
+
+// Per-shape gear profiles. kei has 5 fast gears with high redline (revs hard);
+// muscle has 4 long gears (lazy revver, lots of low-end). super has 7 like a
+// modern PDK box. Others use the default 6-speed.
+const GEAR_PROFILES = {
+  gt:    { count: 6, redline: 7800, shiftUp: 7200, shiftDown: 2400 },
+  drift: { count: 6, redline: 8200, shiftUp: 7600, shiftDown: 2800 },   // revvier 2JZ vibes
+  rally: { count: 6, redline: 7600, shiftUp: 7000, shiftDown: 2400 },
+  super: { count: 7, redline: 8800, shiftUp: 8200, shiftDown: 2600 },   // PDK 7-speed
+  kei:   { count: 5, redline: 9000, shiftUp: 8400, shiftDown: 3000 },   // K20-style screamer
+  muscle:{ count: 4, redline: 6800, shiftUp: 6400, shiftDown: 1800 }    // long-geared brute
+};
 
 // Slipstream — when within DRAFT_RANGE behind a car, get a top-speed bump.
 const DRAFT_RANGE = 22;            // metres
@@ -405,19 +416,22 @@ function stepDrivetrain(car, input, dt) {
   car.shiftCooldown = Math.max(0, (car.shiftCooldown || 0) - dt);
   const speedAbs = Math.abs(car.speed);
   const speedPctTop = speedAbs / car.maxSpeed;
-  // Per-gear RPM = mapped from speedPct within band per gear.
-  // Approximation: each gear handles speedPct band [g/COUNT, (g+1)/COUNT].
-  const gear = Math.max(1, Math.min(GEAR_COUNT, car.gear || 1));
-  const gearLo = (gear - 1) / GEAR_COUNT;
-  const gearHi = gear / GEAR_COUNT;
+  const gp = car._gearProfile || GEAR_PROFILES.gt;
+  const COUNT = gp.count;
+  const REDLINE = gp.redline;
+  const SHIFT_UP = gp.shiftUp;
+  const SHIFT_DOWN = gp.shiftDown;
+  const gear = Math.max(1, Math.min(COUNT, car.gear || 1));
+  const gearLo = (gear - 1) / COUNT;
+  const gearHi = gear / COUNT;
   const inGear = Math.max(0, Math.min(1, (speedPctTop - gearLo) / Math.max(0.001, gearHi - gearLo)));
-  car.rpm = 900 + inGear * (GEAR_REDLINE_RPM - 900);
+  car.rpm = 900 + inGear * (REDLINE - 900);
   if (car.shiftCooldown <= 0) {
-    if (car.rpm > GEAR_SHIFT_RPM && gear < GEAR_COUNT) {
+    if (car.rpm > SHIFT_UP && gear < COUNT) {
       car.gear = gear + 1;
       car.shiftCooldown = GEAR_SHIFT_TIME;
-      car.shiftEvent = 1;       // rising-edge — main loop reads + clears
-    } else if (car.rpm < GEAR_DOWNSHIFT_RPM && gear > 1) {
+      car.shiftEvent = 1;
+    } else if (car.rpm < SHIFT_DOWN && gear > 1) {
       car.gear = gear - 1;
       car.shiftCooldown = GEAR_SHIFT_TIME;
       car.shiftEvent = -1;
@@ -538,6 +552,7 @@ function stepDrift(car, input, dt) {
         const reward = Math.min(0.45, car.driftCharge * 0.55);
         car.boostMeter = Math.min(1, car.boostMeter + reward);
         car.boostT = 0.5;
+        car.driftExitReward = reward;        // main.js reads + clears for popup
       }
       car.driftActive = false;
       car.driftDuration = 0;
@@ -582,16 +597,26 @@ function stepTrack(car, dt, track) {
   if (!track) return;
   const proj = track.project(car.group.position);
   const limit = track.halfWidth + 0.85;
+  car.barrierHit = false;
   if (Math.abs(proj.lateral) > limit) {
     const overshoot = Math.abs(proj.lateral) - limit;
     const dirSign = Math.sign(proj.lateral);
     const t = track.tangents[proj.segmentIndex];
     car.group.position.x -= -t.z * dirSign * (overshoot + 0.05);
     car.group.position.z -= t.x * dirSign * (overshoot + 0.05);
+    // Only flag a "hit" if we were going fast and just exceeded — avoids
+    // continuous flashing when scraping the wall.
+    if (Math.abs(car.speed) > 22 && !car._lastBarrier) {
+      car.barrierHit = true;
+    }
+    car._lastBarrier = true;
     car.speed *= 0.86;
     car.lateralV = -car.lateralV * 0.4;
   } else if (Math.abs(proj.lateral) > track.halfWidth) {
     car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * 0.4 * dt;
+    car._lastBarrier = false;
+  } else {
+    car._lastBarrier = false;
   }
   const target = track.points[proj.segmentIndex].y;
   car.group.position.y += (target + 0.4 - car.group.position.y) * Math.min(1, dt * 8);
@@ -643,6 +668,7 @@ export function createCar(shapeId = "gt", livery = null) {
   const group = buildBody(shape);
   const stats = shape.stats;
   const maxSpeed = BASE_MAX_SPEED * stats.top;
+  const _gearProfile = GEAR_PROFILES[shapeId] || GEAR_PROFILES.gt;
 
   const car = {
     group,
@@ -650,6 +676,7 @@ export function createCar(shapeId = "gt", livery = null) {
     stats,
     livery: { body: shape.body, stripe: shape.stripe },
     maxSpeed,
+    _gearProfile,
     // Kinematic state.
     speed: 0,
     lateralV: 0,

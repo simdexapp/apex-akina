@@ -803,6 +803,42 @@ button:hover { filter: brightness(1.08); }
   100% { transform: scale(1); }
 }
 
+/* Damage flash — red border + brief shake when player hits a barrier. */
+body.is-damaged .game-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: inset 0 0 0 6px rgba(255, 49, 92, 0.85),
+              inset 0 0 80px rgba(255, 49, 92, 0.40);
+  animation: damage-flash 0.45s ease-out forwards;
+}
+
+@keyframes damage-flash {
+  0%   { opacity: 1; }
+  60%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+/* Drift score float — number drifts up + fades. */
+.drift-popup {
+  position: absolute;
+  pointer-events: none;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.85);
+  animation: drift-pop 0.9s ease-out forwards;
+  z-index: 5;
+}
+
+@keyframes drift-pop {
+  0%   { transform: translate(-50%, 0)    scale(0.8); opacity: 0; }
+  20%  { transform: translate(-50%, -10px) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%, -64px) scale(1.05); opacity: 0; }
+}
+
 /* Slipstream FX — subtle cyan radial pulse when drafting. */
 body.is-drafting .game-frame::after {
   content: "";

@@ -5,6 +5,7 @@
 
 let ctx = null;
 let master = null;
+let sfxBus = null;
 let osc1, osc2, engineGain, engineLowpass;
 let pulseLfo, pulseLfoGain;
 let tireNoise, tireGain, tireBandpass;
@@ -12,6 +13,8 @@ let windNoise, windGain, windBandpass;
 let musicGain, musicScheduler, musicBeatTime, musicBeatIdx;
 let muted = false;
 let masterVolume = 0.4;
+let musicVolume = 0.6;
+let sfxVolume = 1.0;
 
 const PROFILE = {
   type1: "sawtooth", type2: "square",       // square gives more bite vs triangle
@@ -56,6 +59,10 @@ export function ensureAudio() {
     master = ctx.createGain();
     master.gain.value = muted ? 0 : masterVolume;
     master.connect(ctx.destination);
+    // SFX bus — engine/tire/wind/shift/turbo/brake/countdown all route here.
+    sfxBus = ctx.createGain();
+    sfxBus.gain.value = sfxVolume;
+    sfxBus.connect(master);
 
     // Engine
     osc1 = ctx.createOscillator();
@@ -88,7 +95,7 @@ export function ensureAudio() {
     osc2.connect(detune2Gain);
     detune2Gain.connect(engineLowpass);
     engineLowpass.connect(engineGain);
-    engineGain.connect(master);
+    engineGain.connect(sfxBus);
     osc1.start();
     osc2.start();
     pulseLfo.start();
@@ -108,7 +115,7 @@ export function ensureAudio() {
     tireGain.gain.value = 0;
     tireNoise.connect(tireBandpass);
     tireBandpass.connect(tireGain);
-    tireGain.connect(master);
+    tireGain.connect(sfxBus);
     tireNoise.start();
 
     // Wind noise — separate buffer, low-pass swept by speed.
@@ -126,7 +133,7 @@ export function ensureAudio() {
     windGain.gain.value = 0;
     windNoise.connect(windBandpass);
     windBandpass.connect(windGain);
-    windGain.connect(master);
+    windGain.connect(sfxBus);
     windNoise.start();
 
     // Music bus
@@ -226,7 +233,7 @@ export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, rac
 
   // Music level — quieter on the menu, fuller during the race.
   if (musicGain) {
-    musicGain.gain.setTargetAtTime(racing ? 0.30 : 0.10, ctx.currentTime, 0.4);
+    musicGain.gain.setTargetAtTime((racing ? 0.30 : 0.10) * musicVolume, ctx.currentTime, 0.4);
   }
 }
 
@@ -242,6 +249,16 @@ export function isAudioMuted() {
 export function setMasterVolume(vol) {
   masterVolume = Math.max(0, Math.min(1, vol));
   if (master && ctx && !muted) master.gain.setTargetAtTime(masterVolume, ctx.currentTime, 0.05);
+}
+
+export function setMusicVolume(vol) {
+  musicVolume = Math.max(0, Math.min(1, vol));
+  // updateAudio multiplies its target gain by musicVolume below.
+}
+
+export function setSfxVolume(vol) {
+  sfxVolume = Math.max(0, Math.min(1, vol));
+  if (sfxBus && ctx) sfxBus.gain.setTargetAtTime(sfxVolume, ctx.currentTime, 0.05);
 }
 
 // Update wind noise amplitude based on current speed fraction (0..1).
@@ -266,7 +283,7 @@ export function playCountdownBeep(level = 0) {
   g.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + (level === "go" ? 0.5 : 0.25));
   osc.connect(g);
-  g.connect(master);
+  g.connect(sfxBus);
   osc.start(t);
   osc.stop(t + 0.6);
   if (level === "go") {
@@ -280,7 +297,7 @@ export function playCountdownBeep(level = 0) {
       g2.gain.exponentialRampToValueAtTime(0.10, t + 0.01);
       g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
       o2.connect(g2);
-      g2.connect(master);
+      g2.connect(sfxBus);
       o2.start(t);
       o2.stop(t + 0.7);
     }
@@ -308,7 +325,7 @@ export function playTurboWhoosh() {
   g.gain.exponentialRampToValueAtTime(0.0001, t + len);
   src.connect(bp);
   bp.connect(g);
-  g.connect(master);
+  g.connect(sfxBus);
   src.start(t);
   src.stop(t + len + 0.05);
 }
@@ -332,7 +349,7 @@ export function playBrakeHiss() {
   g.gain.exponentialRampToValueAtTime(0.0001, t + len);
   src.connect(hp);
   hp.connect(g);
-  g.connect(master);
+  g.connect(sfxBus);
   src.start(t);
   src.stop(t + len + 0.05);
 }
@@ -357,6 +374,6 @@ export function playShift(direction = 1) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + len);
   src.connect(bp);
   bp.connect(g);
-  g.connect(master);
+  g.connect(sfxBus);
   src.start(t);
 }
