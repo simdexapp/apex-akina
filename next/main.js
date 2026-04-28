@@ -8,6 +8,10 @@ import { createInput } from "./input.js";
 import { createRivals, tickRivals } from "./rivals.js";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted } from "./audio.js";
 import { createGhost, createGhostMesh } from "./ghost.js";
+import {
+  loadProfile, saveProfile, setName, setCarColors, getCarLivery,
+  bumpStats, recordBestLap, hex, parseHex
+} from "./profile.js";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -99,7 +103,7 @@ const initialCarShape = (() => {
 })();
 
 let boostFlame = null;
-let car = createCar(initialCarShape);
+let car = createCar(initialCarShape, getCarLivery(initialCarShape));
 scene.add(car.group);
 attachBoostFlame();
 
@@ -109,7 +113,7 @@ function swapCar(shapeId) {
     scene.remove(car.group);
     if (boostFlame) car.group.remove(boostFlame);
   }
-  car = createCar(shapeId);
+  car = createCar(shapeId, getCarLivery(shapeId));
   scene.add(car.group);
   attachBoostFlame();
   if (startPoint) {
@@ -692,6 +696,16 @@ function loop(now) {
     finishShown = true;
     running = false;
     showFinish(standings);
+    // Bump profile stats — race counted, podium / win flag, lap count.
+    if (gameMode === "race") {
+      const isWin = standings.place === 1;
+      const isPodium = standings.place <= 3;
+      bumpStats({ races: 1, wins: isWin ? 1 : 0, podiums: isPodium ? 1 : 0, laps: LAPS_TOTAL });
+    } else {
+      bumpStats({ laps: LAPS_TOTAL });
+    }
+    // Record best lap to profile too (separate from canvas/legacy bestLapPerTrack).
+    if (bestLapDisplay && car) recordBestLap(track.id, car.shape, bestLapDisplay);
   }
 
   composer.render();
@@ -942,6 +956,64 @@ if (modePickerEl) {
   }
 }
 renderModePicker();
+
+// ---- Garage ----
+const garageOverlay = document.getElementById("garage-overlay");
+const openGarageBtn = document.getElementById("open-garage");
+const garageBackBtn = document.getElementById("garage-back");
+
+function renderGarage() {
+  const profile = loadProfile();
+  document.getElementById("garage-name").value = profile.name;
+  const stats = document.getElementById("garage-stats");
+  stats.innerHTML = `
+    <div><span class="label">Races</span><span class="value">${profile.stats.races || 0}</span></div>
+    <div><span class="label">Wins</span><span class="value">${profile.stats.wins || 0}</span></div>
+    <div><span class="label">Podiums</span><span class="value">${profile.stats.podiums || 0}</span></div>
+    <div><span class="label">Laps</span><span class="value">${profile.stats.laps || 0}</span></div>
+  `;
+  const wrap = document.getElementById("garage-cars");
+  wrap.innerHTML = "";
+  for (const id of Object.keys(CAR_SHAPES)) {
+    const livery = profile.cars[id] || { body: CAR_SHAPES[id].body, stripe: CAR_SHAPES[id].stripe };
+    const div = document.createElement("div");
+    div.className = "garage-car";
+    div.innerHTML = `
+      <span class="name">${CAR_SHAPES[id].label}</span>
+      <div class="pickers">
+        <label><span>Body</span><input type="color" data-car="${id}" data-part="body" value="${hex(livery.body)}"></label>
+        <label><span>Stripe</span><input type="color" data-car="${id}" data-part="stripe" value="${hex(livery.stripe)}"></label>
+      </div>`;
+    wrap.appendChild(div);
+  }
+  for (const input of wrap.querySelectorAll('input[type="color"]')) {
+    input.addEventListener("input", () => {
+      const carId = input.dataset.car;
+      const part = input.dataset.part;
+      const cur = loadProfile().cars[carId] || { body: CAR_SHAPES[carId].body, stripe: CAR_SHAPES[carId].stripe };
+      const next = { ...cur };
+      next[part] = parseHex(input.value) ?? next[part];
+      setCarColors(carId, next.body, next.stripe);
+      if (carId === car.shape) swapCar(carId);
+    });
+  }
+}
+
+if (openGarageBtn) {
+  openGarageBtn.addEventListener("click", () => {
+    overlay.hidden = true;
+    garageOverlay.hidden = false;
+    renderGarage();
+  });
+}
+if (garageBackBtn) {
+  garageBackBtn.addEventListener("click", () => {
+    const nameInput = document.getElementById("garage-name");
+    if (nameInput) setName(nameInput.value);
+    garageOverlay.hidden = true;
+    overlay.hidden = false;
+  });
+}
 
 // Mute toggle, persisted.
 const MUTE_KEY = "apex-akina-3d:muted";

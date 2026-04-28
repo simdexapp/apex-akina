@@ -117,9 +117,11 @@ function buildBody(shape) {
   stripe.position.y = shape.height * 0.85;
   group.add(stripe);
 
-  // Wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 16);
+  // Wheels with chrome hubs (a small bright disc on the outer face).
+  const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 18);
   const wheelMat = pbr(0x0a0e18, 0.0, 0.9);
+  const hubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.32, 12);
+  const hubMat = pbr(0xc8d4e6, 0.85, 0.18);
   const wx = shape.width * 0.5 - 0.06;
   const wzF = shape.length * 0.36;
   const wzR = -shape.length * 0.36;
@@ -128,7 +130,17 @@ function buildBody(shape) {
     w.rotation.z = Math.PI / 2;
     w.position.set(x, 0.40, z);
     group.add(w);
+    const hub = new THREE.Mesh(hubGeo, hubMat);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(x, 0.40, z);
+    group.add(hub);
   }
+
+  // Hood taper — small wedge in front to suggest a swept nose.
+  const taperMat = pbr(shape.body, 0.4, 0.5);
+  const taper = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.92, shape.height * 0.55, shape.length * 0.18), taperMat);
+  taper.position.set(0, shape.height * 0.78, shape.length * 0.42);
+  group.add(taper);
 
   // Hood detail (subtle).
   if (shape.spoiler === "wing" || shape.spoiler === "lip") {
@@ -342,8 +354,12 @@ function stepBody(car, dt) {
 }
 
 // ============================================================
-export function createCar(shapeId = "gt") {
-  const shape = CAR_SHAPES[shapeId] || CAR_SHAPES.gt;
+export function createCar(shapeId = "gt", livery = null) {
+  const baseShape = CAR_SHAPES[shapeId] || CAR_SHAPES.gt;
+  // Allow per-car livery override (body / stripe). Other dimensions stay shape-default.
+  const shape = livery
+    ? { ...baseShape, body: livery.body ?? baseShape.body, stripe: livery.stripe ?? baseShape.stripe }
+    : baseShape;
   const group = buildBody(shape);
   const stats = shape.stats;
   const maxSpeed = BASE_MAX_SPEED * stats.top;
@@ -352,6 +368,7 @@ export function createCar(shapeId = "gt") {
     group,
     shape: shapeId,
     stats,
+    livery: { body: shape.body, stripe: shape.stripe },
     maxSpeed,
     // Kinematic state.
     speed: 0,

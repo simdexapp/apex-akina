@@ -77,7 +77,10 @@
             <div class="track-picker" id="track-picker" role="radiogroup" aria-label="Choose track"></div>
             <p class="small" style="margin-top:6px">Car</p>
             <div class="track-picker" id="car-picker" role="radiogroup" aria-label="Choose car"></div>
-            <button id="start" type="button">Drop In</button>
+            <div class="prerace-actions">
+              <button id="open-garage" type="button" class="ghost-btn">Garage</button>
+              <button id="start" type="button">Drop In</button>
+            </div>
           </div>
         </div>
 
@@ -93,6 +96,23 @@
             <h1 id="finish-title">Finished</h1>
             <p id="finish-stats"></p>
             <button id="restart" type="button">Run It Back</button>
+          </div>
+        </div>
+
+        <div class="overlay" id="garage-overlay" hidden>
+          <div class="title-card">
+            <p class="eyebrow">Garage</p>
+            <h1>Driver profile</h1>
+            <label class="garage-row">
+              <span>Name</span>
+              <input id="garage-name" type="text" maxlength="24" />
+            </label>
+            <div class="garage-stats" id="garage-stats"></div>
+            <p class="small">Liveries</p>
+            <div class="garage-cars" id="garage-cars"></div>
+            <div class="garage-actions">
+              <button id="garage-back" type="button" class="ghost-btn">Back</button>
+            </div>
           </div>
         </div>
       </section>
