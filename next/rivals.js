@@ -245,18 +245,28 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     const targetLane = Math.max(-5, Math.min(5, r.homeLane + dodge));
     r.lane += (targetLane - r.lane) * Math.min(1, dt * 2);
 
-    // ---- Pace: target speed minus traffic / corner drag ----
-    // Sample upcoming curvature 5 segments ahead to slow into corners. Clamp s
-    // to the start of the track if we're still on the grid (s < 0).
+    // ---- Pace: look-ahead corner braking ----
+    // Sample three look-aheads (0.5%, 1.5%, 3% of track) and use the worst
+    // curvature to scale braking. Sharper turns trigger heavier slowdown.
     const sampleS = Math.max(0, r.s);
-    const futureT = ((sampleS / trackLen) + 0.005) % 1;
-    const here = track.sample(sampleS / trackLen);
-    const future = track.sample(futureT);
-    const curveSeverity = Math.abs(angularDelta(here.tangentAngle, future.tangentAngle));
-    const cornerDrag = Math.min(0.35, curveSeverity * 4.0);
+    const t0 = sampleS / trackLen;
+    const here = track.sample(t0);
+    const a1 = track.sample((t0 + 0.005) % 1);
+    const a2 = track.sample((t0 + 0.015) % 1);
+    const a3 = track.sample((t0 + 0.030) % 1);
+    const c1 = Math.abs(angularDelta(here.tangentAngle, a1.tangentAngle));
+    const c2 = Math.abs(angularDelta(here.tangentAngle, a2.tangentAngle));
+    const c3 = Math.abs(angularDelta(here.tangentAngle, a3.tangentAngle));
+    const curveSeverity = Math.max(c1, c2 * 0.8, c3 * 0.6);
+    const cornerDrag = Math.min(0.55, curveSeverity * 6.0);
     let pace = r.targetSpeed * (1 - cornerDrag);
     if (blockerSpeed != null) pace = Math.min(pace, blockerSpeed * 0.96);
-    r.speed += (pace - r.speed) * Math.min(1, dt * 1.8);
+    // Approaching a sharp upcoming turn? Brake harder than the steady drag.
+    const brakeUrgency = Math.min(1, c2 * 12.0);
+    if (brakeUrgency > 0.45 && r.speed > pace) {
+      r.speed -= dt * 18 * brakeUrgency;
+    }
+    r.speed += (pace - r.speed) * Math.min(1, dt * 2.4);
 
     // Advance arclength. Don't modulo while still on the negative-s grid —
     // only wrap once the rival has actually crossed the start line and the

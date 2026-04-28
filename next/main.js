@@ -2,20 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=4";
-import { buildScenery } from "./scenery.js?v=4";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=4";
-import { createInput, initTouchControls } from "./input.js?v=4";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=4";
+import { buildTrack, getTrackList } from "./track.js?v=5";
+import { buildScenery } from "./scenery.js?v=5";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=5";
+import { createInput, initTouchControls } from "./input.js?v=5";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=5";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
-  setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile } from "./audio.js";
-import { MUSIC_PROFILES } from "./tracks-data.js?v=4";
-import { createGhost, createGhostMesh } from "./ghost.js?v=4";
-import { createReplay } from "./replay.js?v=4";
+  setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=5";
+import { MUSIC_PROFILES } from "./tracks-data.js?v=5";
+import { createGhost, createGhostMesh } from "./ghost.js?v=5";
+import { createReplay } from "./replay.js?v=5";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=5";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=5";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js";
+} from "./profile.js?v=5";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -555,12 +558,28 @@ const NEAR_MISS_INNER = 2.4; // inside this is a real collision
 // ---- Loop ----
 const input = createInput();
 initTouchControls();
+
+// Achievement toast renderer.
+onAchievementToast((ach) => {
+  const stack = document.getElementById("toast-stack");
+  if (!stack) return;
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span class="label">Achievement unlocked</span><strong>${ach.name}</strong><small>${ach.desc}</small>`;
+  stack.appendChild(el);
+  setTimeout(() => { el.remove(); }, 5000);
+});
+
+// Track per-race context for achievement checks.
+const raceCtx = { topSpeedKmh: 0, nearMisses: 0, longestDrift: 0 };
 let lastTime = performance.now();
 let running = false;
 const FIXED_DT = 1 / 60;
 let acc = 0;
 
-const LAPS_TOTAL = 3;
+const LAPS_TOTAL_DEFAULT = 3;
+let raceLapsOverride = null;
+function lapsTotal() { return raceLapsOverride || LAPS_TOTAL_DEFAULT; }
 let lap = 1;
 let lastTrackS = 0;
 let raceTime = 0;
@@ -630,6 +649,19 @@ function tick(dt) {
     cameraShake = Math.max(cameraShake, 0.30);
     fovPunch = Math.max(fovPunch, 9);
     flashCallout("BOOST", 380);
+    playTurboWhoosh();
+  }
+  // Brake hiss on first brake-press at speed.
+  if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
+    playBrakeHiss();
+  }
+  car._wasBraking = i.brake;
+
+  // Track per-race context for achievements.
+  const speedKmh = Math.abs(car.speed) * 3.6;
+  if (speedKmh > raceCtx.topSpeedKmh) raceCtx.topSpeedKmh = speedKmh;
+  if (car.driftActive && car.driftDuration > raceCtx.longestDrift) {
+    raceCtx.longestDrift = car.driftDuration;
   }
 
   // Player's total race distance for rubber-band scaling.
@@ -710,6 +742,7 @@ function tick(dt) {
         car.speed = Math.min(car.maxSpeed * 1.3, car.speed + 4 * intensity);
         car.boostMeter = Math.min(1, car.boostMeter + 0.12 * intensity);
         bumpCombo(intensity > 0.7 ? 2 : 1, intensity > 0.7 ? "INCH" : "Close");
+        raceCtx.nearMisses++;
         nearMissArmed.set(r, false);
       }
       lastDz.set(r, forwardDot);
@@ -782,7 +815,7 @@ function loop(now) {
         bestLapDisplay = ghost.bestTime();
       }
     }
-    lap = Math.min(LAPS_TOTAL, lap + 1);
+    lap = Math.min(lapsTotal(), lap + 1);
     lapStartTime = raceTime;
     lapStartedAt = performance.now() / 1000;
     if (ghost) ghost.startLap(lapStartedAt);
@@ -815,7 +848,7 @@ function loop(now) {
   // HUD.
   const standings = computeStandings();
   document.getElementById("speed").textContent = Math.round(Math.abs(car.speed) * 3.6);
-  document.getElementById("lap").textContent = `${Math.min(lap, LAPS_TOTAL)}/${LAPS_TOTAL}`;
+  document.getElementById("lap").textContent = `${Math.min(lap, lapsTotal())}/${lapsTotal()}`;
   document.getElementById("time").textContent = formatTime(raceTime);
   document.getElementById("place").textContent = ordinal(standings.place);
   // Show ghost best in time trial (per car), generic best in race mode.
@@ -860,7 +893,7 @@ function loop(now) {
   // Final-lap badge glow.
   const lapBadge = document.getElementById("lap")?.parentElement;
   if (lapBadge) {
-    lapBadge.classList.toggle("is-final", lap === LAPS_TOTAL && running);
+    lapBadge.classList.toggle("is-final", lap === lapsTotal() && running);
   }
   // Engine heat HUD.
   const heatBar = document.getElementById("heat-bar");
@@ -883,20 +916,38 @@ function loop(now) {
   renderStandings(standings.entries.slice(0, 5), standings.place);
   drawMinimap(standings);
 
-  if (running && lap > LAPS_TOTAL && !finishShown) {
+  if (running && lap > lapsTotal() && !finishShown) {
     finishShown = true;
     running = false;
     showFinish(standings);
     // Bump profile stats — race counted, podium / win flag, lap count.
-    if (gameMode === "race") {
+    if (gameMode === "race" || gameMode === "career") {
       const isWin = standings.place === 1;
       const isPodium = standings.place <= 3;
-      bumpStats({ races: 1, wins: isWin ? 1 : 0, podiums: isPodium ? 1 : 0, laps: LAPS_TOTAL });
+      bumpStats({ races: 1, wins: isWin ? 1 : 0, podiums: isPodium ? 1 : 0, laps: lapsTotal() });
     } else {
-      bumpStats({ laps: LAPS_TOTAL });
+      bumpStats({ laps: lapsTotal() });
     }
     // Record best lap to profile too (separate from canvas/legacy bestLapPerTrack).
     if (bestLapDisplay && car) recordBestLap(track.id, car.shape, bestLapDisplay);
+    // Career: record this round's standings + advance to next.
+    let championshipWin = null;
+    if (gameMode === "career") {
+      recordRound(standings.entries.map((e) => ({ name: e.name, isPlayer: e.isPlayer })));
+      const state = getCareerState();
+      if (state.finalStandings && state.finalStandings[0]?.isPlayer) {
+        championshipWin = state.championshipId;
+      }
+    }
+    // Check achievements with per-race context.
+    const profile = loadProfile();
+    checkAchievements(profile, {
+      lapTime: bestLapDisplay || bestLapPerTrack[track.id],
+      topSpeedKmh: raceCtx.topSpeedKmh,
+      driftDuration: raceCtx.longestDrift,
+      nearMisses: raceCtx.nearMisses,
+      championshipWin
+    });
   }
 
   // Photo mode camera + replay playback + FPS overlay.
@@ -993,9 +1044,21 @@ function showFinish(standings) {
   const overlay = document.getElementById("finish-overlay");
   document.getElementById("finish-title").textContent = standings.place === 1 ? "Victory" : "Race Complete";
   const best = bestLapPerTrack[track.id];
+  let extra = "";
+  if (gameMode === "career") {
+    const state = getCareerState();
+    if (state.finalStandings) {
+      const me = state.finalStandings.findIndex((e) => e.isPlayer) + 1;
+      extra = ` · Championship: ${ordinal(me)} (${state.points.player} pts)`;
+    } else {
+      const round = currentRound();
+      if (round) extra = ` · Round ${round.idx + 1}/${round.total} next: ${round.trackId.toUpperCase()}`;
+      else extra = ` · Championship complete`;
+    }
+  }
   document.getElementById("finish-stats").textContent =
     `${ordinal(standings.place)} of ${standings.entries.length} · ${formatTime(raceTime)}` +
-    (best ? ` · best lap ${formatTime(best)}` : "");
+    (best ? ` · best lap ${formatTime(best)}` : "") + extra;
   overlay.hidden = false;
   // Stop replay recording at finish so playback shows just the race.
   replay.stop();
@@ -1048,6 +1111,18 @@ function startRace() {
   overlay.hidden = true;
   finishOverlay.hidden = true;
   ensureAudio();
+  // If career mode is active, force the round's track + laps.
+  if (gameMode === "career") {
+    const round = currentRound();
+    if (round) {
+      if (track?.id !== round.trackId) loadTrack(round.trackId);
+      raceLapsOverride = round.laps;
+    } else {
+      raceLapsOverride = null;
+    }
+  } else {
+    raceLapsOverride = null;
+  }
   car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
   car.heading = startPoint.tangentAngle;
   car.group.rotation.set(0, car.heading, 0);
@@ -1084,6 +1159,10 @@ function startRace() {
   replay.start(performance.now() / 1000);
   replayPlaying = false;
   replayProgress = 0;
+  // Reset per-race achievement context.
+  raceCtx.topSpeedKmh = 0;
+  raceCtx.nearMisses = 0;
+  raceCtx.longestDrift = 0;
   // Hide rivals in time trial.
   for (const r of rivals) r.mesh.visible = (gameMode === "race");
   if (car) {
@@ -1217,18 +1296,74 @@ function renderModePicker() {
   for (const card of wrap.querySelectorAll(".mode-card")) {
     card.setAttribute("aria-checked", card.dataset.mode === gameMode ? "true" : "false");
   }
+  // Show / hide the career championship picker.
+  const careerPanel = document.getElementById("career-panel");
+  if (careerPanel) careerPanel.hidden = gameMode !== "career";
+  if (gameMode === "career") renderCareerPanel();
 }
+
+const VALID_MODES = ["race", "timeTrial", "career"];
 const modePickerEl = document.getElementById("mode-picker");
 if (modePickerEl) {
   for (const card of modePickerEl.querySelectorAll(".mode-card")) {
     card.addEventListener("click", () => {
-      gameMode = card.dataset.mode === "timeTrial" ? "timeTrial" : "race";
+      gameMode = VALID_MODES.includes(card.dataset.mode) ? card.dataset.mode : "race";
       try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
       renderModePicker();
     });
   }
 }
 renderModePicker();
+
+// ---- Career championship picker ----
+function renderCareerPanel() {
+  const wrap = document.getElementById("championship-picker");
+  const status = document.getElementById("career-status");
+  if (!wrap) return;
+  const state = getCareerState();
+  // Build cards if not already.
+  if (wrap.children.length !== Object.keys(CHAMPIONSHIPS).length) {
+    wrap.innerHTML = "";
+    for (const [id, champ] of Object.entries(CHAMPIONSHIPS)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "track-card";
+      btn.setAttribute("role", "radio");
+      btn.dataset.champId = id;
+      btn.innerHTML = `
+        <span class="name">${champ.name}</span>
+        <p class="desc">${champ.description}</p>
+        <p class="desc" style="margin-top:4px;font-size:10px;opacity:0.7">${champ.rounds.length} rounds · ${champ.difficulty} AI</p>`;
+      btn.addEventListener("click", () => {
+        startChampionship(id);
+        // Auto-select the first round's track.
+        const round = currentRound();
+        if (round) loadTrack(round.trackId);
+        renderCareerPanel();
+        renderTrackPicker();
+      });
+      wrap.appendChild(btn);
+    }
+  }
+  // Mark active championship.
+  for (const card of wrap.querySelectorAll(".track-card")) {
+    card.setAttribute("aria-checked", card.dataset.champId === state.championshipId ? "true" : "false");
+  }
+  // Status text.
+  if (state.championshipId) {
+    const champ = CHAMPIONSHIPS[state.championshipId];
+    if (state.finalStandings) {
+      const me = state.finalStandings.findIndex((e) => e.isPlayer) + 1;
+      status.textContent = `Championship complete — finished ${ordinal(me)}. Press Reset to start over.`;
+    } else {
+      const r = currentRound();
+      const ptsLine = `Player ${state.points.player || 0} pts`;
+      status.textContent = `Round ${r.idx + 1} of ${r.total}: ${r.trackId.toUpperCase()} · ${r.laps} laps. ${ptsLine}.`;
+    }
+  } else {
+    status.textContent = "Pick a championship to begin.";
+  }
+}
 
 // ---- Garage ----
 const garageOverlay = document.getElementById("garage-overlay");

@@ -287,6 +287,56 @@ export function playCountdownBeep(level = 0) {
   }
 }
 
+// Turbo whoosh — sweeping bandpass on white noise. Used on boost activation.
+export function playTurboWhoosh() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const len = 0.45;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 4;
+  bp.frequency.setValueAtTime(800, t);
+  bp.frequency.exponentialRampToValueAtTime(3200, t + len);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.18, t + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(master);
+  src.start(t);
+  src.stop(t + len + 0.05);
+}
+
+// Brake hiss — short high-frequency noise burst on hard brake application.
+export function playBrakeHiss() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const len = 0.18;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.45;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 2400;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.10, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  src.connect(hp);
+  hp.connect(g);
+  g.connect(master);
+  src.start(t);
+  src.stop(t + len + 0.05);
+}
+
 // Gear-shift "thunk" — a quick filtered noise burst.
 export function playShift(direction = 1) {
   if (!ctx) return;
