@@ -12,9 +12,13 @@ function defaultProfile() {
     cars[id] = {
       body: shape.body,
       stripe: shape.stripe,
-      accent: 0xc8d4e6,            // wheel hub chrome
+      accent: 0xc8d4e6,
       spoiler: shape.spoiler ?? "none",
-      livery: "Stock"
+      livery: "Stock",
+      // Per-car stats (km driven, wins with this car, races with this car).
+      kmDriven: 0,
+      wins: 0,
+      races: 0
     };
   }
   return {
@@ -25,9 +29,11 @@ function defaultProfile() {
       races: 0,
       wins: 0,
       podiums: 0,
-      laps: 0
+      laps: 0,
+      streak: 0,         // current consecutive win streak
+      bestStreak: 0      // best ever
     },
-    bestLaps: {}    // key: `${trackId}:${carShape}` → seconds
+    bestLaps: {}
   };
 }
 
@@ -46,14 +52,19 @@ export function loadProfile() {
       cache = defaultProfile();
       return cache;
     }
-    // Backfill any missing car entries (in case CAR_SHAPES was extended).
+    // Backfill missing car entries + new fields.
     const def = defaultProfile();
     for (const id of Object.keys(def.cars)) {
       if (!parsed.cars[id]) parsed.cars[id] = def.cars[id];
-      // Backfill new fields onto existing entries.
-      if (parsed.cars[id].accent === undefined) parsed.cars[id].accent = def.cars[id].accent;
-      if (parsed.cars[id].spoiler === undefined) parsed.cars[id].spoiler = def.cars[id].spoiler;
+      const c = parsed.cars[id];
+      if (c.accent === undefined) c.accent = def.cars[id].accent;
+      if (c.spoiler === undefined) c.spoiler = def.cars[id].spoiler;
+      if (c.kmDriven === undefined) c.kmDriven = 0;
+      if (c.wins === undefined) c.wins = 0;
+      if (c.races === undefined) c.races = 0;
     }
+    if (parsed.stats.streak === undefined) parsed.stats.streak = 0;
+    if (parsed.stats.bestStreak === undefined) parsed.stats.bestStreak = 0;
     cache = parsed;
     return cache;
   } catch (_) {
@@ -109,6 +120,29 @@ export function bumpStats(delta) {
     p.stats[k] = (p.stats[k] || 0) + delta[k];
   }
   saveProfile();
+}
+
+export function bumpCarStats(carShape, delta) {
+  const p = loadProfile();
+  if (!p.cars[carShape]) return;
+  for (const k of Object.keys(delta)) {
+    p.cars[carShape][k] = (p.cars[carShape][k] || 0) + delta[k];
+  }
+  saveProfile();
+}
+
+// Record a race result for streak tracking. `won` is true if 1st place.
+// Returns the new streak length (0 if reset).
+export function recordRaceResult(won) {
+  const p = loadProfile();
+  if (won) {
+    p.stats.streak = (p.stats.streak || 0) + 1;
+    if (p.stats.streak > (p.stats.bestStreak || 0)) p.stats.bestStreak = p.stats.streak;
+  } else {
+    p.stats.streak = 0;
+  }
+  saveProfile();
+  return p.stats.streak;
 }
 
 export function recordBestLap(trackId, carShape, seconds) {

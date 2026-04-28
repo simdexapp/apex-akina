@@ -9,6 +9,19 @@
   --gold: #ffd166;
 }
 
+/* HUD-hide mode — only the speedometer and touch buttons stay visible. */
+body.is-hud-min .hud,
+body.is-hud-min .hud-pills,
+body.is-hud-min .leaderboard,
+body.is-hud-min .minimap,
+body.is-hud-min .grip-bar,
+body.is-hud-min .lap-delta,
+body.is-hud-min .sectors,
+body.is-hud-min .rival-labels,
+body.is-hud-min .toast-stack {
+  display: none !important;
+}
+
 /* Color-blind palette — swap red/green pairs for blue/orange + brighter
    contrast. Activated by .is-colorblind on body. */
 body.is-colorblind {
@@ -676,6 +689,17 @@ button:hover { filter: brightness(1.08); }
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 13px;
+}
+
+.garage-car .car-stat-line {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--cyan);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: ui-monospace, monospace;
 }
 
 .garage-car .pickers {
@@ -1445,6 +1469,34 @@ body.is-photo-mode::after {
 
 .rival-label.is-near { border-color: var(--cyan); }
 .rival-label.is-far  { opacity: 0.4; }
+
+/* Track records wall (in pause menu) */
+.track-records {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 8px 0 16px;
+  font-family: ui-monospace, monospace;
+}
+
+.track-records .rec {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(8, 13, 22, 0.55);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.track-records .rec span:last-child {
+  color: var(--cyan);
+}
+
+.track-records .rec.empty span:last-child {
+  color: var(--muted);
+}
 
 /* Finish-screen time-trial leaderboard */
 .finish-leaderboard {

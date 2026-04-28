@@ -386,11 +386,28 @@ function buildBody(shape) {
     lens.position.set(side * shape.width * 0.32, 0.55, shape.length * 0.50);
     group.add(lens);
   }
-  // Tail lights.
+  // Tail lights — emissive intensity varies with brake state at runtime.
+  const tailLights = [];
   for (const side of [-1, 1]) {
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.15, 0.10), new THREE.MeshBasicMaterial({ color: 0xff315c }));
+    const tailMat = new THREE.MeshStandardMaterial({
+      color: 0xff315c,
+      emissive: 0xff315c,
+      emissiveIntensity: 0.6
+    });
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.15, 0.10), tailMat);
     tail.position.set(side * shape.width * 0.30, 0.62, -shape.length * 0.50);
     group.add(tail);
+    tailLights.push(tailMat);
+  }
+  // Stash on the group so the runtime can flick brake-light intensity.
+  group.userData.tailMats = tailLights;
+
+  // Brake calipers — small colored boxes inside each wheel for detail.
+  const caliperMat = new THREE.MeshStandardMaterial({ color: 0xff4a3a, metalness: 0.5, roughness: 0.4 });
+  for (const [x, z] of [[-wx, wzF], [wx, wzF], [-wx, wzR], [wx, wzR]]) {
+    const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.18), caliperMat);
+    caliper.position.set(x + (x < 0 ? 0.06 : -0.06), 0.40, z);
+    group.add(caliper);
   }
 
   return group;
@@ -602,16 +619,20 @@ function stepTrack(car, dt, track) {
     const overshoot = Math.abs(proj.lateral) - limit;
     const dirSign = Math.sign(proj.lateral);
     const t = track.tangents[proj.segmentIndex];
-    car.group.position.x -= -t.z * dirSign * (overshoot + 0.05);
-    car.group.position.z -= t.x * dirSign * (overshoot + 0.05);
-    // Only flag a "hit" if we were going fast and just exceeded — avoids
-    // continuous flashing when scraping the wall.
+    // Push the car back to the limit, then add a slight bounce-velocity
+    // INWARD so we don't get "stuck" against the wall every frame.
+    car.group.position.x -= -t.z * dirSign * (overshoot + 0.02);
+    car.group.position.z -= t.x * dirSign * (overshoot + 0.02);
     if (Math.abs(car.speed) > 22 && !car._lastBarrier) {
       car.barrierHit = true;
+      car.speed *= 0.74;     // bigger initial speed bleed on first contact
+      car.lateralV = -car.lateralV * 0.55 - dirSign * 4;   // bounce inward
+    } else {
+      // Continuous scrape — gentler drag so the player can recover by steering away.
+      car.speed *= 0.97;
+      car.lateralV = -dirSign * 2;     // push inward gently
     }
     car._lastBarrier = true;
-    car.speed *= 0.86;
-    car.lateralV = -car.lateralV * 0.4;
   } else if (Math.abs(proj.lateral) > track.halfWidth) {
     car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * 0.4 * dt;
     car._lastBarrier = false;

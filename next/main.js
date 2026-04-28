@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=23";
-import { buildScenery } from "./scenery.js?v=23";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=23";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=23";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=23";
+import { buildTrack, getTrackList } from "./track.js?v=24";
+import { buildScenery } from "./scenery.js?v=24";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=24";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=24";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=24";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=23";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=23";
-import { createGhost, createGhostMesh } from "./ghost.js?v=23";
-import { createReplay } from "./replay.js?v=23";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=23";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=23";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=24";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=24";
+import { createGhost, createGhostMesh } from "./ghost.js?v=24";
+import { createReplay } from "./replay.js?v=24";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=24";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=24";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
-  getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=23";
+  getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
+} from "./profile.js?v=24";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -505,7 +505,7 @@ function readBoost() { return car?.boostMeter ?? 0; }
 // ---- Skid marks (drift trails) ----
 const skidGroup = new THREE.Group();
 scene.add(skidGroup);
-const SKID_MAX = 200;
+const SKID_MAX = 360;
 const skidQueue = [];
 
 function spawnSkidPair() {
@@ -529,7 +529,7 @@ function spawnSkidPair() {
     mesh.rotation.z = car.heading;
     mesh.position.set(tireX, 0.06, tireZ);
     skidGroup.add(mesh);
-    skidQueue.push({ mesh, mat, life: 4.0 });
+    skidQueue.push({ mesh, mat, life: 8.0 });
     while (skidQueue.length > SKID_MAX) {
       const old = skidQueue.shift();
       skidGroup.remove(old.mesh);
@@ -659,6 +659,8 @@ onAchievementToast((ach) => {
 // Track per-race context for achievement checks.
 const raceCtx = { topSpeedKmh: 0, nearMisses: 0, longestDrift: 0 };
 let lastPlayerPlace = 15;
+let _aiLastOrder = [];
+let _aiCalloutCooldown = 0;
 
 // Sector splits — three sectors at 0..1/3, 1/3..2/3, 2/3..1 of arclength.
 const SECTORS_KEY = "apex-akina-3d:sectorsBest";
@@ -809,6 +811,15 @@ function tick(dt) {
   }
   car._wasBraking = i.brake;
 
+  // Brake light intensity — bump when braking, fade otherwise.
+  const tailMats = car.group?.userData?.tailMats;
+  if (tailMats) {
+    const targetEm = i.brake ? 2.8 : 0.6;
+    for (const m of tailMats) {
+      m.emissiveIntensity += (targetEm - m.emissiveIntensity) * Math.min(1, dt * 16);
+    }
+  }
+
   // Damage flash on barrier hit (rising-edge only, max once per ~half-sec).
   if (car.barrierHit) {
     document.body.classList.remove("is-damaged");
@@ -824,6 +835,9 @@ function tick(dt) {
     spawnDriftPopup(Math.round(car.driftExitReward * 1000));
     car.driftExitReward = 0;
   }
+
+  // Accumulate km driven for the per-car stat (race + time-trial both count).
+  raceCtx.kmDriven = (raceCtx.kmDriven || 0) + (Math.abs(car.speed) * dt) / 1000;
 
   // Track per-race context for achievements.
   const speedKmh = Math.abs(car.speed) * 3.6;
@@ -1183,6 +1197,30 @@ function loop(now) {
   drawMinimap(standings);
   if (running) updateRivalLabels();
 
+  // AI vs AI position-change tracking — only when player isn't immediately
+  // adjacent so we don't double-up with the player overtake message.
+  if (running && rivals && rivals.length) {
+    if (!_aiLastOrder.length) _aiLastOrder = standings.entries.map((e) => e.name);
+    else {
+      const newOrder = standings.entries.map((e) => e.name);
+      // Find first rival pair that swapped at the front of the field.
+      for (let i = 0; i < Math.min(8, newOrder.length - 1); i++) {
+        const a = newOrder[i], b = newOrder[i + 1];
+        const oldA = _aiLastOrder[i], oldB = _aiLastOrder[i + 1];
+        if (a === oldB && b === oldA && a !== "You" && b !== "You") {
+          _aiCalloutCooldown = (_aiCalloutCooldown || 0);
+          if (_aiCalloutCooldown <= 0) {
+            flashCallout(`${a} passed ${b}`, 700);
+            _aiCalloutCooldown = 4.0;
+          }
+          break;
+        }
+      }
+      _aiLastOrder = newOrder;
+    }
+    if (_aiCalloutCooldown > 0) _aiCalloutCooldown -= dt;
+  }
+
   // Overtake detection — show callout when player's place changes.
   if (running && lastPlayerPlace !== standings.place) {
     if (lastPlayerPlace > standings.place) {
@@ -1209,9 +1247,16 @@ function loop(now) {
       const isWin = standings.place === 1;
       const isPodium = standings.place <= 3;
       bumpStats({ races: 1, wins: isWin ? 1 : 0, podiums: isPodium ? 1 : 0, laps: lapsTotal() });
+      // Per-car stats.
+      bumpCarStats(car.shape, { races: 1, wins: isWin ? 1 : 0 });
+      // Streak.
+      const newStreak = recordRaceResult(isWin);
+      if (isWin && newStreak >= 3) flashCallout(`${newStreak}-race streak`, 1400);
     } else {
       bumpStats({ laps: lapsTotal() });
     }
+    // Per-car km accumulator → flushed to profile.
+    if (raceCtx.kmDriven > 0) bumpCarStats(car.shape, { kmDriven: raceCtx.kmDriven });
     // Record best lap to profile too (separate from canvas/legacy bestLapPerTrack).
     if (bestLapDisplay && car) recordBestLap(track.id, car.shape, bestLapDisplay);
     // Career: record this round's standings + advance to next.
@@ -1525,11 +1570,14 @@ function startRace() {
   raceCtx.topSpeedKmh = 0;
   raceCtx.nearMisses = 0;
   raceCtx.longestDrift = 0;
+  raceCtx.kmDriven = 0;
   // Sector splits — show panel + reset.
   const sectorsEl = document.getElementById("sectors");
   if (sectorsEl) sectorsEl.hidden = false;
   resetSectors();
   lastPlayerPlace = 15;
+  _aiLastOrder = [];
+  _aiCalloutCooldown = 0;
   // Hide rivals in time trial.
   for (const r of rivals) r.mesh.visible = (gameMode === "race" || gameMode === "career");
   if (car) {
@@ -1826,6 +1874,8 @@ function renderGarage() {
     <div><span class="label">Wins</span><span class="value">${profile.stats.wins || 0}</span></div>
     <div><span class="label">Podiums</span><span class="value">${profile.stats.podiums || 0}</span></div>
     <div><span class="label">Laps</span><span class="value">${profile.stats.laps || 0}</span></div>
+    <div><span class="label">Streak</span><span class="value">${profile.stats.streak || 0}</span></div>
+    <div><span class="label">Best Streak</span><span class="value">${profile.stats.bestStreak || 0}</span></div>
   `;
   // Achievements grid.
   const achWrap = document.getElementById("garage-achievements");
@@ -1849,10 +1899,18 @@ function renderGarage() {
     const spoilerOptionsHtml = SPOILER_OPTIONS.map((opt) =>
       `<option value="${opt}"${opt === currentSpoiler ? " selected" : ""}>${opt[0].toUpperCase()}${opt.slice(1)}</option>`
     ).join("");
+    const km = Math.floor(livery.kmDriven || 0);
+    const carWins = livery.wins || 0;
+    const carRaces = livery.races || 0;
     const div = document.createElement("div");
     div.className = "garage-car";
     div.innerHTML = `
       <span class="name">${base.label}</span>
+      <div class="car-stat-line">
+        <span>${carRaces} races</span>
+        <span>${carWins} wins</span>
+        <span>${km} km</span>
+      </div>
       <div class="pickers">
         <label><span>Body</span><input type="color" data-car="${id}" data-part="body" value="${hex(livery.body)}"></label>
         <label><span>Stripe</span><input type="color" data-car="${id}" data-part="stripe" value="${hex(livery.stripe)}"></label>
@@ -1909,9 +1967,23 @@ function setPaused(v) {
   paused = v;
   if (paused) {
     pauseOverlay.hidden = false;
+    renderTrackRecords();
   } else {
     pauseOverlay.hidden = true;
   }
+}
+
+function renderTrackRecords() {
+  const wrap = document.getElementById("track-records");
+  if (!wrap) return;
+  let html = "";
+  for (const t of TRACKS_LIST) {
+    const time = bestLapPerTrack[t.id];
+    const className = time ? "rec" : "rec empty";
+    const display = time ? formatTime(time) : "—";
+    html += `<div class="${className}"><span>${t.name}</span><span>${display}</span></div>`;
+  }
+  wrap.innerHTML = html;
 }
 window.addEventListener("keydown", (e) => {
   if (e.code === "Escape") {
@@ -1972,6 +2044,10 @@ function tickPhotoMode(dt) {
   );
   camera.lookAt(photoCam.target);
 }
+document.getElementById("hud-toggle-btn")?.addEventListener("click", () => {
+  document.body.classList.toggle("is-hud-min");
+});
+
 document.getElementById("pause-btn")?.addEventListener("click", () => {
   if (overlay.hidden) setPaused(!paused);
 });

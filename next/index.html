@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=23">
+    <link rel="stylesheet" href="styles.css?v=24">
     <script type="importmap">
       {
         "imports": {
@@ -50,6 +50,7 @@
         <div class="hud-actions">
           <button id="mute-btn" class="back-link" type="button" aria-pressed="false">♪</button>
           <button id="pause-btn" class="back-link" type="button" aria-label="Pause">⏸</button>
+          <button id="hud-toggle-btn" class="back-link" type="button" aria-label="Toggle HUD" title="Hide overlays">◑</button>
           <a class="back-link" href="../index.html" aria-label="Back to engine picker">←</a>
         </div>
         <!-- Status pills (combo + draft) — only when active, top-center -->
@@ -220,6 +221,8 @@
             <p class="eyebrow">Paused</p>
             <h1>Take a breath</h1>
             <p>Press Esc to resume.</p>
+            <p class="small" style="margin-top: 14px;">Track records</p>
+            <div class="track-records" id="track-records"></div>
             <div class="prerace-actions">
               <button id="pause-resume" type="button">Resume</button>
               <button id="pause-restart" type="button" class="ghost-btn">Restart</button>
@@ -343,6 +346,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=23"></script>
+    <script type="module" src="main.js?v=24"></script>
   </body>
 </html>
