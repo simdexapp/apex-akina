@@ -163,6 +163,49 @@ function decorateTrackInstanced(track, sideOffset, stride, count, place) {
 }
 
 // ============================================================
+// Ambient particle cloud — flavored per track. Uses THREE.Points with a
+// per-vertex animation offset so particles gently drift across the track
+// envelope. Returns the Points mesh and an updater fn the caller can tick
+// each frame for slight motion (or skip — the static cloud still looks ok).
+function buildAmbientParticles(trackId, track) {
+  const PALETTES = {
+    lakeside:     { color: 0xfff5a0, count: 240, size: 1.6, mode: "float" },     // fireflies
+    bayside:      { color: 0xfff5d0, count: 180, size: 1.4, mode: "float" },
+    highway:      { color: 0xffd9a0, count: 120, size: 1.2, mode: "drift" },     // dust
+    neon:         { color: 0x4ce8ff, count: 320, size: 1.4, mode: "spark" },
+    mountainpass: { color: 0xeef4ff, count: 280, size: 1.6, mode: "snow" },
+    city:         { color: 0xb0c0d8, count: 180, size: 1.0, mode: "drift" },
+    rural:        { color: 0xc8e8a0, count: 200, size: 1.2, mode: "float" },     // pollen
+    drift:        { color: 0xff48b6, count: 200, size: 1.6, mode: "spark" }      // confetti vibes
+  };
+  const cfg = PALETTES[trackId] || PALETTES.lakeside;
+  const { cx, cz, radius } = trackBounds(track);
+  const N = cfg.count;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = radius * (0.4 + Math.random() * 0.6);
+    pos[i * 3]     = cx + Math.cos(ang) * r;
+    pos[i * 3 + 1] = 4 + Math.random() * 30;
+    pos[i * 3 + 2] = cz + Math.sin(ang) * r;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    color: cfg.color,
+    size: cfg.size,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: cfg.mode === "snow" ? 0.6 : 0.85,
+    depthWrite: false
+  });
+  const points = new THREE.Points(geo, mat);
+  points.userData.mode = cfg.mode;
+  points.userData.basePos = pos.slice();
+  return points;
+}
+
+// ============================================================
 // Top-level: build a scenery group for a given track id + track object.
 // ============================================================
 export function buildScenery(trackId, track) {
@@ -390,5 +433,40 @@ export function buildScenery(trackId, track) {
     group.add(bldMesh);
   }
 
+  // 3. Ambient atmospheric particles (always added).
+  const ambient = buildAmbientParticles(trackId, track);
+  group.add(ambient);
+  group.userData.ambient = ambient;
+
   return group;
+}
+
+// Tick ambient particles — gentle motion based on mode.
+export function tickAmbient(group, dt) {
+  const pts = group?.userData?.ambient;
+  if (!pts) return;
+  const mode = pts.userData.mode;
+  const base = pts.userData.basePos;
+  const arr = pts.geometry.attributes.position.array;
+  const t = performance.now() * 0.001;
+  for (let i = 0; i < arr.length / 3; i++) {
+    const bx = base[i * 3], by = base[i * 3 + 1], bz = base[i * 3 + 2];
+    if (mode === "float") {
+      arr[i * 3]     = bx + Math.sin(t * 0.5 + i * 0.7) * 1.4;
+      arr[i * 3 + 1] = by + Math.cos(t * 0.4 + i * 0.3) * 1.0;
+      arr[i * 3 + 2] = bz + Math.cos(t * 0.5 + i * 0.5) * 1.4;
+    } else if (mode === "snow") {
+      arr[i * 3 + 1] = by + ((-t * 6 + i * 3.7) % 30);
+      arr[i * 3]     = bx + Math.sin(t * 0.6 + i) * 0.8;
+    } else if (mode === "spark") {
+      arr[i * 3]     = bx + Math.sin(t * 1.6 + i * 0.9) * 2.0;
+      arr[i * 3 + 1] = by + Math.cos(t * 1.2 + i * 0.5) * 1.6;
+      arr[i * 3 + 2] = bz + Math.cos(t * 1.5 + i * 0.7) * 2.0;
+    } else {
+      // drift — slow horizontal sweep.
+      arr[i * 3]     = bx + Math.sin(t * 0.2 + i * 0.4) * 3.0;
+      arr[i * 3 + 2] = bz + Math.cos(t * 0.2 + i * 0.4) * 3.0;
+    }
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
 }

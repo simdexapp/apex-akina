@@ -2,25 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=25";
-import { buildScenery } from "./scenery.js?v=25";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=25";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=25";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=25";
+import { buildTrack, getTrackList } from "./track.js?v=26";
+import { buildScenery, tickAmbient } from "./scenery.js?v=26";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=26";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=26";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=26";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=25";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=25";
-import { createGhost, createGhostMesh } from "./ghost.js?v=25";
-import { createReplay } from "./replay.js?v=25";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=25";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=25";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=25";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=26";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=26";
+import { createGhost, createGhostMesh } from "./ghost.js?v=26";
+import { createReplay } from "./replay.js?v=26";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=26";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=26";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=26";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=25";
+} from "./profile.js?v=26";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1355,6 +1355,8 @@ function loop(now) {
       if (el) el.textContent = fpsValue;
     }
   }
+
+  if (scenery) tickAmbient(scenery, dt);
 
   composer.render();
   requestAnimationFrame(loop);
