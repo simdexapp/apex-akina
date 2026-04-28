@@ -97,19 +97,51 @@ const initialCarShape = (() => {
   } catch (_) { return "gt"; }
 })();
 
+let boostFlame = null;
 let car = createCar(initialCarShape);
 scene.add(car.group);
+attachBoostFlame();
 
 function swapCar(shapeId) {
   if (!CAR_SHAPES[shapeId]) return;
-  if (car) scene.remove(car.group);
+  if (car) {
+    scene.remove(car.group);
+    if (boostFlame) car.group.remove(boostFlame);
+  }
   car = createCar(shapeId);
   scene.add(car.group);
+  attachBoostFlame();
   if (startPoint) {
     car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
     car.heading = startPoint.tangentAngle;
   }
   try { localStorage.setItem(CAR_KEY, shapeId); } catch (_) {}
+}
+
+// Boost flame: an emissive cone (or two) behind the rear bumper, pulsing on boost.
+function attachBoostFlame() {
+  const flame1 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.30, 1.6, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.0 })
+  );
+  flame1.rotation.x = Math.PI / 2;
+  flame1.position.set(-0.6, 0.5, -2.3);
+  const flame2 = flame1.clone();
+  flame2.material = flame2.material.clone();
+  flame2.position.x = 0.6;
+  const inner1 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.16, 1.0, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x2ee9ff, transparent: true, opacity: 0.0 })
+  );
+  inner1.rotation.x = Math.PI / 2;
+  inner1.position.set(-0.6, 0.5, -2.0);
+  const inner2 = inner1.clone();
+  inner2.material = inner2.material.clone();
+  inner2.position.x = 0.6;
+  boostFlame = new THREE.Group();
+  boostFlame.add(flame1, flame2, inner1, inner2);
+  car.group.add(boostFlame);
+  boostFlame.userData = { flame1, flame2, inner1, inner2 };
 }
 
 let rivals = [];
@@ -158,12 +190,31 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-const cameraOffset = new THREE.Vector3(0, 4.5, -12);
-const cameraLookOffset = new THREE.Vector3(0, 1.5, 8);
+let cameraInitialised = false;
+const CAMERA_PRESETS = {
+  chase:   { offset: new THREE.Vector3(0, 4.5, -12), look: new THREE.Vector3(0, 1.5, 8) },
+  hood:    { offset: new THREE.Vector3(0, 1.4, 0.5), look: new THREE.Vector3(0, 1.4, 30) },
+  cinema:  { offset: new THREE.Vector3(-3.5, 2.5, -7), look: new THREE.Vector3(0, 1.0, 14) }
+};
+let cameraMode = "chase";
+const cameraOffset = new THREE.Vector3();
+const cameraLookOffset = new THREE.Vector3();
+function applyCameraMode() {
+  cameraOffset.copy(CAMERA_PRESETS[cameraMode].offset);
+  cameraLookOffset.copy(CAMERA_PRESETS[cameraMode].look);
+  cameraInitialised = false;
+}
+applyCameraMode();
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyC") {
+    const order = ["chase", "hood", "cinema"];
+    cameraMode = order[(order.indexOf(cameraMode) + 1) % order.length];
+    applyCameraMode();
+  }
+});
 const cameraTarget = new THREE.Vector3();
 const cameraDesired = new THREE.Vector3();
 const cameraSmoothPos = new THREE.Vector3();
-let cameraInitialised = false;
 
 function updateCamera(dt) {
   const sin = Math.sin(car.heading);
@@ -516,6 +567,17 @@ function loop(now) {
     racing: running
   });
 
+  // Boost flame opacity reflects boost state.
+  if (boostFlame) {
+    const boostOn = lastInput.boost && boostFuel > 0.02 && Math.abs(car.speed) > 12;
+    const flicker = 0.7 + Math.sin(performance.now() * 0.03) * 0.25 + Math.random() * 0.1;
+    const target = boostOn ? flicker : 0;
+    boostFlame.userData.flame1.material.opacity += (target * 0.78 - boostFlame.userData.flame1.material.opacity) * Math.min(1, dt * 18);
+    boostFlame.userData.flame2.material.opacity = boostFlame.userData.flame1.material.opacity;
+    boostFlame.userData.inner1.material.opacity = boostFlame.userData.flame1.material.opacity * 0.85;
+    boostFlame.userData.inner2.material.opacity = boostFlame.userData.flame1.material.opacity * 0.85;
+  }
+
   // HUD.
   const standings = computeStandings();
   document.getElementById("speed").textContent = Math.round(Math.abs(car.speed) * 3.6);
@@ -659,7 +721,7 @@ function startRace() {
     r.speed = 0;
     r.lane = r.homeLane;
   }
-  running = true;
+  running = false; // wait for countdown
   finishShown = false;
   lastTime = performance.now();
   raceTime = 0;
@@ -671,6 +733,29 @@ function startRace() {
   combo = 0;
   comboTimer = 0;
   clearSkids();
+  runStartLights();
+}
+
+const startLightsEl = document.getElementById("start-lights");
+function runStartLights() {
+  if (!startLightsEl) { running = true; return; }
+  startLightsEl.hidden = false;
+  const bulbs = Array.from(startLightsEl.children);
+  bulbs.forEach((b) => b.classList.remove("is-lit"));
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < bulbs.length) {
+      bulbs[i].classList.add("is-lit");
+      i++;
+    } else {
+      // GO — extinguish all and start the race.
+      clearInterval(interval);
+      bulbs.forEach((b) => b.classList.remove("is-lit"));
+      setTimeout(() => { startLightsEl.hidden = true; }, 220);
+      running = true;
+      flashCallout("GO", 700);
+    }
+  }, 600);
 }
 
 document.getElementById("start").addEventListener("click", startRace);
