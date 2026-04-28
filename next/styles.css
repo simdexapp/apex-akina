@@ -1403,7 +1403,7 @@ body.is-replay::after {
 }
 
 body.is-photo-mode::after {
-  content: "PHOTO MODE — P to exit · ←→ orbit · ↑↓ zoom";
+  content: "PHOTO MODE — P exit · ←→ orbit · ↑↓ zoom · K save PNG";
   position: absolute;
   bottom: 14px;
   left: 50%;
@@ -1994,4 +1994,73 @@ body.is-photo-mode::after {
   .steer-knob { width: 60px; height: 60px; left: 40px; top: 40px; }
   .touch-throttle { width: 100px; height: 100px; }
   .touch-brake { width: 100px; height: 80px; }
+}
+
+/* Rank badge on title overlay */
+.rank-badge {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 6px 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--rank-color, var(--cyan));
+  border-radius: 10px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rank-color, var(--cyan)) 12%, transparent), rgba(8,13,22,0.85));
+}
+
+.rank-tier {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rank-color, var(--ink));
+}
+
+.rank-points {
+  grid-column: 2;
+  grid-row: 1;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: ui-monospace, monospace;
+  color: var(--muted);
+}
+
+.rank-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#rank-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--rank-color, var(--cyan));
+  transition: width 240ms ease;
+}
+
+.rank-next {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Title-screen cinematic intro overlay */
+.title-cinematic {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 90%, rgba(0,0,0,0.6) 100%);
 }

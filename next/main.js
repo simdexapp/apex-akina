@@ -2,29 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=34";
-import { buildScenery, tickAmbient } from "./scenery.js?v=34";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=34";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=34";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=34";
+import { buildTrack, getTrackList } from "./track.js?v=35";
+import { buildScenery, tickAmbient } from "./scenery.js?v=35";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=35";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=35";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=35";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=34";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=34";
-import { createGhost, createGhostMesh } from "./ghost.js?v=34";
-import { createReplay } from "./replay.js?v=34";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=34";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=34";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=34";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=35";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=35";
+import { createGhost, createGhostMesh } from "./ghost.js?v=35";
+import { createReplay } from "./replay.js?v=35";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=35";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=35";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=35";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=35";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=34";
+} from "./profile.js?v=35";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.55;
@@ -665,6 +666,29 @@ function renderDailyChallenge() {
 }
 renderDailyChallenge();
 
+function renderRank() {
+  const profile = loadProfile();
+  const rank = computeRank(profile.stats);
+  const badge = document.getElementById("rank-badge");
+  const tierName = document.getElementById("rank-tier-name");
+  const points = document.getElementById("rank-points");
+  const fill = document.getElementById("rank-bar-fill");
+  const next = document.getElementById("rank-next");
+  if (!badge) return;
+  badge.style.setProperty("--rank-color", rank.tier.color);
+  if (tierName) tierName.textContent = rank.tier.name;
+  if (points) points.textContent = `${rank.points} pts`;
+  if (fill) fill.style.width = (rank.progress * 100).toFixed(0) + "%";
+  if (next) {
+    if (rank.nextTier) {
+      next.textContent = `Next: ${rank.nextTier.name} · ${rank.nextTier.threshold} pts (${rank.nextTier.threshold - rank.points} to go)`;
+    } else {
+      next.textContent = "Top tier reached — drive forever";
+    }
+  }
+}
+renderRank();
+
 // Achievement toast renderer.
 onAchievementToast((ach) => {
   const stack = document.getElementById("toast-stack");
@@ -1296,7 +1320,24 @@ function loop(now) {
     if (gameMode === "race" || gameMode === "career") {
       const isWin = standings.place === 1;
       const isPodium = standings.place <= 3;
+      const prevStats = { ...loadProfile().stats };
       bumpStats({ races: 1, wins: isWin ? 1 : 0, podiums: isPodium ? 1 : 0, laps: lapsTotal() });
+      // Detect rank-up.
+      const newStats = loadProfile().stats;
+      const rankedUp = detectRankUp(prevStats, newStats);
+      if (rankedUp) {
+        flashCallout(`Promoted to ${rankedUp.name}!`, 2000);
+        const stack = document.getElementById("toast-stack");
+        if (stack) {
+          const el = document.createElement("div");
+          el.className = "toast";
+          el.style.borderColor = rankedUp.color;
+          el.innerHTML = `<span class="label" style="color:${rankedUp.color}">Rank Up</span><strong>${rankedUp.name}</strong><small>You climbed the ladder</small>`;
+          stack.appendChild(el);
+          setTimeout(() => el.remove(), 5500);
+        }
+      }
+      renderRank();
       // Per-car stats.
       bumpCarStats(car.shape, { races: 1, wins: isWin ? 1 : 0 });
       // Streak.
@@ -2119,6 +2160,23 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyP" && running) {
     photoMode = !photoMode;
     document.body.classList.toggle("is-photo-mode", photoMode);
+  }
+  // Photo capture: K key downloads current frame as PNG.
+  if (e.code === "KeyK") {
+    try {
+      // Force a fresh render so the canvas has current pixels.
+      composer.render();
+      const dataURL = renderer.domElement.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = dataURL;
+      a.download = `apex-akina-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      flashCallout("PNG saved", 700);
+    } catch (err) {
+      console.warn("Photo capture failed:", err);
+    }
   }
   if (e.code === "KeyV" && running) {
     spectatorMode = !spectatorMode;
