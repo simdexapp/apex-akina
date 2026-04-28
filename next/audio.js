@@ -200,15 +200,24 @@ function startMusic() {
   }, 60);
 }
 
-export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, racing }) {
+export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, racing, gear, gearCount, rpm }) {
   if (!ctx) return;
   const sp = Math.max(0, Math.min(1, Math.abs(speed) / maxSpeed));
   const onThrottle = !!throttle;
   const onBrake = !!brake;
   const offThrottle = racing && !onThrottle && !onBrake;
+  // Per-gear RPM "wraps": each gear has its own pitch range. RPM (0..1 inside
+  // the current gear's window) drives the engine note within a gear's band.
+  let gearRpmFrac;
+  if (typeof rpm === "number") {
+    gearRpmFrac = Math.max(0, Math.min(1, (rpm - 900) / 6900));
+  } else {
+    gearRpmFrac = sp;
+  }
   const range = PROFILE.redlineHz - PROFILE.idleHz;
+  const gearBoostBase = gear ? 0.78 + (gear / Math.max(1, gearCount || 6)) * 0.40 : 1.0;
   const freqMul = onThrottle ? 1.05 : onBrake ? 0.86 : offThrottle ? 0.92 : 1.0;
-  const targetFreq = (PROFILE.idleHz + sp * range) * freqMul;
+  const targetFreq = (PROFILE.idleHz + gearRpmFrac * range) * freqMul * gearBoostBase;
   osc1.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.022);
   osc2.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.022);
 
@@ -216,11 +225,13 @@ export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, rac
   const baseGain = racing ? PROFILE.body * (0.30 + sp * 0.65) * loadGain : PROFILE.body * 0.14;
   engineGain.gain.setTargetAtTime(baseGain, ctx.currentTime, 0.025);
 
-  const pulseHz = PROFILE.pulseIdle + sp * (PROFILE.pulseTop - PROFILE.pulseIdle);
+  const pulseHz = PROFILE.pulseIdle + gearRpmFrac * (PROFILE.pulseTop - PROFILE.pulseIdle);
   pulseLfo.frequency.setTargetAtTime(pulseHz * (onThrottle ? 1.0 : 0.78), ctx.currentTime, 0.05);
   pulseLfoGain.gain.setTargetAtTime(racing ? baseGain * PROFILE.pulseDepth : 0, ctx.currentTime, 0.05);
 
-  const lpfTarget = (PROFILE.lpfBase + sp * (PROFILE.lpfTop - PROFILE.lpfBase)) *
+  // LPF sweep — opens further as RPM-in-gear climbs, gives each gear a
+  // distinct "ratchet up" character on shift.
+  const lpfTarget = (PROFILE.lpfBase + gearRpmFrac * (PROFILE.lpfTop - PROFILE.lpfBase)) *
     (onThrottle ? 1.0 : onBrake ? 0.42 : offThrottle ? 0.55 : 0.5);
   engineLowpass.frequency.setTargetAtTime(lpfTarget, ctx.currentTime, 0.06);
 

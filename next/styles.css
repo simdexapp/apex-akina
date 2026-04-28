@@ -1270,6 +1270,39 @@ body.is-photo-mode::after {
 .rival-label.is-near { border-color: var(--cyan); }
 .rival-label.is-far  { opacity: 0.4; }
 
+/* Tire grip indicator */
+.grip-bar {
+  position: absolute;
+  left: 14px;
+  bottom: 168px;
+  width: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 8px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.grip-meter {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#grip-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--hot), var(--gold), #4adf80);
+  transition: width 80ms linear;
+}
+
 /* Lap delta indicator (vs personal best) */
 .lap-delta {
   position: absolute;

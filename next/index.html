@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=16">
     <script type="importmap">
       {
         "imports": {
@@ -120,6 +120,12 @@
 
         <!-- Driver-name labels overlay — projected from world to screen each frame -->
         <div class="rival-labels" id="rival-labels"></div>
+
+        <!-- Tire grip indicator (small bar, color-coded) -->
+        <div class="grip-bar" id="grip-bar" hidden>
+          <span class="label">Grip</span>
+          <div class="grip-meter"><span id="grip-fill"></span></div>
+        </div>
 
         <!-- Live lap delta vs personal best -->
         <div class="lap-delta" id="lap-delta" hidden>
@@ -311,6 +317,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=15"></script>
+    <script type="module" src="main.js?v=16"></script>
   </body>
 </html>

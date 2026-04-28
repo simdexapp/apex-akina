@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=15";
-import { buildScenery } from "./scenery.js?v=15";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=15";
-import { createInput, initTouchControls } from "./input.js?v=15";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=15";
+import { buildTrack, getTrackList } from "./track.js?v=16";
+import { buildScenery } from "./scenery.js?v=16";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=16";
+import { createInput, initTouchControls } from "./input.js?v=16";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=16";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=15";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=15";
-import { createGhost, createGhostMesh } from "./ghost.js?v=15";
-import { createReplay } from "./replay.js?v=15";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=15";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=15";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=16";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=16";
+import { createGhost, createGhostMesh } from "./ghost.js?v=16";
+import { createReplay } from "./replay.js?v=16";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=16";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=16";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=15";
+} from "./profile.js?v=16";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1038,11 +1038,14 @@ function loop(now) {
   const lastInput = input.read();
   updateAudio({
     speed: car.speed,
-    maxSpeed: 65,
+    maxSpeed: car.maxSpeed,
     lateralSlip: car.lateralV / 25,
     throttle: lastInput.throttle,
     brake: lastInput.brake,
-    racing: running
+    racing: running,
+    gear: car.gear,
+    gearCount: car._gearProfile?.count || 6,
+    rpm: car.rpm
   });
   updateWind(Math.abs(car.speed) / car.maxSpeed);
 
@@ -1106,6 +1109,19 @@ function loop(now) {
   const lapBadge = document.getElementById("lap")?.parentElement;
   if (lapBadge) {
     lapBadge.classList.toggle("is-final", lap === lapsTotal() && running);
+  }
+  // Tire grip indicator — high when planted, drops while sliding/drifting.
+  const gripEl = document.getElementById("grip-bar");
+  if (gripEl) {
+    if (running) {
+      gripEl.hidden = false;
+      const slipMag = Math.min(1, Math.abs(car.lateralV) / 18);
+      const grip = Math.max(0.05, 1 - slipMag);
+      const fill = document.getElementById("grip-fill");
+      if (fill) fill.style.width = (grip * 100).toFixed(0) + "%";
+    } else {
+      gripEl.hidden = true;
+    }
   }
   // Live lap-delta vs personal best — only meaningful from lap 2 onward.
   const lapDeltaEl = document.getElementById("lap-delta");
@@ -1394,6 +1410,8 @@ function startRace() {
     if (round) {
       if (track?.id !== round.trackId) loadTrack(round.trackId);
       raceLapsOverride = round.laps;
+      // Show interstitial callout: "ROUND 2 / 5"
+      flashCallout(`Round ${round.idx + 1} / ${round.total}`, 1400);
     } else {
       raceLapsOverride = null;
     }
