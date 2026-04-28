@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=39">
+    <link rel="stylesheet" href="styles.css?v=40">
     <script type="importmap">
       {
         "imports": {
@@ -162,6 +162,10 @@
               <div class="rank-bar"><span id="rank-bar-fill"></span></div>
               <span class="rank-next" id="rank-next">Next: Amateur · 25 pts</span>
             </div>
+            <div class="quick-actions">
+              <button id="btn-quick-race" type="button" class="quick-btn quick-race">⚡ Quick Race</button>
+              <button id="btn-resume-career" type="button" class="quick-btn quick-resume" hidden>🏁 Resume Career</button>
+            </div>
             <p class="eyebrow">Apex Akina &middot; 3D engine</p>
             <h1>Pre-race</h1>
             <p>WASD or arrows to drive. Shift to boost. Space to drift.</p>
@@ -228,6 +232,7 @@
             <div class="prerace-actions">
               <button id="restart" type="button">Run It Back</button>
               <button id="watch-replay" type="button" class="ghost-btn">Watch Replay</button>
+              <button id="share-ghost" type="button" class="ghost-btn">Share Ghost</button>
             </div>
           </div>
         </div>
@@ -381,6 +386,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=39"></script>
+    <script type="module" src="main.js?v=40"></script>
   </body>
 </html>

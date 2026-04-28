@@ -2233,3 +2233,42 @@ body.is-photo-mode::after {
 @media (max-width: 540px) {
   .trophy-list { grid-template-columns: 1fr; }
 }
+
+/* Quick Action buttons (Quick Race / Resume Career) */
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.quick-btn {
+  flex: 1;
+  margin: 0;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 100ms ease, transform 80ms ease, border-color 100ms ease;
+  color: white;
+}
+
+.quick-race {
+  background: linear-gradient(135deg, var(--cyan), var(--gold));
+  color: #05070c;
+  box-shadow: 0 8px 22px rgba(46, 233, 255, 0.32);
+}
+.quick-race:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.quick-resume {
+  background: linear-gradient(135deg, rgba(255, 49, 92, 0.95), rgba(255, 143, 31, 0.95));
+  box-shadow: 0 8px 22px rgba(255, 49, 92, 0.32);
+}
+.quick-resume:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+@media (max-width: 540px) {
+  .quick-actions { flex-direction: column; }
+}

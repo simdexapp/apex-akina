@@ -42,6 +42,47 @@ function saveGhost(trackId, carShape, samples, time) {
   } catch (_) {}
 }
 
+// ---- Ghost sharing ----
+//
+// Encode a saved ghost into a compact base64-url string + decode back. Used
+// by the share-link flow: best lap → URL hash → friend opens link → ghost
+// loaded as the playback ghost for their next race on that track + car.
+
+export function encodeGhost(trackId, carShape) {
+  const g = loadGhost(trackId, carShape);
+  if (!g || !g.samples) return null;
+  // Format: <track>|<car>|<time>|<base64>
+  const buf = g.samples.buffer;
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${trackId}|${carShape}|${g.time.toFixed(3)}|${b64}`;
+}
+
+// Try to import a shared ghost into localStorage. Returns the parsed
+// (trackId, carShape, time) on success, or null on failure.
+export function importGhost(payload) {
+  try {
+    const [trackId, carShape, timeStr, b64] = payload.split("|");
+    if (!trackId || !carShape || !timeStr || !b64) return null;
+    const time = parseFloat(timeStr);
+    const padded = b64.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(padded + "=".repeat((4 - padded.length % 4) % 4));
+    const buf = new ArrayBuffer(bin.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+    const samples = new Float32Array(buf);
+    // Save to localStorage only if better than current best (so we don't
+    // overwrite the player's own PB without consent — instead, we just write
+    // it in always, since the user opted into the link).
+    saveGhost(trackId, carShape, samples, time);
+    return { trackId, carShape, time };
+  } catch (_) {
+    return null;
+  }
+}
+
 export function getBestLapTime(trackId, carShape) {
   try {
     const t = parseFloat(localStorage.getItem(timeKey(trackId, carShape)));

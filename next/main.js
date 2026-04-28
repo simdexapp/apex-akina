@@ -2,26 +2,26 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=39";
-import { buildScenery, tickAmbient } from "./scenery.js?v=39";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=39";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=39";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=39";
+import { buildTrack, getTrackList } from "./track.js?v=40";
+import { buildScenery, tickAmbient } from "./scenery.js?v=40";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=40";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=40";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=40";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=39";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=39";
-import { createGhost, createGhostMesh } from "./ghost.js?v=39";
-import { createReplay } from "./replay.js?v=39";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=39";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=39";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=39";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=39";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=40";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=40";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=40";
+import { createReplay } from "./replay.js?v=40";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=40";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=40";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=40";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=40";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=39";
+} from "./profile.js?v=40";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -694,6 +694,45 @@ function renderRank() {
   }
 }
 renderRank();
+
+// Quick Race — pick a random track + current car, drop into race mode.
+document.getElementById("btn-quick-race")?.addEventListener("click", () => {
+  const pool = TRACKS_LIST.filter((t) => t.id !== track?.id);
+  const pick = pool[Math.floor(Math.random() * pool.length)] || TRACKS_LIST[0];
+  loadTrack(pick.id);
+  if (gameMode !== "race") {
+    gameMode = "race";
+    try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
+    renderModePicker();
+  }
+  renderTrackPicker();
+  startRace();
+});
+
+// Resume Career — visible only if a championship is mid-run.
+function refreshResumeCareerBtn() {
+  const btn = document.getElementById("btn-resume-career");
+  if (!btn) return;
+  const state = getCareerState();
+  const round = currentRound();
+  const visible = !!(state.championshipId && round && !state.finalStandings);
+  btn.hidden = !visible;
+  if (visible) {
+    btn.textContent = `🏁 Resume Career · Round ${round.idx + 1}/${round.total}`;
+  }
+}
+refreshResumeCareerBtn();
+
+document.getElementById("btn-resume-career")?.addEventListener("click", () => {
+  const round = currentRound();
+  if (!round) return;
+  gameMode = "career";
+  try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
+  renderModePicker();
+  if (track?.id !== round.trackId) loadTrack(round.trackId);
+  renderTrackPicker();
+  startRace();
+});
 
 function renderPlaylist() {
   const wrap = document.getElementById("daily-playlist");
@@ -1885,6 +1924,55 @@ function runStartLights() {
 document.getElementById("start").addEventListener("click", startRace);
 document.getElementById("restart").addEventListener("click", startRace);
 document.getElementById("watch-replay")?.addEventListener("click", startReplay);
+
+// Share Ghost — copies a self-contained URL to the clipboard. Opening the
+// link on another device imports the ghost as a playback target.
+document.getElementById("share-ghost")?.addEventListener("click", async () => {
+  if (!track || !car) return;
+  const payload = encodeGhost(track.id, car.shape);
+  if (!payload) {
+    flashCallout("No ghost to share yet", 1200);
+    return;
+  }
+  const url = location.origin + location.pathname + "#g=" + encodeURIComponent(payload);
+  try {
+    await navigator.clipboard.writeText(url);
+    flashCallout("Ghost link copied!", 1500);
+  } catch (_) {
+    // Fallback: prompt the user with the URL.
+    window.prompt("Copy this ghost-share link:", url);
+  }
+});
+
+// On page load: if URL has #g=… payload, import it.
+(function autoImportGhost() {
+  const m = location.hash.match(/[#&]g=([^&]+)/);
+  if (!m) return;
+  try {
+    const decoded = decodeURIComponent(m[1]);
+    const result = importGhost(decoded);
+    if (result) {
+      // If the imported ghost matches the active track+car, trigger a soft
+      // reload of the ghost so the player can race it immediately.
+      flashCallout(`Ghost imported: ${result.trackId} (${formatTime(result.time)})`, 2200);
+      const stack = document.getElementById("toast-stack");
+      if (stack) {
+        const el = document.createElement("div");
+        el.className = "toast";
+        el.style.borderColor = "var(--gold)";
+        el.innerHTML = `<span class="label">Ghost Imported</span><strong>${result.trackId}</strong><small>Best: ${formatTime(result.time)} · Race Time Trial to chase it</small>`;
+        stack.appendChild(el);
+        setTimeout(() => el.remove(), 6000);
+      }
+      // Clear hash so re-shares don't re-import.
+      history.replaceState(null, "", location.pathname + location.search);
+      // Re-init ghost for the active track if it matches.
+      if (track && track.id === result.trackId && car && car.shape === result.carShape) {
+        setupGhostFor(track.id, car.shape);
+      }
+    }
+  } catch (_) {}
+})();
 window.addEventListener("keydown", (e) => {
   if (e.code === "Escape" && replayPlaying) {
     stopReplay();
@@ -2184,7 +2272,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=39");
+  const mod = await import("./garagePreview.js?v=40");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
