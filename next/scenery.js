@@ -175,7 +175,9 @@ export function buildScenery(trackId, track) {
     highway:  { color: 0x281030, rim: 0x6a3070 },
     neon:     { color: 0x2a0c4a, rim: 0xa648c8 },
     mountainpass: { color: 0x18243a, rim: 0xa86a48 },
-    city:     { color: 0x1c1838, rim: 0x6a4080 }
+    city:     { color: 0x1c1838, rim: 0x6a4080 },
+    rural:    { color: 0x1c2a3c, rim: 0xa86a48 },
+    drift:    { color: 0x281438, rim: 0xa648c8 }
   };
   const mc = mountainColors[trackId] || mountainColors.lakeside;
   group.add(buildMountains(track, { color: mc.color, rimColor: mc.rim }));
@@ -322,6 +324,48 @@ export function buildScenery(trackId, track) {
       trees.tier3Mesh.setMatrixAt(i, dummy.matrix);
     }
     flushTreeInstances(group, trees);
+  } else if (trackId === "rural") {
+    // Rural — light pine spread + a few mountain billboard hills.
+    const PINE_CAP = 80;
+    const trees = buildTreeInstances(PINE_CAP, 0x2a1810, 0x244838);
+    let placed = 0;
+    decorateTrackInstanced(track, 24, 8, PINE_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.20) return false;
+      const scale = 0.8 + Math.random() * 1.0;
+      setTreeInstance(trees, placed, x, y, z, scale, yaw + Math.random() * 0.5);
+      placed++;
+      return true;
+    });
+    for (let i = placed; i < PINE_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      trees.trunkMesh.setMatrixAt(i, dummy.matrix);
+      trees.tier1Mesh.setMatrixAt(i, dummy.matrix);
+      trees.tier2Mesh.setMatrixAt(i, dummy.matrix);
+      trees.tier3Mesh.setMatrixAt(i, dummy.matrix);
+    }
+    flushTreeInstances(group, trees);
+  } else if (trackId === "drift") {
+    // Drift court — minimal scenery, just open tarmac. A handful of low buildings.
+    const BLD_CAP = 14;
+    const bldMesh = buildBuildingInstances(BLD_CAP);
+    let bplaced = 0;
+    decorateTrackInstanced(track, 50, 18, BLD_CAP, (i, x, y, z, yaw) => {
+      if (Math.random() < 0.4) return false;
+      const w = 14 + Math.random() * 14, h = 8 + Math.random() * 14, d = 14 + Math.random() * 12;
+      dummy.position.set(x, y + h * 0.5, z);
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(w, h, d);
+      dummy.updateMatrix();
+      bldMesh.setMatrixAt(bplaced, dummy.matrix);
+      bplaced++;
+      return true;
+    });
+    for (let i = bplaced; i < BLD_CAP; i++) {
+      dummy.position.set(0, -1000, 0); dummy.scale.setScalar(0.001); dummy.updateMatrix();
+      bldMesh.setMatrixAt(i, dummy.matrix);
+    }
+    bldMesh.instanceMatrix.needsUpdate = true;
+    group.add(bldMesh);
   } else if (trackId === "city") {
     // Tall blocky buildings tight to the track.
     const BLD_CAP = 60;

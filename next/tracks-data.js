@@ -44,6 +44,20 @@ export const MUSIC_PROFILES = {
     arp: [196, 246.94, 293.66, 369.99, 293.66, 369.99, 440, 293.66,
           196, 246.94, 293.66, 369.99, 246.94, 293.66, 369.99, 440],
     bass: [98, 0, 123.47, 0, 98, 0, 123.47, 0]
+  },
+  // Rural — pastoral mid-tempo.
+  rural: {
+    tempo: 92,
+    arp: [220, 261.63, 329.63, 392, 329.63, 392, 440, 329.63,
+          220, 261.63, 329.63, 392, 261.63, 329.63, 392, 440],
+    bass: [110, 0, 130.81, 0, 110, 0, 130.81, 0]
+  },
+  // Drift — funky, syncopated.
+  drift: {
+    tempo: 104,
+    arp: [185, 246.94, 277.18, 369.99, 277.18, 369.99, 415.30, 277.18,
+          185, 246.94, 277.18, 369.99, 246.94, 277.18, 369.99, 415.30],
+    bass: [92.50, 0, 123.47, 0, 92.50, 0, 123.47, 0]
   }
 };
 
@@ -184,6 +198,72 @@ export const TRACKS = {
       v(-140, 0.0, -90),
       v(-60, 0.0, -60),
       v(20, 0.0, -20)
+    ]
+  },
+
+  // Rural backroad — sweeping countryside with rolling elevation.
+  rural: {
+    name: "Hakone Ridge",
+    description: "Rural ridge road with rolling elevation and forested sweepers.",
+    palette: {
+      sky: { top: "#1a285a", mid: "#5a4078", bottom: "#ffb088" },
+      fog: 0x3a3a6a,
+      kerbA: 0xff7a48, kerbB: 0xfbfdff,
+      ground: 0x142c30,
+      moonLight: 0xfde2c4,
+      fillRed: 0xff7a48,
+      fillCyan: 0x70a8e8
+    },
+    points: [
+      v(0, 0, 0),
+      v(80, 0.6, 60),
+      v(180, 1.4, 80),
+      v(280, 2.0, 60),
+      v(360, 2.4, -20),
+      v(380, 2.0, -120),
+      v(320, 1.6, -200),
+      v(220, 1.2, -220),
+      v(100, 1.0, -180),
+      v(0, 0.6, -140),
+      v(-100, 0.4, -180),
+      v(-200, 0.2, -180),
+      v(-280, 0.0, -100),
+      v(-280, 0.0, 20),
+      v(-220, 0.0, 100),
+      v(-120, 0.0, 80)
+    ]
+  },
+
+  // Drift court — wide-open figure-8-ish course built for sliding.
+  drift: {
+    name: "Daikoku Drift Court",
+    description: "Open court built for big slides. Wide tarmac, sweeping radius turns.",
+    palette: {
+      sky: { top: "#220c4a", mid: "#5a1a82", bottom: "#ff6ab0" },
+      fog: 0x3a1858,
+      kerbA: 0xff48b6, kerbB: 0xffe88a,
+      ground: 0x1a0a2c,
+      moonLight: 0xffb0d8,
+      fillRed: 0xff48b6,
+      fillCyan: 0xa66cff
+    },
+    points: [
+      v(0, 0, 0),
+      v(120, 0, 30),
+      v(220, 0, 100),
+      v(240, 0, 200),
+      v(180, 0, 280),
+      v(60, 0, 290),
+      v(-40, 0, 230),
+      v(-60, 0, 130),
+      v(-120, 0, 60),
+      v(-220, 0, 60),
+      v(-280, 0, 0),
+      v(-260, 0, -100),
+      v(-180, 0, -160),
+      v(-60, 0, -160),
+      v(40, 0, -100),
+      v(80, 0, -40)
     ]
   },
 

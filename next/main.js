@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=9";
-import { buildScenery } from "./scenery.js?v=9";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=9";
-import { createInput, initTouchControls } from "./input.js?v=9";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=9";
+import { buildTrack, getTrackList } from "./track.js?v=10";
+import { buildScenery } from "./scenery.js?v=10";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=10";
+import { createInput, initTouchControls } from "./input.js?v=10";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=10";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=9";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=9";
-import { createGhost, createGhostMesh } from "./ghost.js?v=9";
-import { createReplay } from "./replay.js?v=9";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=9";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=9";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=10";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=10";
+import { createGhost, createGhostMesh } from "./ghost.js?v=10";
+import { createReplay } from "./replay.js?v=10";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=10";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=10";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=9";
+} from "./profile.js?v=10";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -892,7 +892,7 @@ function loop(now) {
       acc -= FIXED_DT;
     }
   }
-  updateCamera(dt);
+  if (!introActive && !spectatorMode && !photoMode && !replayPlaying) updateCamera(dt);
 
   // Lap detection: when projected.s wraps from near end back to near start.
   const projected = track.project(car.group.position);
@@ -1340,7 +1340,36 @@ function startRace() {
   combo = 0;
   comboTimer = 0;
   clearSkids();
-  runStartLights();
+  runIntroCamera(() => runStartLights());
+}
+
+// Pre-race cinematic — short flyby around the player car before lights.
+let introActive = false;
+function runIntroCamera(onDone) {
+  introActive = true;
+  const startT = performance.now() / 1000;
+  function frame() {
+    if (!introActive) return;
+    const elapsed = (performance.now() / 1000) - startT;
+    const t = Math.min(1, elapsed / 1.6);
+    const ang = Math.PI * (0.6 - t * 0.6);
+    const dist = 14 - t * 6;
+    const height = 2.4 - t * 0.8;
+    camera.position.set(
+      car.group.position.x + Math.sin(ang) * dist,
+      car.group.position.y + height,
+      car.group.position.z + Math.cos(ang) * dist
+    );
+    camera.lookAt(car.group.position.x, car.group.position.y + 0.6, car.group.position.z);
+    if (t >= 1) {
+      introActive = false;
+      cameraInitialised = false;
+      if (onDone) onDone();
+      return;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
 const startLightsEl = document.getElementById("start-lights");
