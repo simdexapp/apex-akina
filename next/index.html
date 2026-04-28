@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=8">
     <script type="importmap">
       {
         "imports": {
@@ -117,6 +117,13 @@
         </div>
         <!-- Achievement toast container -->
         <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+        <!-- Sector split panel — shows S1 / S2 / S3 elapsed + delta -->
+        <div class="sectors" id="sectors" hidden>
+          <div class="sector-row" data-sector="1"><span class="sector-label">S1</span><span class="sector-time" id="sector-1">—</span><span class="sector-delta" id="sector-1-delta"></span></div>
+          <div class="sector-row" data-sector="2"><span class="sector-label">S2</span><span class="sector-time" id="sector-2">—</span><span class="sector-delta" id="sector-2-delta"></span></div>
+          <div class="sector-row" data-sector="3"><span class="sector-label">S3</span><span class="sector-time" id="sector-3">—</span><span class="sector-delta" id="sector-3-delta"></span></div>
+        </div>
         <aside class="leaderboard" id="leaderboard">
           <span class="label">Order</span>
           <ol id="standings"></ol>
@@ -274,6 +281,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=7"></script>
+    <script type="module" src="main.js?v=8"></script>
   </body>
 </html>

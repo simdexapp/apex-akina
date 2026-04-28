@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=7";
-import { buildScenery } from "./scenery.js?v=7";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=7";
-import { createInput, initTouchControls } from "./input.js?v=7";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=7";
+import { buildTrack, getTrackList } from "./track.js?v=8";
+import { buildScenery } from "./scenery.js?v=8";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=8";
+import { createInput, initTouchControls } from "./input.js?v=8";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=8";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=7";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=7";
-import { createGhost, createGhostMesh } from "./ghost.js?v=7";
-import { createReplay } from "./replay.js?v=7";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=7";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=7";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=8";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=8";
+import { createGhost, createGhostMesh } from "./ghost.js?v=8";
+import { createReplay } from "./replay.js?v=8";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=8";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=8";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=7";
+} from "./profile.js?v=8";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -572,6 +572,56 @@ onAchievementToast((ach) => {
 
 // Track per-race context for achievement checks.
 const raceCtx = { topSpeedKmh: 0, nearMisses: 0, longestDrift: 0 };
+let lastPlayerPlace = 15;
+
+// Sector splits — three sectors at 0..1/3, 1/3..2/3, 2/3..1 of arclength.
+const SECTORS_KEY = "apex-akina-3d:sectorsBest";
+let sectorsBest = (() => {
+  try { return JSON.parse(localStorage.getItem(SECTORS_KEY) || "{}"); }
+  catch (_) { return {}; }
+})();
+const sectorState = { current: 1, lapStart: 0, splits: [null, null, null] };
+
+function resetSectors() {
+  sectorState.current = 1;
+  sectorState.lapStart = performance.now() / 1000;
+  sectorState.splits = [null, null, null];
+  for (let i = 1; i <= 3; i++) {
+    const t = document.getElementById(`sector-${i}`);
+    const d = document.getElementById(`sector-${i}-delta`);
+    if (t) t.textContent = "—";
+    if (d) { d.textContent = ""; d.className = "sector-delta"; }
+  }
+  document.querySelectorAll(".sector-row").forEach((row, i) => {
+    row.classList.toggle("is-active", i === 0);
+  });
+}
+
+function recordSector(idx, time) {
+  const trackId = track?.id;
+  if (!trackId) return;
+  sectorState.splits[idx - 1] = time;
+  const t = document.getElementById(`sector-${idx}`);
+  if (t) t.textContent = time.toFixed(2);
+  const best = sectorsBest[trackId] || {};
+  const key = `s${idx}`;
+  const prev = best[key];
+  const d = document.getElementById(`sector-${idx}-delta`);
+  if (d && prev != null) {
+    const delta = time - prev;
+    d.textContent = (delta >= 0 ? "+" : "") + delta.toFixed(2);
+    d.className = "sector-delta " + (delta < 0 ? "is-faster" : "is-slower");
+  }
+  if (prev == null || time < prev) {
+    best[key] = time;
+    sectorsBest[trackId] = best;
+    try { localStorage.setItem(SECTORS_KEY, JSON.stringify(sectorsBest)); } catch (_) {}
+  }
+  document.querySelectorAll(".sector-row").forEach((row, i) => {
+    row.classList.toggle("is-active", i === idx);
+  });
+}
+
 let lastTime = performance.now();
 let running = false;
 const FIXED_DT = 1 / 60;
@@ -800,6 +850,16 @@ function loop(now) {
 
   // Lap detection: when projected.s wraps from near end back to near start.
   const projected = track.project(car.group.position);
+  // Sector detection: cross 1/3 and 2/3 of arclength. Sector 3 ends with the lap.
+  const sectorBoundaries = [track.length / 3, (track.length * 2) / 3];
+  const nowS = performance.now() / 1000;
+  if (running && sectorState.current < 3) {
+    const boundary = sectorBoundaries[sectorState.current - 1];
+    if (lastTrackS < boundary && projected.s >= boundary) {
+      recordSector(sectorState.current, nowS - sectorState.lapStart);
+      sectorState.current++;
+    }
+  }
   if (projected.s < lastTrackS - track.length * 0.5 && running) {
     const lapTime = raceTime - lapStartTime;
     if (lap >= 1) {
@@ -808,6 +868,8 @@ function loop(now) {
         bestLapPerTrack[track.id] = lapTime;
         saveBestLaps();
       }
+      // Final sector record at lap end.
+      recordSector(3, nowS - sectorState.lapStart);
       // Ghost finish lap (time-trial only).
       if (gameMode === "timeTrial" && ghost) {
         const result = ghost.finishLap(performance.now() / 1000);
@@ -819,6 +881,8 @@ function loop(now) {
     lapStartTime = raceTime;
     lapStartedAt = performance.now() / 1000;
     if (ghost) ghost.startLap(lapStartedAt);
+    // Reset sectors for new lap.
+    resetSectors();
   }
   lastTrackS = projected.s;
 
@@ -915,6 +979,23 @@ function loop(now) {
 
   renderStandings(standings.entries.slice(0, 5), standings.place);
   drawMinimap(standings);
+
+  // Overtake detection — show callout when player's place changes.
+  if (running && lastPlayerPlace !== standings.place) {
+    if (lastPlayerPlace > standings.place) {
+      // Player moved up — find who they overtook.
+      const overtaken = standings.entries[standings.place];   // 1 spot below now
+      if (overtaken && !overtaken.isPlayer) {
+        flashCallout(`Overtook ${overtaken.name}`, 700);
+      }
+    } else if (lastPlayerPlace > 0 && lastPlayerPlace < standings.place) {
+      const passer = standings.entries[standings.place - 2];   // 1 spot above
+      if (passer && !passer.isPlayer) {
+        flashCallout(`${passer.name} passed you`, 700);
+      }
+    }
+    lastPlayerPlace = standings.place;
+  }
 
   if (running && lap > lapsTotal() && !finishShown) {
     finishShown = true;
@@ -1087,6 +1168,9 @@ function showFinish(standings) {
   overlay.hidden = false;
   // Stop replay recording at finish so playback shows just the race.
   replay.stop();
+  // Hide sector splits.
+  const sectorsEl = document.getElementById("sectors");
+  if (sectorsEl) sectorsEl.hidden = true;
 }
 
 // Replay playback — drive a virtual car (the player's group) along recorded
@@ -1188,6 +1272,11 @@ function startRace() {
   raceCtx.topSpeedKmh = 0;
   raceCtx.nearMisses = 0;
   raceCtx.longestDrift = 0;
+  // Sector splits — show panel + reset.
+  const sectorsEl = document.getElementById("sectors");
+  if (sectorsEl) sectorsEl.hidden = false;
+  resetSectors();
+  lastPlayerPlace = 15;
   // Hide rivals in time trial.
   for (const r of rivals) r.mesh.visible = (gameMode === "race");
   if (car) {
@@ -1256,8 +1345,8 @@ function trackPreviewSvg(trackId) {
     if (p.z > maxZ) maxZ = p.z;
   }
   const w = maxX - minX, h = maxZ - minZ;
-  const pad = 6;
-  const W = 80, H = 40;
+  const pad = 8;
+  const W = 160, H = 80;
   const sx = (W - pad * 2) / Math.max(1, w);
   const sz = (H - pad * 2) / Math.max(1, h);
   const s = Math.min(sx, sz);
@@ -1269,9 +1358,13 @@ function trackPreviewSvg(trackId) {
     d += (i === 0 ? "M " : "L ") + cx(p.x).toFixed(1) + " " + cz(p.z).toFixed(1) + " ";
   }
   d += "Z";
+  // Mark the start point with a small dot.
+  const sp = data.points[0];
   return `<svg viewBox="0 0 ${W} ${H}" class="track-preview" aria-hidden="true">
-    <path d="${d}" fill="none" stroke="rgba(46,233,255,0.55)" stroke-width="2.5" stroke-linejoin="round"/>
-    <path d="${d}" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="rgba(46,233,255,0.30)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="rgba(46,233,255,0.85)" stroke-width="3" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="1.2" stroke-linejoin="round"/>
+    <circle cx="${cx(sp.x).toFixed(1)}" cy="${cz(sp.z).toFixed(1)}" r="2.5" fill="#ff315c"/>
   </svg>`;
 }
 

@@ -1132,16 +1132,67 @@ body.is-photo-mode::after {
 /* Track preview SVG inside the picker card */
 .track-preview {
   width: 100%;
-  max-width: 110px;
-  height: 36px;
-  margin: 4px 0;
+  max-width: 180px;
+  height: 80px;
+  margin: 6px 0;
   display: block;
-  opacity: 0.85;
+  opacity: 0.92;
+  filter: drop-shadow(0 0 8px rgba(46, 233, 255, 0.18));
 }
 
 .track-card[aria-checked="true"] .track-preview {
   opacity: 1;
 }
+
+/* Sector split panel */
+.sectors {
+  position: absolute;
+  left: 14px;
+  top: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.sector-row {
+  display: grid;
+  grid-template-columns: 26px 56px 50px;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+  align-items: center;
+}
+
+.sector-row.is-active {
+  border-color: var(--cyan);
+  background: rgba(46, 233, 255, 0.12);
+}
+
+.sector-label {
+  color: rgba(46, 233, 255, 0.85);
+  font-size: 9px;
+}
+
+.sector-time {
+  color: var(--ink);
+  text-align: right;
+}
+
+.sector-delta {
+  font-size: 9px;
+  text-align: right;
+}
+
+.sector-delta.is-faster { color: #4adf80; }
+.sector-delta.is-slower { color: var(--hot); }
 
 /* Achievement toasts */
 .toast-stack {
