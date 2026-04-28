@@ -1,59 +1,98 @@
 import * as THREE from "three";
 
-// Arcade 3D car physics. State lives on the returned object so it can be inspected.
-//
-// Coordinates: Y is up. Heading is measured clockwise from +Z (so heading=0 points along +Z).
-// Forward velocity travels along (sin(heading), 0, cos(heading)). Lateral is perpendicular.
+// Arcade 3D car physics with per-shape stats.
 
-const MAX_SPEED = 65;       // m/s, ~234 km/h displayed
-const ACCEL = 18;           // m/s²
-const BRAKE = 36;           // m/s²
-const DRAG = 4;             // m/s² coast-down
-const OFF_ROAD_DRAG = 24;   // m/s² off-road
-const STEER_RATE = 2.6;     // rad/s lock rate
-const STEER_MAX = 0.7;      // rad max steering input
-const GRIP = 12;            // lateral velocity decay /s
-const DRIFT_GRIP = 4.5;     // grip while drifting
+const BASE_MAX_SPEED = 65;
+const ACCEL = 18;
+const BRAKE = 36;
+const DRAG = 4;
+const OFF_ROAD_DRAG = 24;
+const STEER_RATE = 2.6;
+const STEER_MAX = 0.7;
+const GRIP = 12;
+const DRIFT_GRIP = 4.5;
 const BOOST_MUL = 1.22;
 const STEER_AUTHORITY = 1.8;
 
-export function createCar() {
+export const CAR_SHAPES = {
+  gt: {
+    label: "GT Coupe",
+    description: "Smooth top-end weapon, planted in long sweepers.",
+    body: 0xfbfdff, stripe: 0xff315c,
+    width: 1.8, height: 0.7, length: 4.0,
+    cabin: { w: 1.55, h: 0.55, l: 2.0, z: -0.2 },
+    stats: { top: 1.04, accel: 1.0, handling: 1.0, grip: 1.05 },
+    spoiler: "ducktail"
+  },
+  drift: {
+    label: "Drift Coupe",
+    description: "Loose rear, snappy steering. Slides easy.",
+    body: 0xffe156, stripe: 0x101525,
+    width: 1.7, height: 0.75, length: 3.8,
+    cabin: { w: 1.45, h: 0.6, l: 1.8, z: 0 },
+    stats: { top: 0.92, accel: 1.05, handling: 1.18, grip: 0.78 },
+    spoiler: "lip"
+  },
+  rally: {
+    label: "Rally Sedan",
+    description: "AWD-ish grip. Punches out of corners and brakes hard.",
+    body: 0xff315c, stripe: 0xffd166,
+    width: 1.85, height: 0.8, length: 4.2,
+    cabin: { w: 1.6, h: 0.65, l: 2.1, z: -0.1 },
+    stats: { top: 0.96, accel: 1.04, handling: 0.98, grip: 1.18 },
+    spoiler: "wing"
+  },
+  super: {
+    label: "Wedge Super",
+    description: "Top of the food chain. Massive top end.",
+    body: 0xa66cff, stripe: 0xfbfdff,
+    width: 1.95, height: 0.55, length: 4.4,
+    cabin: { w: 1.5, h: 0.42, l: 1.7, z: -0.3 },
+    stats: { top: 1.10, accel: 1.06, handling: 0.92, grip: 1.10 },
+    spoiler: "deck"
+  }
+};
+
+export function createCar(shapeId = "gt") {
+  const shape = CAR_SHAPES[shapeId] || CAR_SHAPES.gt;
   const group = new THREE.Group();
 
-  // Body — block with chamfered top.
-  const bodyGeo = new THREE.BoxGeometry(1.8, 0.7, 4.0);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xfbfdff, metalness: 0.4, roughness: 0.5 });
+  const bodyGeo = new THREE.BoxGeometry(shape.width, shape.height, shape.length);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: shape.body, metalness: 0.4, roughness: 0.5 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.6;
+  body.position.y = shape.height * 0.85;
   group.add(body);
 
-  // Cabin/greenhouse.
-  const cabinGeo = new THREE.BoxGeometry(1.55, 0.55, 2.0);
+  // Cabin
+  const cabinGeo = new THREE.BoxGeometry(shape.cabin.w, shape.cabin.h, shape.cabin.l);
   const cabinMat = new THREE.MeshStandardMaterial({ color: 0x121828, metalness: 0.2, roughness: 0.3 });
   const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-  cabin.position.set(0, 1.1, -0.2);
+  cabin.position.set(0, shape.height * 0.85 + shape.height * 0.5 + shape.cabin.h * 0.5 - 0.1, shape.cabin.z);
   group.add(cabin);
 
-  // Windshield reflection plate — slight cyan tint.
+  // Glass
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.35 });
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.5, 1.85), glassMat);
-  glass.position.set(0, 1.12, -0.2);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(shape.cabin.w * 0.95, shape.cabin.h * 0.92, shape.cabin.l * 0.92), glassMat);
+  glass.position.copy(cabin.position);
   group.add(glass);
 
-  // Stripe down the centre.
-  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xff315c, metalness: 0.1, roughness: 0.4 });
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.71, 4.02), stripeMat);
-  stripe.position.y = 0.6;
+  // Stripe
+  const stripeMat = new THREE.MeshStandardMaterial({ color: shape.stripe, metalness: 0.1, roughness: 0.4 });
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, shape.height + 0.02, shape.length + 0.02), stripeMat);
+  stripe.position.y = shape.height * 0.85;
   group.add(stripe);
 
-  // Wheels — 4 cylinders.
+  // Wheels
   const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 16);
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0e18, roughness: 0.9 });
+  const wx = shape.width * 0.5 - 0.06;
+  const wzF = shape.length * 0.36;
+  const wzR = -shape.length * 0.36;
   const wheelPositions = [
-    [-0.95, 0.40,  1.4],
-    [ 0.95, 0.40,  1.4],
-    [-0.95, 0.40, -1.4],
-    [ 0.95, 0.40, -1.4]
+    [-wx, 0.40, wzF],
+    [ wx, 0.40, wzF],
+    [-wx, 0.40, wzR],
+    [ wx, 0.40, wzR]
   ];
   for (const [x, y, z] of wheelPositions) {
     const w = new THREE.Mesh(wheelGeo, wheelMat);
@@ -62,78 +101,102 @@ export function createCar() {
     group.add(w);
   }
 
-  // Headlights as point sources + glowy lenses.
+  // Spoiler per shape.
+  if (shape.spoiler === "wing") {
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0x10131e, metalness: 0.4, roughness: 0.5 });
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.95, 0.06, 0.34), wingMat);
+    wing.position.set(0, shape.height * 0.85 + shape.height * 0.5 + 0.5, -shape.length * 0.42);
+    group.add(wing);
+    // Risers
+    for (const side of [-1, 1]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.46, 0.10), wingMat);
+      r.position.set(side * shape.width * 0.32, shape.height * 0.85 + shape.height * 0.5 + 0.27, -shape.length * 0.42);
+      group.add(r);
+    }
+  } else if (shape.spoiler === "ducktail") {
+    const tailMat = new THREE.MeshStandardMaterial({ color: shape.body, metalness: 0.4, roughness: 0.5 });
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.85, 0.10, 0.36), tailMat);
+    tail.position.set(0, shape.height * 0.85 + shape.height * 0.55, -shape.length * 0.40);
+    group.add(tail);
+  } else if (shape.spoiler === "deck") {
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0x10131e });
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.95, 0.06, 0.20), tailMat);
+    tail.position.set(0, shape.height * 0.85 + shape.height * 0.5 + 0.12, -shape.length * 0.46);
+    group.add(tail);
+  } else if (shape.spoiler === "lip") {
+    const lipMat = new THREE.MeshStandardMaterial({ color: 0x0a0d18 });
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.85, 0.05, 0.20), lipMat);
+    lip.position.set(0, shape.height * 0.18, -shape.length * 0.44);
+    group.add(lip);
+  }
+
+  // Headlights
   const headLightL = new THREE.SpotLight(0xfff5d4, 1.5, 60, Math.PI / 6, 0.4, 1.5);
-  headLightL.position.set(-0.6, 0.5, 1.95);
-  headLightL.target.position.set(-0.6, 0.4, 25);
+  headLightL.position.set(-shape.width * 0.32, 0.5, shape.length * 0.46);
+  headLightL.target.position.set(-shape.width * 0.32, 0.4, 25);
   group.add(headLightL);
   group.add(headLightL.target);
-  const headLightR = headLightL.clone();
-  headLightR.position.set(0.6, 0.5, 1.95);
-  headLightR.target.position.set(0.6, 0.4, 25);
+  const headLightR = new THREE.SpotLight(0xfff5d4, 1.5, 60, Math.PI / 6, 0.4, 1.5);
+  headLightR.position.set(shape.width * 0.32, 0.5, shape.length * 0.46);
+  headLightR.target.position.set(shape.width * 0.32, 0.4, 25);
   group.add(headLightR);
   group.add(headLightR.target);
-  // Headlight lenses (visible light cones).
   const lensMat = new THREE.MeshBasicMaterial({ color: 0xfff5d4 });
   for (const side of [-1, 1]) {
     const lens = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.18, 0.10), lensMat);
-    lens.position.set(side * 0.6, 0.55, 2.0);
+    lens.position.set(side * shape.width * 0.32, 0.55, shape.length * 0.50);
     group.add(lens);
   }
-  // Tail lights.
+  // Tail lights
   const tailMat = new THREE.MeshBasicMaterial({ color: 0xff315c });
   for (const side of [-1, 1]) {
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.15, 0.10), tailMat);
-    tail.position.set(side * 0.55, 0.62, -2.0);
+    tail.position.set(side * shape.width * 0.30, 0.62, -shape.length * 0.50);
     group.add(tail);
   }
 
+  const stats = shape.stats;
+  const maxSpeed = BASE_MAX_SPEED * stats.top;
+
   const car = {
     group,
-    speed: 0,             // m/s along heading
-    lateralV: 0,          // m/s perpendicular to heading (slide)
-    heading: 0,           // radians, around Y axis
-    steer: 0,             // current steering input -1..1
-    boostT: 0,            // boost decay timer
+    shape: shapeId,
+    maxSpeed,
+    speed: 0,
+    lateralV: 0,
+    heading: 0,
+    steer: 0,
+    boostT: 0,
 
-    // Tick advances physics by dt seconds based on input { steer, throttle, brake, drift, boost }.
     tick(dt, input, track) {
-      // Steer is inverted relative to input convention so pressing right turns visually right.
       const targetSteer = -(input.steer || 0) * STEER_MAX;
       car.steer += (targetSteer - car.steer) * Math.min(1, dt * 14);
 
-      // Throttle / brake / coast.
       if (input.brake) {
         car.speed -= BRAKE * dt;
       } else if (input.throttle) {
-        car.speed += ACCEL * dt;
+        car.speed += ACCEL * stats.accel * dt;
       } else {
-        // Coast-down toward 0.
         car.speed -= Math.sign(car.speed) * DRAG * dt;
         if (Math.abs(car.speed) < DRAG * dt) car.speed = 0;
       }
 
-      // Boost.
       if (input.boost) {
         car.speed += ACCEL * 0.6 * dt;
         car.boostT = 0.4;
       }
       car.boostT = Math.max(0, car.boostT - dt);
 
-      const ceiling = MAX_SPEED * (car.boostT > 0 ? BOOST_MUL : 1);
-      car.speed = Math.max(-MAX_SPEED * 0.5, Math.min(ceiling, car.speed));
+      const ceiling = maxSpeed * (car.boostT > 0 ? BOOST_MUL : 1);
+      car.speed = Math.max(-maxSpeed * 0.5, Math.min(ceiling, car.speed));
 
-      // Heading change scales with speed (low-speed full lock, high-speed reduced).
-      const speedPct = Math.abs(car.speed) / MAX_SPEED;
-      const yaw = car.steer * STEER_RATE * (1 - speedPct * 0.45) * Math.sign(car.speed || 1) * dt;
+      const speedPct = Math.abs(car.speed) / maxSpeed;
+      const yaw = car.steer * STEER_RATE * stats.handling * (1 - speedPct * 0.45) * Math.sign(car.speed || 1) * dt;
       car.heading += yaw;
 
-      // Lateral grip — drifts let the rear slide.
-      const grip = input.drift ? DRIFT_GRIP : GRIP;
-      // Steering also injects lateral velocity (the car pushes outward in turns).
-      const sideKick = car.steer * STEER_AUTHORITY * speedPct;
+      const grip = (input.drift ? DRIFT_GRIP : GRIP) * stats.grip;
+      const sideKick = car.steer * STEER_AUTHORITY * stats.handling * speedPct;
       car.lateralV += sideKick * dt * (input.drift ? 9 : 4);
-      // Decay lateral toward 0 at grip rate.
       car.lateralV -= car.lateralV * Math.min(1, grip * dt);
 
       // Move.
@@ -150,7 +213,7 @@ export function createCar() {
       // Track stickiness + barrier clamp: bounce off the wall if you reach the edge.
       if (track) {
         const proj = track.project(car.group.position);
-        const limit = track.halfWidth + 0.7;  // matches barrier offset
+        const limit = track.halfWidth + 0.85;  // matches barrier offset
         if (Math.abs(proj.lateral) > limit) {
           // Snap player back inside the road and scrub speed (hit the wall).
           const overshoot = Math.abs(proj.lateral) - limit;

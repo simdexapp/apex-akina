@@ -309,3 +309,54 @@ button:hover { filter: brightness(1.08); }
   backdrop-filter: blur(12px);
   z-index: 3;
 }
+
+.combo-stack {
+  border-color: rgba(255, 209, 102, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25) inset, 0 0 14px rgba(255, 209, 102, 0.18);
+}
+
+.combo-stack .label {
+  color: rgba(255, 209, 102, 0.92);
+}
+
+.combo-stack strong {
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.55);
+}
+
+.combo-stack.is-hot strong {
+  color: var(--hot);
+  text-shadow: 0 0 14px rgba(255, 49, 92, 0.7);
+}
+
+.race-callout {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 5;
+  color: white;
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 0.95;
+  pointer-events: none;
+  opacity: 0;
+  text-shadow:
+    4px 4px 0 rgba(255, 49, 92, 0.85),
+    -3px -3px 0 rgba(46, 233, 255, 0.7),
+    0 0 36px rgba(255, 255, 255, 0.3);
+  transition: opacity 200ms ease;
+}
+
+.race-callout.is-visible { opacity: 1; }
+
+.title-card .small {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 16px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}

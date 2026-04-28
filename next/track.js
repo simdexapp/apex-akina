@@ -103,36 +103,82 @@ export function buildTrack(trackId = "akina") {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -10;
 
-  // Bridge / guardrail barriers — taller wall on elevated sections, low rail on flat ones.
+  // Bridge / guardrail barriers — proper elevated look with posts + supports.
   const barrierGroup = new THREE.Group();
-  const BRIDGE_THRESHOLD = 1.2;
+  const BRIDGE_THRESHOLD = 0.6;        // anything above this is treated as elevated
+  const BRIDGE_BARRIER_H = 2.4;
+  const FLAT_BARRIER_H = 0.55;
+  const wallMatBridge = new THREE.MeshLambertMaterial({
+    color: 0xd6dde8, emissive: 0x2ee9ff, emissiveIntensity: 0.16
+  });
+  const wallMatFlat = new THREE.MeshLambertMaterial({ color: 0x2c3344 });
+  const postMatBridge = new THREE.MeshLambertMaterial({ color: 0x1a1f2c, emissive: 0x0a0d18 });
+  const supportMat = new THREE.MeshLambertMaterial({ color: 0x10131e });
+  const stripeMatRight = new THREE.MeshBasicMaterial({ color: 0x2ee9ff });
+  const stripeMatLeft = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+
   for (let i = 0; i < SAMPLES; i++) {
     const p = points[i];
     const t = tangents[i];
     right.crossVectors(t, up).normalize();
     const isBridge = p.y > BRIDGE_THRESHOLD;
-    const barrierH = isBridge ? 1.2 : 0.5;
+    const barrierH = isBridge ? BRIDGE_BARRIER_H : FLAT_BARRIER_H;
+    const barrierY = p.y + barrierH * 0.5;
+
     for (const side of [1, -1]) {
       const offset = side * (ROAD_HALF_WIDTH + SHOULDER * 0.9);
-      const barrierGeo = new THREE.BoxGeometry(0.30, barrierH, 1.4);
-      const barrierMat = new THREE.MeshLambertMaterial({
-        color: isBridge ? 0xc8d3df : 0x3a4258,
-        emissive: isBridge ? 0x2ee9ff : 0x000000,
-        emissiveIntensity: isBridge ? 0.06 : 0
-      });
-      const barrier = new THREE.Mesh(barrierGeo, barrierMat);
-      barrier.position.set(p.x + right.x * offset, p.y + barrierH * 0.5, p.z + right.z * offset);
-      barrier.rotation.y = Math.atan2(t.x, t.z);
-      barrierGroup.add(barrier);
-      // Reflective top stripe on bridge barriers.
+      const wx = p.x + right.x * offset;
+      const wz = p.z + right.z * offset;
+      const yaw = Math.atan2(t.x, t.z);
+
+      // Main wall section.
+      const wallGeo = new THREE.BoxGeometry(0.24, barrierH, 1.6);
+      const wall = new THREE.Mesh(wallGeo, isBridge ? wallMatBridge : wallMatFlat);
+      wall.position.set(wx, barrierY, wz);
+      wall.rotation.y = yaw;
+      barrierGroup.add(wall);
+
       if (isBridge) {
-        const topGeo = new THREE.BoxGeometry(0.32, 0.06, 1.42);
-        const topMat = new THREE.MeshBasicMaterial({ color: side > 0 ? 0x2ee9ff : 0xffd166 });
-        const topStripe = new THREE.Mesh(topGeo, topMat);
-        topStripe.position.set(p.x + right.x * offset, p.y + barrierH + 0.04, p.z + right.z * offset);
-        topStripe.rotation.y = Math.atan2(t.x, t.z);
-        barrierGroup.add(topStripe);
+        // Vertical posts every-other segment.
+        if (i % 2 === 0) {
+          const postGeo = new THREE.BoxGeometry(0.32, BRIDGE_BARRIER_H + 0.4, 0.32);
+          const post = new THREE.Mesh(postGeo, postMatBridge);
+          post.position.set(wx, p.y + (BRIDGE_BARRIER_H + 0.4) * 0.5, wz);
+          post.rotation.y = yaw;
+          barrierGroup.add(post);
+        }
+        // Reflective top stripe.
+        const topGeo = new THREE.BoxGeometry(0.30, 0.10, 1.62);
+        const top = new THREE.Mesh(topGeo, side > 0 ? stripeMatRight : stripeMatLeft);
+        top.position.set(wx, p.y + BRIDGE_BARRIER_H + 0.06, wz);
+        top.rotation.y = yaw;
+        barrierGroup.add(top);
       }
+    }
+
+    // Support pillars going down from the bridge to the ground every 4 segments.
+    if (isBridge && i % 4 === 0 && p.y > 1.0) {
+      for (const side of [1, -1]) {
+        const offset = side * (ROAD_HALF_WIDTH + SHOULDER * 0.9);
+        const wx = p.x + right.x * offset;
+        const wz = p.z + right.z * offset;
+        const yaw = Math.atan2(t.x, t.z);
+        // The ground is at y = -10, so the pillar spans (p.y) → (-10).
+        const pillarHeight = p.y + 10;
+        const pillarGeo = new THREE.BoxGeometry(0.7, pillarHeight, 0.7);
+        const pillar = new THREE.Mesh(pillarGeo, supportMat);
+        pillar.position.set(wx, p.y - pillarHeight * 0.5, wz);
+        pillar.rotation.y = yaw;
+        barrierGroup.add(pillar);
+      }
+
+      // Cross-beam under the road every 4 segments.
+      const beamLen = (ROAD_HALF_WIDTH + SHOULDER) * 2;
+      const beamGeo = new THREE.BoxGeometry(beamLen, 0.4, 0.4);
+      const beam = new THREE.Mesh(beamGeo, supportMat);
+      beam.position.set(p.x, p.y - 0.3, p.z);
+      beam.rotation.y = Math.atan2(t.x, t.z);
+      barrierGroup.add(beam);
     }
   }
 

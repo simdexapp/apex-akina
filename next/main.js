@@ -3,7 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { buildTrack, getTrackList } from "./track.js";
-import { createCar } from "./car.js";
+import { createCar, CAR_SHAPES } from "./car.js";
 import { createInput } from "./input.js";
 import { createRivals, tickRivals } from "./rivals.js";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted } from "./audio.js";
@@ -88,8 +88,29 @@ const initialTrackId = (() => {
 let track = null;
 let startPoint = null;
 
-const car = createCar();
+// ---- Player car (replaceable per shape) ----
+const CAR_KEY = "apex-akina-3d:car";
+const initialCarShape = (() => {
+  try {
+    const saved = localStorage.getItem(CAR_KEY);
+    return saved && CAR_SHAPES[saved] ? saved : "gt";
+  } catch (_) { return "gt"; }
+})();
+
+let car = createCar(initialCarShape);
 scene.add(car.group);
+
+function swapCar(shapeId) {
+  if (!CAR_SHAPES[shapeId]) return;
+  if (car) scene.remove(car.group);
+  car = createCar(shapeId);
+  scene.add(car.group);
+  if (startPoint) {
+    car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
+    car.heading = startPoint.tangentAngle;
+  }
+  try { localStorage.setItem(CAR_KEY, shapeId); } catch (_) {}
+}
 
 let rivals = [];
 
@@ -233,9 +254,106 @@ function tickParticles(dt) {
 
 // ---- Boost mechanic ----
 let boostFuel = 0.5; // 0..1
-const BOOST_DRAIN = 0.35;     // /s while boosting
-const BOOST_REGEN = 0.08;     // /s while not boosting
-const BOOST_SPEED_BUMP = 16;  // m/s extra ceiling while boosting
+const BOOST_DRAIN = 0.35;
+const BOOST_REGEN = 0.08;
+const BOOST_SPEED_BUMP = 16;
+
+// ---- Skid marks (drift trails) ----
+const skidGroup = new THREE.Group();
+scene.add(skidGroup);
+const SKID_MAX = 200;
+const skidQueue = [];
+
+function spawnSkidPair() {
+  // Two short black quads behind the rear wheels.
+  const sin = Math.sin(car.heading);
+  const cos = Math.cos(car.heading);
+  // Local rear-axle position offset.
+  const rearOffsetZ = -1.6;
+  const rearWorldX = car.group.position.x + sin * rearOffsetZ;
+  const rearWorldZ = car.group.position.z + cos * rearOffsetZ;
+  // Right vector (perpendicular to heading) for tire offset.
+  const rightX = cos;
+  const rightZ = -sin;
+  for (const side of [-1, 1]) {
+    const tireX = rearWorldX + rightX * side * 0.85;
+    const tireZ = rearWorldZ + rightZ * side * 0.85;
+    const geo = new THREE.PlaneGeometry(0.20, 1.2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x05060c, transparent: true, opacity: 0.55 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.rotation.z = car.heading;
+    mesh.position.set(tireX, 0.06, tireZ);
+    skidGroup.add(mesh);
+    skidQueue.push({ mesh, mat, life: 4.0 });
+    while (skidQueue.length > SKID_MAX) {
+      const old = skidQueue.shift();
+      skidGroup.remove(old.mesh);
+      old.mesh.geometry.dispose();
+      old.mat.dispose();
+    }
+  }
+}
+
+function tickSkids(dt) {
+  for (let i = skidQueue.length - 1; i >= 0; i--) {
+    const s = skidQueue[i];
+    s.life -= dt;
+    s.mat.opacity = Math.max(0, s.life * 0.14);
+    if (s.life <= 0) {
+      skidGroup.remove(s.mesh);
+      s.mesh.geometry.dispose();
+      s.mat.dispose();
+      skidQueue.splice(i, 1);
+    }
+  }
+}
+
+function clearSkids() {
+  while (skidQueue.length) {
+    const s = skidQueue.shift();
+    skidGroup.remove(s.mesh);
+    s.mesh.geometry.dispose();
+    s.mat.dispose();
+  }
+}
+
+// ---- Combo / streak ----
+let combo = 0;
+let comboTimer = 0;
+const COMBO_DECAY = 4.0;
+
+function bumpCombo(amount, label) {
+  const before = combo;
+  combo += amount;
+  comboTimer = COMBO_DECAY;
+  if (Math.floor(combo / 5) > Math.floor(before / 5)) {
+    boostFuel = Math.min(1, boostFuel + 0.25);
+    flashCallout(`x${Math.floor(combo / 5) * 5}!`, 1100);
+  } else if (label) {
+    flashCallout(label, 700);
+  }
+}
+
+// Lightweight callout shown briefly in centre of screen.
+let calloutEl = null;
+function flashCallout(text, ms) {
+  if (!calloutEl) {
+    calloutEl = document.createElement("div");
+    calloutEl.className = "race-callout";
+    document.querySelector(".game-frame")?.appendChild(calloutEl);
+  }
+  calloutEl.textContent = text;
+  calloutEl.classList.add("is-visible");
+  clearTimeout(calloutEl._t);
+  calloutEl._t = setTimeout(() => calloutEl.classList.remove("is-visible"), ms);
+}
+
+// Near-miss tracking per rival.
+const nearMissArmed = new WeakMap();
+const lastDz = new WeakMap();
+const NEAR_MISS_OUTER = 4.0; // metres lateral
+const NEAR_MISS_INNER = 2.4; // inside this is a real collision
 
 // ---- Loop ----
 const input = createInput();
@@ -273,26 +391,67 @@ function tick(dt) {
 
   tickRivals(rivals, dt, track, car);
 
-  // Player–rival bump collisions.
+  // Player–rival bump collisions + near-miss detection.
   for (const r of rivals) {
     const dx = car.group.position.x - r.mesh.position.x;
     const dz = car.group.position.z - r.mesh.position.z;
     const distSq = dx * dx + dz * dz;
+    const dist = Math.sqrt(distSq);
+
     if (distSq < 6.5) {
-      const dist = Math.max(0.5, Math.sqrt(distSq));
-      const push = 0.20 / dist;
+      // Real collision.
+      const safeDist = Math.max(0.5, dist);
+      const push = 0.20 / safeDist;
       car.group.position.x += dx * push;
       car.group.position.z += dz * push;
       r.mesh.position.x -= dx * push * 0.6;
       r.mesh.position.z -= dz * push * 0.6;
       const closingFactor = Math.max(0, (car.speed - r.speed) / 60);
       car.speed *= 1 - 0.20 * closingFactor;
-      // Sparks at the collision point.
       const px = (car.group.position.x + r.mesh.position.x) * 0.5;
       const py = car.group.position.y + 0.6;
       const pz = (car.group.position.z + r.mesh.position.z) * 0.5;
       for (let k = 0; k < 4; k++) spawnSpark(px, py, pz, dx > 0 ? -1 : 1);
+      combo = 0;
+      nearMissArmed.set(r, false);
+    } else if (dist < NEAR_MISS_OUTER && dist > NEAR_MISS_INNER) {
+      // Inside the near-miss ring.
+      // Compute signed dz along player heading (positive = rival ahead).
+      const sin = Math.sin(car.heading);
+      const cos = Math.cos(car.heading);
+      // Player-forward dot (rival - player) in world space.
+      const toRivalX = -dx;
+      const toRivalZ = -dz;
+      const forwardDot = toRivalX * sin + toRivalZ * cos;
+      if (forwardDot > 0) {
+        nearMissArmed.set(r, true);
+      }
+      const prevDot = lastDz.get(r) ?? forwardDot;
+      // Pass detection: was ahead, now behind.
+      if (prevDot > 0 && forwardDot <= 0 && nearMissArmed.get(r)) {
+        const proximity = 1 - (dist - NEAR_MISS_INNER) / (NEAR_MISS_OUTER - NEAR_MISS_INNER);
+        const intensity = Math.max(0.4, Math.min(1, proximity));
+        car.speed = Math.min(car.maxSpeed * BOOST_MUL, car.speed + 4 * intensity);
+        boostFuel = Math.min(1, boostFuel + 0.10 * intensity);
+        bumpCombo(intensity > 0.7 ? 2 : 1, intensity > 0.7 ? "INCH" : "Close");
+        nearMissArmed.set(r, false);
+      }
+      lastDz.set(r, forwardDot);
+    } else {
+      lastDz.set(r, undefined);
     }
+  }
+
+  // Skid marks while drifting (Space held + lateral velocity active).
+  if (i.drift && Math.abs(car.lateralV) > 4 && Math.abs(car.speed) > 12) {
+    spawnSkidPair();
+  }
+  tickSkids(dt);
+
+  // Combo decay.
+  if (comboTimer > 0) {
+    comboTimer = Math.max(0, comboTimer - dt);
+    if (comboTimer === 0) combo = 0;
   }
 
   // Drift smoke on hard slip.
@@ -303,6 +462,7 @@ function tick(dt) {
   tickParticles(dt);
   raceTime += dt;
 }
+
 
 function computeStandings() {
   const trackLen = track.length;
@@ -365,6 +525,18 @@ function loop(now) {
   const best = bestLapPerTrack[track.id];
   document.getElementById("best").textContent = best ? formatTime(best) : "—";
   document.getElementById("boost-bar").style.width = `${Math.round(boostFuel * 100)}%`;
+
+  // Combo HUD
+  const comboStack = document.getElementById("combo-stack");
+  if (comboStack) {
+    if (combo > 0) {
+      comboStack.hidden = false;
+      document.getElementById("combo-value").textContent = `x${combo}`;
+      comboStack.classList.toggle("is-hot", combo >= 5);
+    } else {
+      comboStack.hidden = true;
+    }
+  }
 
   renderStandings(standings.entries.slice(0, 5), standings.place);
   drawMinimap(standings);
@@ -496,6 +668,9 @@ function startRace() {
   acc = 0;
   cameraInitialised = false;
   boostFuel = 0.5;
+  combo = 0;
+  comboTimer = 0;
+  clearSkids();
 }
 
 document.getElementById("start").addEventListener("click", startRace);
@@ -534,6 +709,44 @@ function renderTrackPicker() {
   }
 }
 renderTrackPicker();
+
+// ---- Car picker ----
+function renderCarPicker() {
+  const wrap = document.getElementById("car-picker");
+  if (!wrap) return;
+  const shapes = Object.keys(CAR_SHAPES);
+  if (wrap.children.length !== shapes.length) {
+    wrap.innerHTML = "";
+    for (const id of shapes) {
+      const s = CAR_SHAPES[id];
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "track-card";
+      btn.setAttribute("role", "radio");
+      btn.dataset.car = id;
+      const bodyHex = "#" + s.body.toString(16).padStart(6, "0");
+      const stripeHex = "#" + s.stripe.toString(16).padStart(6, "0");
+      btn.innerHTML = `
+        <span class="name">${s.label}</span>
+        <p class="desc">${s.description}</p>
+        <div class="swatch" aria-hidden="true">
+          <span style="background:${bodyHex}"></span>
+          <span style="background:${stripeHex}"></span>
+        </div>`;
+      btn.addEventListener("click", () => {
+        swapCar(id);
+        renderCarPicker();
+      });
+      wrap.appendChild(btn);
+    }
+  }
+  for (const card of wrap.querySelectorAll(".track-card")) {
+    if (card.dataset.car) {
+      card.setAttribute("aria-checked", card.dataset.car === car.shape ? "true" : "false");
+    }
+  }
+}
+renderCarPicker();
 
 // Mute toggle, persisted.
 const MUTE_KEY = "apex-akina-3d:muted";

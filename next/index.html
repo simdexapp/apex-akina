@@ -43,6 +43,10 @@
             <span class="label">Boost</span>
             <div class="boost-meter" aria-hidden="true"><span id="boost-bar"></span></div>
           </div>
+          <div class="hud-stack combo-stack" id="combo-stack" hidden>
+            <span class="label">Combo</span>
+            <strong id="combo-value">x1</strong>
+          </div>
           <button id="mute-btn" class="back-link" type="button" aria-pressed="false">♪</button>
           <a class="back-link" href="../index.html">← Old engine</a>
         </div>
@@ -54,9 +58,12 @@
         <div class="overlay" id="title-overlay">
           <div class="title-card">
             <p class="eyebrow">Apex Akina &middot; 3D engine</p>
-            <h1>Pick your track</h1>
-            <p>WASD or arrows to drive. Shift to boost. Space to drift. 8 AI rivals on a 3-lap closed loop.</p>
+            <h1>Pre-race</h1>
+            <p>WASD or arrows to drive. Shift to boost. Space to drift.</p>
+            <p class="small" style="margin-top:0">Track</p>
             <div class="track-picker" id="track-picker" role="radiogroup" aria-label="Choose track"></div>
+            <p class="small" style="margin-top:6px">Car</p>
+            <div class="track-picker" id="car-picker" role="radiogroup" aria-label="Choose car"></div>
             <button id="start" type="button">Drop In</button>
           </div>
         </div>
