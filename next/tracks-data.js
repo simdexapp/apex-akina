@@ -5,36 +5,35 @@ import * as THREE from "three";
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
 
 export const TRACKS = {
-  akina: {
-    name: "Akina Pass",
-    description: "Mountain hairpins, dramatic climbs and dives.",
+  lakeside: {
+    name: "Lakeside",
+    description: "Flowing lakeside circuit. Wide cambered curves, gentle rises.",
     palette: {
-      sky: { top: "#08101e", mid: "#1c1b3a", bottom: "#5a4060" },
-      fog: 0x1a1830,
-      kerbA: 0xc73d56, kerbB: 0xeaeef5,
-      ground: 0x0a0f1a,
+      sky: { top: "#0a1224", mid: "#1c2a48", bottom: "#5a6c8a" },
+      fog: 0x182740,
+      kerbA: 0xb84a3a, kerbB: 0xeaeef5,
+      ground: 0x0a1422,
       moonLight: 0xc8d0e8,
-      fillRed: 0xc23a55,
-      fillCyan: 0x4a8aa8
+      fillRed: 0xa84838,
+      fillCyan: 0x5878a8
     },
+    // Smooth oval-ish loop with gentle elevation. No hairpins, no bridge crossings.
     points: [
       v(0, 0, 0),
-      v(70, 0.5, 40),
-      v(140, 1.4, 110),
-      v(180, 2.6, 200),     // ridge approach
-      v(170, 4.2, 290),     // ridge top (high bridge)
-      v(110, 5.0, 360),     // peak
-      v(20, 4.8, 380),
-      v(-70, 4.0, 350),
-      v(-140, 2.6, 280),    // descent
-      v(-180, 1.6, 180),
-      v(-200, 0.8, 80),
-      v(-180, 0.4, -20),    // base of descent
-      v(-130, 1.4, -90),    // climbing hairpin
-      v(-60, 2.4, -110),
-      v(20, 2.8, -90),      // crest
-      v(60, 2.0, -30),
-      v(40, 0.8, 30)
+      v(80, 0.2, 50),
+      v(160, 0.6, 130),
+      v(210, 1.0, 230),
+      v(220, 1.2, 340),
+      v(180, 1.0, 440),
+      v(90, 0.8, 490),
+      v(-30, 0.6, 480),
+      v(-150, 0.4, 420),
+      v(-230, 0.2, 320),
+      v(-260, 0.0, 200),
+      v(-240, 0.0, 80),
+      v(-180, 0.0, -10),
+      v(-90, 0.0, -50),
+      v(0, 0.0, -30)
     ]
   },
 
@@ -59,26 +58,36 @@ export const TRACKS = {
     ]
   },
 
-  akagi: {
-    name: "Akagi Loop",
-    description: "Tight switchbacks. No room to breathe.",
+  highway: {
+    name: "Coastal Highway",
+    description: "High-speed straights joined by long sweepers. Top-end test.",
     palette: {
-      sky: { top: "#0c1722", mid: "#22321c", bottom: "#7a5a3a" },
-      fog: 0x101a16,
-      kerbA: 0xc09038, kerbB: 0xe8dcb8,
-      ground: 0x081210,
+      sky: { top: "#0c1422", mid: "#28342a", bottom: "#88a092" },
+      fog: 0x182618,
+      kerbA: 0xb89238, kerbB: 0xe8dcb8,
+      ground: 0x0a1216,
       moonLight: 0xd0c898,
       fillRed: 0x9c6c30,
-      fillCyan: 0x6a8c58
+      fillCyan: 0x7aa088
     },
-    // Tighter control points for hairpin feel.
+    // Long straights with wide, fast sweepers. Mostly flat, a couple gentle rises.
     points: [
-      v(0, 0, 0), v(40, 0, 20), v(70, 0.5, 60),
-      v(80, 1.0, 110), v(50, 1.5, 150), v(0, 1.8, 160),
-      v(-50, 2.0, 130), v(-50, 2.3, 80), v(-10, 2.4, 50),
-      v(20, 2.2, 10), v(0, 1.8, -30), v(-50, 1.4, -50),
-      v(-100, 1.0, -30), v(-110, 0.6, 20), v(-80, 0.2, 50),
-      v(-30, 0.0, 30)
+      v(0, 0, 0),
+      v(120, 0.0, 40),
+      v(240, 0.2, 120),
+      v(320, 0.6, 240),
+      v(330, 0.8, 380),
+      v(280, 0.6, 500),
+      v(160, 0.4, 580),
+      v(20, 0.2, 600),
+      v(-120, 0.2, 580),
+      v(-240, 0.4, 520),
+      v(-320, 0.6, 400),
+      v(-340, 0.4, 260),
+      v(-300, 0.2, 140),
+      v(-220, 0.0, 40),
+      v(-100, 0.0, -10),
+      v(0, 0.0, -20)
     ]
   },
 

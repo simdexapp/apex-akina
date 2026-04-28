@@ -81,8 +81,8 @@ const TRACK_KEY = "apex-akina-3d:track";
 const initialTrackId = (() => {
   try {
     const saved = localStorage.getItem(TRACK_KEY);
-    return saved && TRACKS_LIST.find((t) => t.id === saved) ? saved : "akina";
-  } catch (_) { return "akina"; }
+    return saved && TRACKS_LIST.find((t) => t.id === saved) ? saved : "lakeside";
+  } catch (_) { return "lakeside"; }
 })();
 
 let track = null;
@@ -174,7 +174,10 @@ function loadTrack(id) {
 loadTrack(initialTrackId);
 
 // ---- Camera ----
-const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 1500);
+const BASE_FOV = 70;
+const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.5, 1500);
+let cameraShake = 0;       // current shake intensity, decays to 0
+let fovPunch = 0;          // current fov delta over base, decays to 0
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 // Restrained bloom — keep the lights glowing but stop everything from looking neon-soaked.
@@ -233,6 +236,13 @@ function updateCamera(dt) {
   } else {
     cameraSmoothPos.lerp(cameraDesired, Math.min(1, dt * 6));
   }
+  // Apply camera shake + FOV punch (decay).
+  if (cameraShake > 0) {
+    const shake = cameraShake;
+    cameraSmoothPos.x += (Math.random() - 0.5) * shake;
+    cameraSmoothPos.y += (Math.random() - 0.5) * shake * 0.5;
+    cameraShake = Math.max(0, cameraShake - dt * 4);
+  }
   camera.position.copy(cameraSmoothPos);
   const lx = cameraLookOffset.x * cos + cameraLookOffset.z * sin;
   const lz = -cameraLookOffset.x * sin + cameraLookOffset.z * cos;
@@ -242,6 +252,16 @@ function updateCamera(dt) {
     car.group.position.z + lz
   );
   camera.lookAt(cameraTarget);
+
+  // FOV punch — subtle widen on boost activation, decays back to base.
+  if (fovPunch > 0.01) {
+    camera.fov = BASE_FOV + fovPunch;
+    camera.updateProjectionMatrix();
+    fovPunch = Math.max(0, fovPunch - dt * 22);
+  } else if (camera.fov !== BASE_FOV) {
+    camera.fov = BASE_FOV;
+    camera.updateProjectionMatrix();
+  }
 }
 
 // ---- Particle system (sparks + drift smoke) ----
@@ -433,6 +453,13 @@ function tick(dt) {
   // Boost is now driven inside car.tick — passive regen happens here.
   if (running && !i.boost && !car.driftActive) {
     car.boostMeter = Math.min(1, car.boostMeter + 0.06 * dt);
+  }
+
+  // Boost activation kick.
+  if (car.boostJustFired) {
+    cameraShake = Math.max(cameraShake, 0.30);
+    fovPunch = Math.max(fovPunch, 9);
+    flashCallout("BOOST", 380);
   }
 
   // Player's total race distance for rubber-band scaling.

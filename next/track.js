@@ -9,8 +9,8 @@ export function getTrackList() {
   return Object.entries(TRACKS).map(([id, t]) => ({ id, name: t.name, description: t.description, palette: t.palette }));
 }
 
-export function buildTrack(trackId = "akina") {
-  const track = TRACKS[trackId] || TRACKS.akina;
+export function buildTrack(trackId = "lakeside") {
+  const track = TRACKS[trackId] || TRACKS.lakeside;
   const curve = new THREE.CatmullRomCurve3(track.points, true, "catmullrom", 0.4);
   const points = curve.getSpacedPoints(SAMPLES);
   const tangents = [];

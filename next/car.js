@@ -218,15 +218,23 @@ function stepDrivetrain(car, input, dt) {
     car._accelInput = 0;
   }
 
-  // Boost (refractory + meter).
+  // Boost (refractory + meter + activation surge).
   car.boostCooldown = Math.max(0, car.boostCooldown - dt);
   const canBoost = input.boost && car.boostMeter > 0.05 && car.boostCooldown <= 0 && Math.abs(car.speed) > 12;
+  car.boostJustFired = false;
   if (canBoost) {
-    car.speed += ACCEL * 1.0 * dt;
+    if (!car._wasBoosting) {
+      // Rising-edge surge — push speed instantly toward the boosted ceiling.
+      const surge = car.maxSpeed * 0.18;
+      car.speed = Math.min(car.maxSpeed * BOOST_MUL, car.speed + surge);
+      car.boostJustFired = true;
+    }
+    car.speed += ACCEL * 1.05 * dt;
     car.boostT = 0.5;
     car.boostMeter = Math.max(0, car.boostMeter - 0.45 * dt);
     if (car.boostMeter <= 0.001) car.boostCooldown = 0.7;
   }
+  car._wasBoosting = canBoost;
   car.boostT = Math.max(0, car.boostT - dt);
 
   // Engine heat — much more forgiving now.
@@ -312,12 +320,25 @@ function stepTrack(car, dt, track) {
 
 function stepBody(car, dt) {
   const speedPct = Math.abs(car.speed) / car.maxSpeed;
-  const pitchTarget = -car._accelInput * 0.05 * Math.min(1, speedPct * 1.6);
+
+  // Pitch: nose down on brake, lift on accel.
+  const pitchTarget = -car._accelInput * 0.06 * Math.min(1, speedPct * 1.6);
   car.pitch += (pitchTarget - car.pitch) * Math.min(1, dt * 6);
+
+  // Roll: lean opposite to corner G; bigger during drift.
   const rollTarget = car.steer * 0.10 * speedPct * (car.driftActive ? 1.6 : 1.0);
   car.roll += (rollTarget - car.roll) * Math.min(1, dt * 8);
+
+  // Drift slip-angle yaw: car visibly rotates relative to its motion direction.
+  // Direction = sign of lateral velocity (the rear washes out THAT direction).
+  let yawTarget = 0;
+  if (car.driftActive) {
+    yawTarget = -Math.sign(car.lateralV) * Math.min(0.5, Math.abs(car.lateralV) * 0.045);
+  }
+  car.bodyYaw += (yawTarget - car.bodyYaw) * Math.min(1, dt * 7);
+
   car.bodyY = Math.sin(performance.now() * 0.006) * 0.02 * speedPct;
-  car.group.rotation.set(car.pitch, car.heading, car.roll);
+  car.group.rotation.set(car.pitch, car.heading + car.bodyYaw, car.roll);
 }
 
 // ============================================================
@@ -353,6 +374,7 @@ export function createCar(shapeId = "gt") {
     pitch: 0,
     roll: 0,
     bodyY: 0,
+    bodyYaw: 0,        // visual yaw offset (drift slip angle)
     // Hidden scratch.
     _accelInput: 0,
     _lastInput: null,
