@@ -101,58 +101,19 @@ export function createCar(shapeId = "gt") {
     group.add(w);
   }
 
-  // Side skirts — low panels running between the wheels.
-  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x0c1020, metalness: 0.3, roughness: 0.6 });
-  for (const side of [-1, 1]) {
-    const skirt = new THREE.Mesh(
-      new THREE.BoxGeometry(0.10, 0.18, shape.length * 0.62),
-      skirtMat
-    );
-    skirt.position.set(side * (shape.width * 0.5 - 0.02), 0.32, 0);
-    group.add(skirt);
-  }
-
-  // Fender flares — small bulges above each wheel.
-  const flareMat = new THREE.MeshStandardMaterial({ color: shape.body, metalness: 0.4, roughness: 0.45 });
-  for (const sign of [-1, 1]) {
-    for (const z of [shape.length * 0.36, -shape.length * 0.36]) {
-      const flare = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 0.32, 0.7),
-        flareMat
-      );
-      flare.position.set(sign * (shape.width * 0.5 + 0.05), shape.height * 0.85, z);
-      group.add(flare);
-    }
-  }
-
-  // Hood detail per spoiler kind.
+  // Subtle hood detail per spoiler kind — no big skirts/flares that stack visibly.
   if (shape.spoiler === "wing" || shape.spoiler === "lip") {
-    // Hood scoop — small raised intake.
     const scoopMat = new THREE.MeshStandardMaterial({ color: 0x05070d, metalness: 0.5, roughness: 0.6 });
-    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.5), scoopMat);
-    scoop.position.set(0, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.20);
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.36), scoopMat);
+    scoop.position.set(0, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.22);
     group.add(scoop);
   } else if (shape.spoiler === "deck") {
-    // Front hood vents — twin slits.
     const ventMat = new THREE.MeshStandardMaterial({ color: 0x05070d });
     for (const side of [-1, 1]) {
-      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.04, 0.18), ventMat);
-      vent.position.set(side * 0.3, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.30);
+      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.03, 0.14), ventMat);
+      vent.position.set(side * 0.28, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.28);
       group.add(vent);
     }
-  }
-
-  // Wheel rims — chrome ring on the hub for visible detail.
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0xbcc6d8, metalness: 0.85, roughness: 0.25 });
-  const rimGeo = new THREE.TorusGeometry(0.30, 0.04, 6, 12);
-  const wxR = shape.width * 0.5 - 0.06;
-  const wzFR = shape.length * 0.36;
-  const wzRR = -shape.length * 0.36;
-  for (const [x, z] of [[-wxR, wzFR], [wxR, wzFR], [-wxR, wzRR], [wxR, wzRR]]) {
-    const rim = new THREE.Mesh(rimGeo, rimMat);
-    rim.rotation.y = Math.PI / 2;
-    rim.position.set(x, 0.40, z);
-    group.add(rim);
   }
 
   // Spoiler per shape.
@@ -184,15 +145,15 @@ export function createCar(shapeId = "gt") {
     group.add(lip);
   }
 
-  // Headlights
-  const headLightL = new THREE.SpotLight(0xfff5d4, 1.5, 60, Math.PI / 6, 0.4, 1.5);
-  headLightL.position.set(-shape.width * 0.32, 0.5, shape.length * 0.46);
-  headLightL.target.position.set(-shape.width * 0.32, 0.4, 25);
+  // Headlights — wide warm cones that actually wash the road ahead.
+  const headLightL = new THREE.SpotLight(0xfff5d4, 6.0, 110, Math.PI / 4.2, 0.35, 1.0);
+  headLightL.position.set(-shape.width * 0.32, 0.55, shape.length * 0.46);
+  headLightL.target.position.set(-shape.width * 0.20, -0.6, 50);
   group.add(headLightL);
   group.add(headLightL.target);
-  const headLightR = new THREE.SpotLight(0xfff5d4, 1.5, 60, Math.PI / 6, 0.4, 1.5);
-  headLightR.position.set(shape.width * 0.32, 0.5, shape.length * 0.46);
-  headLightR.target.position.set(shape.width * 0.32, 0.4, 25);
+  const headLightR = new THREE.SpotLight(0xfff5d4, 6.0, 110, Math.PI / 4.2, 0.35, 1.0);
+  headLightR.position.set(shape.width * 0.32, 0.55, shape.length * 0.46);
+  headLightR.target.position.set(shape.width * 0.20, -0.6, 50);
   group.add(headLightR);
   group.add(headLightR.target);
   const lensMat = new THREE.MeshBasicMaterial({ color: 0xfff5d4 });
@@ -232,6 +193,9 @@ export function createCar(shapeId = "gt") {
     pitch: 0,
     roll: 0,
     bodyY: 0,
+    // Engine heat: builds at high RPM, throttles top end when overheating.
+    engineHeat: 0,     // 0..1
+    overheating: false,
 
     tick(dt, input, track) {
       // ---- Steering ----
@@ -262,7 +226,21 @@ export function createCar(shapeId = "gt") {
       }
       car.boostT = Math.max(0, car.boostT - dt);
 
-      const ceiling = maxSpeed * (car.boostT > 0 ? BOOST_MUL : 1);
+      // ---- Engine heat ----
+      // Builds while sitting near top end, vents while cruising or off-throttle.
+      const speedFraction = Math.abs(car.speed) / maxSpeed;
+      if (speedFraction > 0.92 && input.throttle) {
+        car.engineHeat = Math.min(1, car.engineHeat + dt * 0.20);
+      } else if (speedFraction < 0.78 || !input.throttle) {
+        car.engineHeat = Math.max(0, car.engineHeat - dt * 0.12);
+      }
+      // Trip overheating at 0.95, recover under 0.55.
+      if (car.engineHeat >= 0.95) car.overheating = true;
+      if (car.engineHeat < 0.55) car.overheating = false;
+      // While overheating, top end is capped to 88% of normal max.
+      const heatCapMul = car.overheating ? 0.88 : 1.0;
+
+      const ceiling = maxSpeed * heatCapMul * (car.boostT > 0 ? BOOST_MUL : 1);
       car.speed = Math.max(-maxSpeed * 0.5, Math.min(ceiling, car.speed));
 
       // ---- Heading change ----

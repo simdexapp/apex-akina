@@ -112,21 +112,38 @@ export function createRivals(track, count = 14) {
       s: -((i + 1) * 14),
       lane: homeLane,
       homeLane,
-      // Tiered target speeds: front pack chases the player, mid pack dogfights, back pack falls in line.
-      // Player max is ~65 m/s at top end. Front rivals run 56-62, mid 48-55, back 40-47.
-      targetSpeed: i < 4 ? 56 + Math.random() * 6
-                  : i < 9 ? 48 + Math.random() * 7
-                  : 40 + Math.random() * 7,
+      // Tiered target speeds: front pack 64-72, mid 54-60, back 46-52 m/s.
+      targetSpeed: i < 4 ? 64 + Math.random() * 8
+                  : i < 9 ? 54 + Math.random() * 6
+                  : 46 + Math.random() * 6,
+      baseTargetSpeed: 0,  // populated below; used for rubber-band
       speed: 0,
       laps: 0,
       heading: 0
     });
   }
+  // Cache the base targetSpeed for rubber-band scaling later.
+  for (const r of rivals) r.baseTargetSpeed = r.targetSpeed;
   return rivals;
 }
 
-export function tickRivals(rivals, dt, track, playerCar) {
+export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0) {
   const trackLen = track.length;
+  // Rubber-band: rivals just behind/ahead of the player get a small boost/drag.
+  for (const r of rivals) {
+    const rivalTotal = (r.laps || 0) * trackLen + r.s;
+    const delta = rivalTotal - playerTotal;
+    // delta < 0 → rival is behind player; delta > 0 → rival is ahead.
+    let mul = 1.0;
+    if (delta < -120) {
+      // Behind the player by > 120m: catch up.
+      mul = 1.15;
+    } else if (delta > 200) {
+      // Way ahead of the player: ease off slightly.
+      mul = 0.92;
+    }
+    r.targetSpeed = r.baseTargetSpeed * mul;
+  }
   for (let i = 0; i < rivals.length; i++) {
     const r = rivals[i];
 

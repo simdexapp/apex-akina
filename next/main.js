@@ -434,7 +434,10 @@ function tick(dt) {
     car.boostMeter = Math.min(1, car.boostMeter + 0.06 * dt);
   }
 
-  tickRivals(rivals, dt, track, car);
+  // Player's total race distance for rubber-band scaling.
+  const playerProj = track.project(car.group.position);
+  const playerTotal = lap * track.length + playerProj.s;
+  tickRivals(rivals, dt, track, car, playerTotal);
 
   // Player–rival bump collisions + near-miss detection.
   for (const r of rivals) {
@@ -581,6 +584,11 @@ function loop(now) {
   const best = bestLapPerTrack[track.id];
   document.getElementById("best").textContent = best ? formatTime(best) : "—";
   document.getElementById("boost-bar").style.width = `${Math.round(readBoost() * 100)}%`;
+  // Engine heat HUD.
+  const heatBar = document.getElementById("heat-bar");
+  if (heatBar) heatBar.style.width = `${Math.round((car.engineHeat || 0) * 100)}%`;
+  const heatMeter = document.querySelector(".heat-meter");
+  if (heatMeter) heatMeter.classList.toggle("is-overheating", !!car.overheating);
 
   // Combo HUD
   const comboStack = document.getElementById("combo-stack");

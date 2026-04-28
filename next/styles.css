@@ -238,6 +238,21 @@ button:hover { filter: brightness(1.08); }
   transition: width 80ms linear;
 }
 
+.heat-meter > span {
+  background: linear-gradient(90deg, #4adf80, var(--gold), var(--hot));
+  box-shadow: 0 0 10px rgba(255, 49, 92, 0.4);
+}
+
+.heat-meter.is-overheating {
+  box-shadow: 0 0 0 1px var(--hot) inset;
+  animation: heat-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes heat-pulse {
+  from { background: rgba(255, 49, 92, 0.18); }
+  to   { background: rgba(255, 49, 92, 0.42); }
+}
+
 .track-picker {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
