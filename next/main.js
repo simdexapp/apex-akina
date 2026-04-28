@@ -2,26 +2,27 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=43";
-import { buildScenery, tickAmbient } from "./scenery.js?v=43";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=43";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=43";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=43";
+import { buildTrack, getTrackList } from "./track.js?v=44";
+import { buildScenery, tickAmbient } from "./scenery.js?v=44";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=44";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=44";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=44";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=43";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=43";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=43";
-import { createReplay } from "./replay.js?v=43";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=43";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=43";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=43";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=43";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=44";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=44";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=44";
+import { createReplay } from "./replay.js?v=44";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=44";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=44";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=44";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=44";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=44";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=43";
+} from "./profile.js?v=44";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1308,6 +1309,14 @@ function loop(now) {
         if (result.isBest) flashCallout("New PB", 1200);
         bestLapDisplay = ghost.bestTime();
         if (lapTime > 1) recordTTLap(track.id, car.shape, lapTime);
+        // Online leaderboard submit (no-op if URL not set).
+        if (lapTime > 1 && result.isBest) {
+          submitLap(track.id, car.shape, lapTime).then((r) => {
+            if (r && r.rank) {
+              flashCallout(`Online rank #${r.rank} of ${r.total}`, 1800);
+            }
+          }).catch(() => {});
+        }
       }
     }
     lap = Math.min(lapsTotal(), lap + 1);
@@ -1791,9 +1800,45 @@ function showFinish(standings) {
     }
     lbEl.innerHTML = html;
     lbEl.hidden = false;
+
+    // Online leaderboard (top 5) — only shows if URL is configured.
+    fetchBoard(track.id, car.shape, 5).then((entries) => {
+      let onEl = document.getElementById("finish-lb-online");
+      if (!onEl) {
+        onEl = document.createElement("ol");
+        onEl.id = "finish-lb-online";
+        onEl.className = "finish-leaderboard";
+        const titleCard = document.querySelector("#finish-overlay .title-card");
+        const actions = document.querySelector("#finish-overlay .prerace-actions");
+        if (titleCard && actions) {
+          const head = document.createElement("p");
+          head.className = "small";
+          head.textContent = "Online leaderboard";
+          head.id = "finish-lb-online-head";
+          head.style.marginTop = "12px";
+          titleCard.insertBefore(head, actions);
+          titleCard.insertBefore(onEl, actions);
+        }
+      }
+      const head = document.getElementById("finish-lb-online-head");
+      if (!entries) {
+        if (onEl) onEl.hidden = true;
+        if (head) head.hidden = true;
+        return;
+      }
+      onEl.hidden = false;
+      if (head) head.hidden = false;
+      onEl.innerHTML = entries.length
+        ? entries.map((e, i) => `<li><span>${i + 1}</span><span>${formatTime(e.time)}</span><span>${(e.handle || "ANON").toUpperCase()}</span></li>`).join("")
+        : `<li class="empty">No online entries yet</li>`;
+    });
   } else {
     const lbEl = document.getElementById("finish-lb");
     if (lbEl) lbEl.hidden = true;
+    const onEl = document.getElementById("finish-lb-online");
+    if (onEl) onEl.hidden = true;
+    const head = document.getElementById("finish-lb-online-head");
+    if (head) head.hidden = true;
   }
   overlay.hidden = false;
   // Stop replay recording at finish so playback shows just the race.
@@ -2357,7 +2402,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=43");
+  const mod = await import("./garagePreview.js?v=44");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2649,6 +2694,21 @@ function applySettings() {
 }
 applySettings();
 const settingsOverlay = document.getElementById("settings-overlay");
+// Wire online-leaderboard settings inputs once on init (separate from the
+// regular settings save/load since they're stored in different keys).
+{
+  const handleEl = document.getElementById("setting-handle");
+  const urlEl = document.getElementById("setting-lb-url");
+  if (handleEl) {
+    handleEl.value = getHandle();
+    handleEl.addEventListener("change", () => setHandle(handleEl.value));
+  }
+  if (urlEl) {
+    urlEl.value = getLeaderboardUrl();
+    urlEl.addEventListener("change", () => setLeaderboardUrl(urlEl.value.trim()));
+  }
+}
+
 function syncSettingsUI() {
   document.getElementById("setting-quality").value = settings.quality;
   document.getElementById("setting-volume").value = settings.volume;

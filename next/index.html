@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=43">
+    <link rel="stylesheet" href="styles.css?v=44">
     <script type="importmap">
       {
         "imports": {
@@ -341,6 +341,14 @@
               </select>
             </label>
             <label class="settings-row">
+              <span>Online handle</span>
+              <input id="setting-handle" type="text" maxlength="16" placeholder="ANON" style="width: 220px;" />
+            </label>
+            <label class="settings-row">
+              <span>Leaderboard URL</span>
+              <input id="setting-lb-url" type="text" placeholder="https://your-worker.example.com" style="width: 220px;" />
+            </label>
+            <label class="settings-row">
               <span>AI difficulty</span>
               <select id="setting-difficulty">
                 <option value="easy">Easy (slower AI, generous draft)</option>
@@ -400,6 +408,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=43"></script>
+    <script type="module" src="main.js?v=44"></script>
   </body>
 </html>

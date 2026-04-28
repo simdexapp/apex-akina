@@ -1,0 +1,12 @@
+name = "apex-akina-leaderboard"
+main = "worker.js"
+compatibility_date = "2026-04-28"
+
+# Bind a KV namespace called LEADERBOARD.
+# After running:
+#   wrangler kv:namespace create LEADERBOARD
+# replace the id below with the one wrangler prints.
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
