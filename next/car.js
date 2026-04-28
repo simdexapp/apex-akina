@@ -147,13 +147,30 @@ export function createCar() {
       car.group.position.x += fx + lx;
       car.group.position.z += fz + lz;
 
-      // Track stickiness: if off-road (|lateral| > halfWidth), pull speed down hard.
+      // Track stickiness + barrier clamp: bounce off the wall if you reach the edge.
       if (track) {
         const proj = track.project(car.group.position);
-        if (Math.abs(proj.lateral) > track.halfWidth) {
-          car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * dt;
+        const limit = track.halfWidth + 0.7;  // matches barrier offset
+        if (Math.abs(proj.lateral) > limit) {
+          // Snap player back inside the road and scrub speed (hit the wall).
+          const overshoot = Math.abs(proj.lateral) - limit;
+          const dirSign = Math.sign(proj.lateral);
+          // Compute the right vector at this segment to push back inward.
+          const segIdx = proj.segmentIndex;
+          const t = track.tangents[segIdx];
+          const rightX = -t.z;  // right = (-tz, 0, tx) in this convention
+          const rightZ = t.x;
+          car.group.position.x -= rightX * dirSign * (overshoot + 0.05);
+          car.group.position.z -= rightZ * dirSign * (overshoot + 0.05);
+          // Speed loss on wall scrape, scaled by impact angle.
+          car.speed *= 0.86;
+          // Lateral velocity flipped + reduced — bounces off.
+          car.lateralV = -car.lateralV * 0.4;
+        } else if (Math.abs(proj.lateral) > track.halfWidth) {
+          // On the kerb / shoulder: subtle drag, no clamp yet.
+          car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * 0.4 * dt;
         }
-        // Settle vertical position to match track height (for now, just clamp y).
+        // Settle vertical position to match track height.
         const target = track.points[proj.segmentIndex].y;
         car.group.position.y += (target + 0.4 - car.group.position.y) * Math.min(1, dt * 8);
       }

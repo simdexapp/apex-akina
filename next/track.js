@@ -103,6 +103,39 @@ export function buildTrack(trackId = "akina") {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -10;
 
+  // Bridge / guardrail barriers — taller wall on elevated sections, low rail on flat ones.
+  const barrierGroup = new THREE.Group();
+  const BRIDGE_THRESHOLD = 1.2;
+  for (let i = 0; i < SAMPLES; i++) {
+    const p = points[i];
+    const t = tangents[i];
+    right.crossVectors(t, up).normalize();
+    const isBridge = p.y > BRIDGE_THRESHOLD;
+    const barrierH = isBridge ? 1.2 : 0.5;
+    for (const side of [1, -1]) {
+      const offset = side * (ROAD_HALF_WIDTH + SHOULDER * 0.9);
+      const barrierGeo = new THREE.BoxGeometry(0.30, barrierH, 1.4);
+      const barrierMat = new THREE.MeshLambertMaterial({
+        color: isBridge ? 0xc8d3df : 0x3a4258,
+        emissive: isBridge ? 0x2ee9ff : 0x000000,
+        emissiveIntensity: isBridge ? 0.06 : 0
+      });
+      const barrier = new THREE.Mesh(barrierGeo, barrierMat);
+      barrier.position.set(p.x + right.x * offset, p.y + barrierH * 0.5, p.z + right.z * offset);
+      barrier.rotation.y = Math.atan2(t.x, t.z);
+      barrierGroup.add(barrier);
+      // Reflective top stripe on bridge barriers.
+      if (isBridge) {
+        const topGeo = new THREE.BoxGeometry(0.32, 0.06, 1.42);
+        const topMat = new THREE.MeshBasicMaterial({ color: side > 0 ? 0x2ee9ff : 0xffd166 });
+        const topStripe = new THREE.Mesh(topGeo, topMat);
+        topStripe.position.set(p.x + right.x * offset, p.y + barrierH + 0.04, p.z + right.z * offset);
+        topStripe.rotation.y = Math.atan2(t.x, t.z);
+        barrierGroup.add(topStripe);
+      }
+    }
+  }
+
   // Trackside posts (every 8 samples, both sides).
   const postGroup = new THREE.Group();
   for (let i = 0; i < SAMPLES; i += 8) {
@@ -130,6 +163,7 @@ export function buildTrack(trackId = "akina") {
   group.add(roadMesh);
   group.add(laneGroup);
   group.add(kerbGroup);
+  group.add(barrierGroup);
   group.add(postGroup);
 
   // Track length in world units.
