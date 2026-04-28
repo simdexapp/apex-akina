@@ -30,8 +30,10 @@ function defaultProfile() {
       wins: 0,
       podiums: 0,
       laps: 0,
-      streak: 0,         // current consecutive win streak
-      bestStreak: 0      // best ever
+      streak: 0,
+      bestStreak: 0,
+      sessions: 0,        // unique browser sessions launched
+      longestRaceMs: 0    // longest single race time (any mode)
     },
     bestLaps: {}
   };
@@ -65,6 +67,8 @@ export function loadProfile() {
     }
     if (parsed.stats.streak === undefined) parsed.stats.streak = 0;
     if (parsed.stats.bestStreak === undefined) parsed.stats.bestStreak = 0;
+    if (parsed.stats.sessions === undefined) parsed.stats.sessions = 0;
+    if (parsed.stats.longestRaceMs === undefined) parsed.stats.longestRaceMs = 0;
     cache = parsed;
     return cache;
   } catch (_) {

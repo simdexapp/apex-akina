@@ -355,13 +355,20 @@ export function buildTrack(trackId = "lakeside") {
       pylon.rotation.y = yaw;
       startGroup.add(pylon);
     }
+    // Banner: slimmer + raised so it doesn't dominate the play view.
     const banner = new THREE.Mesh(
-      new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 4, 0.8, 0.12),
+      new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 2, 0.32, 0.08),
       new THREE.MeshBasicMaterial({ color: 0xff315c })
     );
-    banner.position.set(start.x, start.y + 5.6, start.z);
+    banner.position.set(start.x, start.y + 6.2, start.z);
     banner.rotation.y = yaw;
     startGroup.add(banner);
+    // Overhead arch — two thin diagonal struts bridging the pylons.
+    const archMat = new THREE.MeshStandardMaterial({ color: 0x2a3144, metalness: 0.6, roughness: 0.4 });
+    const arch = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 2, 0.10, 0.10), archMat);
+    arch.position.set(start.x, start.y + 6.0, start.z);
+    arch.rotation.y = yaw;
+    startGroup.add(arch);
   }
 
   // Sector markers — flat plane stripes.

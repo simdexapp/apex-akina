@@ -2,25 +2,25 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=28";
-import { buildScenery, tickAmbient } from "./scenery.js?v=28";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=28";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=28";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=28";
+import { buildTrack, getTrackList } from "./track.js?v=30";
+import { buildScenery, tickAmbient } from "./scenery.js?v=30";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=30";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=30";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=30";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=28";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=28";
-import { createGhost, createGhostMesh } from "./ghost.js?v=28";
-import { createReplay } from "./replay.js?v=28";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=28";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=28";
-import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=28";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=30";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=30";
+import { createGhost, createGhostMesh } from "./ghost.js?v=30";
+import { createReplay } from "./replay.js?v=30";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=30";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=30";
+import { getTodaysChallenge, checkDailyChallenge } from "./challenge.js?v=30";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=28";
+} from "./profile.js?v=30";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -623,6 +623,9 @@ const NEAR_MISS_INNER = 2.4; // inside this is a real collision
 // ---- Loop ----
 const input = createInput();
 initTouchControls();
+
+// Bump session count on launch.
+bumpStats({ sessions: 1 });
 
 // Pre-race rotating tip.
 const RACE_TIPS = [
@@ -1273,6 +1276,15 @@ function loop(now) {
     }
     // Per-car km accumulator → flushed to profile.
     if (raceCtx.kmDriven > 0) bumpCarStats(car.shape, { kmDriven: raceCtx.kmDriven });
+    // Longest single race tracker.
+    {
+      const ms = Math.floor(raceTime * 1000);
+      const profile = loadProfile();
+      if (ms > (profile.stats.longestRaceMs || 0)) {
+        profile.stats.longestRaceMs = ms;
+        saveProfile();
+      }
+    }
     // Record best lap to profile too (separate from canvas/legacy bestLapPerTrack).
     if (bestLapDisplay && car) recordBestLap(track.id, car.shape, bestLapDisplay);
     // Career: record this round's standings + advance to next.
@@ -1915,6 +1927,7 @@ function renderGarage() {
   const profile = loadProfile();
   document.getElementById("garage-name").value = profile.name;
   const stats = document.getElementById("garage-stats");
+  const longest = (profile.stats.longestRaceMs || 0) / 1000;
   stats.innerHTML = `
     <div><span class="label">Races</span><span class="value">${profile.stats.races || 0}</span></div>
     <div><span class="label">Wins</span><span class="value">${profile.stats.wins || 0}</span></div>
@@ -1922,6 +1935,8 @@ function renderGarage() {
     <div><span class="label">Laps</span><span class="value">${profile.stats.laps || 0}</span></div>
     <div><span class="label">Streak</span><span class="value">${profile.stats.streak || 0}</span></div>
     <div><span class="label">Best Streak</span><span class="value">${profile.stats.bestStreak || 0}</span></div>
+    <div><span class="label">Sessions</span><span class="value">${profile.stats.sessions || 0}</span></div>
+    <div><span class="label">Longest Race</span><span class="value">${longest > 0 ? formatTime(longest) : "—"}</span></div>
   `;
   // Achievements grid.
   const achWrap = document.getElementById("garage-achievements");
