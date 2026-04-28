@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
     <script type="importmap">
       {
         "imports": {
@@ -117,6 +117,9 @@
         </div>
         <!-- Achievement toast container -->
         <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+        <!-- Driver-name labels overlay — projected from world to screen each frame -->
+        <div class="rival-labels" id="rival-labels"></div>
 
         <!-- Sector split panel — shows S1 / S2 / S3 elapsed + delta -->
         <div class="sectors" id="sectors" hidden>
@@ -281,6 +284,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=8"></script>
+    <script type="module" src="main.js?v=9"></script>
   </body>
 </html>

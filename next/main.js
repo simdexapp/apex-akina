@@ -2,23 +2,23 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=8";
-import { buildScenery } from "./scenery.js?v=8";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=8";
-import { createInput, initTouchControls } from "./input.js?v=8";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=8";
+import { buildTrack, getTrackList } from "./track.js?v=9";
+import { buildScenery } from "./scenery.js?v=9";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=9";
+import { createInput, initTouchControls } from "./input.js?v=9";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=9";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=8";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=8";
-import { createGhost, createGhostMesh } from "./ghost.js?v=8";
-import { createReplay } from "./replay.js?v=8";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=8";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=8";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=9";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=9";
+import { createGhost, createGhostMesh } from "./ghost.js?v=9";
+import { createReplay } from "./replay.js?v=9";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=9";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=9";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=8";
+} from "./profile.js?v=9";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -823,6 +823,52 @@ function tick(dt) {
 }
 
 
+// Rival name labels — project each rival's world position into screen space
+// and update an HTML label sitting above their car. Only shows labels for
+// rivals roughly visible (in front of the camera, within 80m).
+const _projVec = new THREE.Vector3();
+const rivalLabelEls = new Map();
+function updateRivalLabels() {
+  const wrap = document.getElementById("rival-labels");
+  if (!wrap || !rivals) return;
+  // Cleanup labels for rivals that no longer exist.
+  for (const [name, el] of rivalLabelEls) {
+    if (!rivals.find((r) => r.name === name)) {
+      el.remove();
+      rivalLabelEls.delete(name);
+    }
+  }
+  const rect = canvas.getBoundingClientRect();
+  for (const r of rivals) {
+    if (!r.mesh) continue;
+    _projVec.set(r.mesh.position.x, r.mesh.position.y + 1.6, r.mesh.position.z);
+    _projVec.project(camera);
+    const inFront = _projVec.z > -1 && _projVec.z < 1;
+    const x = (_projVec.x * 0.5 + 0.5) * rect.width;
+    const y = (-_projVec.y * 0.5 + 0.5) * rect.height;
+    const dx = r.mesh.position.x - car.group.position.x;
+    const dz = r.mesh.position.z - car.group.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    let el = rivalLabelEls.get(r.name);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "rival-label";
+      el.textContent = r.name;
+      wrap.appendChild(el);
+      rivalLabelEls.set(r.name, el);
+    }
+    if (inFront && dist < 80) {
+      el.style.display = "block";
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.classList.toggle("is-near", dist < 20);
+      el.classList.toggle("is-far", dist > 50);
+    } else {
+      el.style.display = "none";
+    }
+  }
+}
+
 function computeStandings() {
   const trackLen = track.length;
   const playerProj = track.project(car.group.position);
@@ -979,6 +1025,7 @@ function loop(now) {
 
   renderStandings(standings.entries.slice(0, 5), standings.place);
   drawMinimap(standings);
+  if (running) updateRivalLabels();
 
   // Overtake detection — show callout when player's place changes.
   if (running && lastPlayerPlace !== standings.place) {

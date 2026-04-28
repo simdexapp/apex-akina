@@ -1144,6 +1144,45 @@ body.is-photo-mode::after {
   opacity: 1;
 }
 
+/* Rival driver-name labels — projected from world to screen each frame */
+.rival-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.rival-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(8, 13, 22, 0.78);
+  backdrop-filter: blur(8px);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  white-space: nowrap;
+  line-height: 1.2;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.rival-label::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.rival-label.is-near { border-color: var(--cyan); }
+.rival-label.is-far  { opacity: 0.4; }
+
 /* Sector split panel */
 .sectors {
   position: absolute;
