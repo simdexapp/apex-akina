@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=17";
-import { buildScenery } from "./scenery.js?v=17";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=17";
-import { createInput, initTouchControls } from "./input.js?v=17";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=17";
+import { buildTrack, getTrackList } from "./track.js?v=18";
+import { buildScenery } from "./scenery.js?v=18";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=18";
+import { createInput, initTouchControls } from "./input.js?v=18";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=18";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=17";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=17";
-import { createGhost, createGhostMesh } from "./ghost.js?v=17";
-import { createReplay } from "./replay.js?v=17";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=17";
-import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=17";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=18";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=18";
+import { createGhost, createGhostMesh } from "./ghost.js?v=18";
+import { createReplay } from "./replay.js?v=18";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=18";
+import { checkAchievements, onToast as onAchievementToast } from "./achievements.js?v=18";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, recordBestLap, hex, parseHex
-} from "./profile.js?v=17";
+} from "./profile.js?v=18";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -729,6 +729,20 @@ function saveBestLaps() {
   try { localStorage.setItem("apex-akina-3d:bestLap", JSON.stringify(bestLapPerTrack)); } catch (_) {}
 }
 
+// Local time-trial leaderboard — top 5 lap times per track.
+const TT_KEY = "apex-akina-3d:ttBoard";
+let ttBoard = (() => {
+  try { return JSON.parse(localStorage.getItem(TT_KEY) || "{}"); }
+  catch (_) { return {}; }
+})();
+function recordTTLap(trackId, carShape, seconds) {
+  if (!ttBoard[trackId]) ttBoard[trackId] = [];
+  ttBoard[trackId].push({ time: seconds, car: carShape, when: Date.now() });
+  ttBoard[trackId].sort((a, b) => a.time - b.time);
+  ttBoard[trackId] = ttBoard[trackId].slice(0, 5);
+  try { localStorage.setItem(TT_KEY, JSON.stringify(ttBoard)); } catch (_) {}
+}
+
 function tick(dt) {
   const i = input.read();
 
@@ -1023,6 +1037,8 @@ function loop(now) {
         const result = ghost.finishLap(performance.now() / 1000);
         if (result.isBest) flashCallout("New PB", 1200);
         bestLapDisplay = ghost.bestTime();
+        // Record into the local TT leaderboard.
+        if (lapTime > 1) recordTTLap(track.id, car.shape, lapTime);
       }
     }
     lap = Math.min(lapsTotal(), lap + 1);
@@ -1088,6 +1104,8 @@ function loop(now) {
         car._lastShownGear = car.gear;
       }
     }
+    const rpmEl = document.getElementById("rpm-readout");
+    if (rpmEl) rpmEl.textContent = (Math.round(car.rpm || 0) | 0) + " rpm";
   }
   // Boost FX overlay.
   const boostFxEl = document.getElementById("boost-fx");
@@ -1374,6 +1392,25 @@ function showFinish(standings) {
   document.getElementById("finish-stats").textContent =
     `${ordinal(standings.place)} of ${standings.entries.length} · ${formatTime(raceTime)}` +
     (best ? ` · best lap ${formatTime(best)}` : "") + extra;
+  // Time-trial leaderboard (top 5 saved laps for this track).
+  if (gameMode === "timeTrial") {
+    const board = ttBoard[track.id] || [];
+    const html = board.length
+      ? board.map((e, i) => `<li><span>${i + 1}</span><span>${formatTime(e.time)}</span><span>${e.car}</span></li>`).join("")
+      : `<li class="empty">No times yet — set one!</li>`;
+    let lbEl = document.getElementById("finish-lb");
+    if (!lbEl) {
+      lbEl = document.createElement("ol");
+      lbEl.id = "finish-lb";
+      lbEl.className = "finish-leaderboard";
+      document.querySelector("#finish-overlay .title-card")?.insertBefore(lbEl, document.querySelector("#finish-overlay .prerace-actions"));
+    }
+    lbEl.innerHTML = html;
+    lbEl.hidden = false;
+  } else {
+    const lbEl = document.getElementById("finish-lb");
+    if (lbEl) lbEl.hidden = true;
+  }
   overlay.hidden = false;
   // Stop replay recording at finish so playback shows just the race.
   replay.stop();

@@ -797,6 +797,17 @@ button:hover { filter: brightness(1.08); }
 
 .gear-pill.is-shifting { animation: shift-pulse 0.18s ease-out; }
 
+.rpm-readout {
+  position: absolute;
+  bottom: 22px;
+  right: 8px;
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 @keyframes shift-pulse {
   0%   { transform: scale(1); }
   50%  { transform: scale(1.18); filter: brightness(1.4); }
@@ -1269,6 +1280,48 @@ body.is-photo-mode::after {
 
 .rival-label.is-near { border-color: var(--cyan); }
 .rival-label.is-far  { opacity: 0.4; }
+
+/* Finish-screen time-trial leaderboard */
+.finish-leaderboard {
+  list-style: none;
+  margin: 14px 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-family: ui-monospace, monospace;
+}
+
+.finish-leaderboard li {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(8, 13, 22, 0.55);
+  font-size: 13px;
+  font-weight: 800;
+  align-items: center;
+}
+
+.finish-leaderboard li:first-child {
+  border-color: var(--gold);
+  background: linear-gradient(90deg, rgba(255,209,102,0.18), rgba(8,13,22,0.55));
+}
+
+.finish-leaderboard li.empty {
+  text-align: center;
+  font-style: italic;
+  color: var(--muted);
+  grid-template-columns: 1fr;
+}
+
+.finish-leaderboard li > span:last-child {
+  color: var(--cyan);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* Tire grip indicator */
 .grip-bar {
