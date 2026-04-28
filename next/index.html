@@ -62,7 +62,18 @@
             <p class="eyebrow">Apex Akina &middot; 3D engine</p>
             <h1>Pre-race</h1>
             <p>WASD or arrows to drive. Shift to boost. Space to drift.</p>
-            <p class="small" style="margin-top:0">Track</p>
+            <p class="small" style="margin-top:0">Mode</p>
+            <div class="mode-picker" id="mode-picker" role="radiogroup" aria-label="Choose mode">
+              <button type="button" class="mode-card" role="radio" data-mode="race" aria-checked="true">
+                <span class="name">Race</span>
+                <p class="desc">14 AI rivals, 3 laps. Position-based standings.</p>
+              </button>
+              <button type="button" class="mode-card" role="radio" data-mode="timeTrial" aria-checked="false">
+                <span class="name">Time Trial</span>
+                <p class="desc">Solo against your best lap. Ghost car, sector splits.</p>
+              </button>
+            </div>
+            <p class="small" style="margin-top:6px">Track</p>
             <div class="track-picker" id="track-picker" role="radiogroup" aria-label="Choose track"></div>
             <p class="small" style="margin-top:6px">Car</p>
             <div class="track-picker" id="car-picker" role="radiogroup" aria-label="Choose car"></div>

@@ -7,6 +7,7 @@ import { createCar, CAR_SHAPES } from "./car.js";
 import { createInput } from "./input.js";
 import { createRivals, tickRivals } from "./rivals.js";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted } from "./audio.js";
+import { createGhost, createGhostMesh } from "./ghost.js";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -115,6 +116,7 @@ function swapCar(shapeId) {
     car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
     car.heading = startPoint.tangentAngle;
   }
+  setupGhostFor(track?.id || initialTrackId, shapeId);
   try { localStorage.setItem(CAR_KEY, shapeId); } catch (_) {}
 }
 
@@ -146,6 +148,25 @@ function attachBoostFlame() {
 
 let rivals = [];
 
+// Game mode + ghost state.
+const MODE_KEY = "apex-akina-3d:mode";
+let gameMode = (localStorage.getItem(MODE_KEY) === "timeTrial") ? "timeTrial" : "race";
+let ghost = null;        // ghost recorder/playback for current track+car
+let ghostMesh = null;
+let lapStartedAt = 0;    // performance.now() when current lap started
+let bestLapDisplay = null;
+
+function setupGhostFor(trackId, carShape) {
+  if (ghostMesh) {
+    scene.remove(ghostMesh);
+    ghostMesh = null;
+  }
+  ghost = createGhost(trackId, carShape);
+  ghostMesh = createGhostMesh(carShape, CAR_SHAPES);
+  scene.add(ghostMesh);
+  bestLapDisplay = ghost.bestTime();
+}
+
 function loadTrack(id) {
   if (track) {
     scene.remove(track.group);
@@ -168,6 +189,7 @@ function loadTrack(id) {
   // Place player.
   car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
   car.heading = startPoint.tangentAngle;
+  setupGhostFor(id, car.shape);
   try { localStorage.setItem(TRACK_KEY, id); } catch (_) {}
 }
 
@@ -465,7 +487,31 @@ function tick(dt) {
   // Player's total race distance for rubber-band scaling.
   const playerProj = track.project(car.group.position);
   const playerTotal = lap * track.length + playerProj.s;
-  tickRivals(rivals, dt, track, car, playerTotal);
+
+  if (gameMode === "race") {
+    tickRivals(rivals, dt, track, car, playerTotal);
+  }
+
+  // Ghost — record current pose, play back saved best.
+  if (ghost && gameMode === "timeTrial") {
+    const now = performance.now() / 1000;
+    ghost.tickRecord(now, car.group.position.x, car.group.position.y, car.group.position.z, car.heading);
+    if (ghost.hasGhost() && ghostMesh) {
+      const lapT = now - lapStartedAt;
+      const pose = ghost.poseAt(lapT);
+      if (pose) {
+        ghostMesh.visible = true;
+        ghostMesh.position.set(pose.x, pose.y, pose.z);
+        ghostMesh.rotation.y = pose.heading;
+      } else {
+        ghostMesh.visible = false;
+      }
+    } else if (ghostMesh) {
+      ghostMesh.visible = false;
+    }
+  } else if (ghostMesh) {
+    ghostMesh.visible = false;
+  }
 
   // Player–rival bump collisions + near-miss detection.
   for (const r of rivals) {
@@ -575,9 +621,17 @@ function loop(now) {
         bestLapPerTrack[track.id] = lapTime;
         saveBestLaps();
       }
+      // Ghost finish lap (time-trial only).
+      if (gameMode === "timeTrial" && ghost) {
+        const result = ghost.finishLap(performance.now() / 1000);
+        if (result.isBest) flashCallout("New PB", 1200);
+        bestLapDisplay = ghost.bestTime();
+      }
     }
     lap = Math.min(LAPS_TOTAL, lap + 1);
     lapStartTime = raceTime;
+    lapStartedAt = performance.now() / 1000;
+    if (ghost) ghost.startLap(lapStartedAt);
   }
   lastTrackS = projected.s;
 
@@ -609,8 +663,9 @@ function loop(now) {
   document.getElementById("lap").textContent = `${Math.min(lap, LAPS_TOTAL)}/${LAPS_TOTAL}`;
   document.getElementById("time").textContent = formatTime(raceTime);
   document.getElementById("place").textContent = ordinal(standings.place);
-  const best = bestLapPerTrack[track.id];
-  document.getElementById("best").textContent = best ? formatTime(best) : "—";
+  // Show ghost best in time trial (per car), generic best in race mode.
+  const bestSeconds = gameMode === "timeTrial" ? bestLapDisplay : bestLapPerTrack[track.id];
+  document.getElementById("best").textContent = bestSeconds ? formatTime(bestSeconds) : "—";
   document.getElementById("boost-bar").style.width = `${Math.round(readBoost() * 100)}%`;
   // Engine heat HUD.
   const heatBar = document.getElementById("heat-bar");
@@ -759,6 +814,11 @@ function startRace() {
   lap = 1;
   acc = 0;
   cameraInitialised = false;
+  // Ghost recording starts when the lights go out (countdown end).
+  lapStartedAt = performance.now() / 1000;
+  if (ghost) ghost.startLap(lapStartedAt);
+  // Hide rivals in time trial.
+  for (const r of rivals) r.mesh.visible = (gameMode === "race");
   if (car) car.boostMeter = 0.5;
   combo = 0;
   comboTimer = 0;
@@ -862,6 +922,26 @@ function renderCarPicker() {
   }
 }
 renderCarPicker();
+
+// ---- Mode picker ----
+function renderModePicker() {
+  const wrap = document.getElementById("mode-picker");
+  if (!wrap) return;
+  for (const card of wrap.querySelectorAll(".mode-card")) {
+    card.setAttribute("aria-checked", card.dataset.mode === gameMode ? "true" : "false");
+  }
+}
+const modePickerEl = document.getElementById("mode-picker");
+if (modePickerEl) {
+  for (const card of modePickerEl.querySelectorAll(".mode-card")) {
+    card.addEventListener("click", () => {
+      gameMode = card.dataset.mode === "timeTrial" ? "timeTrial" : "race";
+      try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
+      renderModePicker();
+    });
+  }
+}
+renderModePicker();
 
 // Mute toggle, persisted.
 const MUTE_KEY = "apex-akina-3d:muted";
