@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=109";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=110";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -98,58 +98,81 @@ export function buildTrack(trackId = "lakeside") {
   const roadMesh = new THREE.Mesh(geo, mat);
   roadMesh.receiveShadow = true;
 
-  // Lane lines — minimal: just one center dashed line (gold) and two edge
-  // lines (off-white). Stripes thinned + dimmed so they read as paint
-  // not bright neon paint stripes scattered everywhere.
+  // Compute mean segment length so kerbs and edge lines are sized to
+  // the actual sample density. With TRACK_SCALE 1.7×, segments are ~5.3m
+  // — each instance must cover at least that or you see "scattered tiles
+  // with gaps" on the road instead of continuous edges.
+  let segLenSum = 0;
+  for (let i = 0; i < SAMPLES; i++) {
+    const p = points[i], q = points[(i + 1) % SAMPLES];
+    segLenSum += p.distanceTo(q);
+  }
+  const segMean = segLenSum / SAMPLES;
+  const continuousLen = segMean * 1.10;   // 10% overlap so no gaps even on curves
+
+  // Center dashed gold line — actual dashes (the "broken white line" of a
+  // real road's center). dashLen + gapLen still meaningful here.
   const laneGroup = new THREE.Group();
-  // [offsetMul, color, dashLen, gapLen]
-  const laneSpec = [
-    [0,    0xc8b070, 2.4, 6.0],   // center dashed gold
-    [-0.92, 0x9098a4, 2.0, 0.0], // left solid edge
-    [0.92,  0x9098a4, 2.0, 0.0]  // right solid edge
-  ];
-  for (const [offsetMul, color, dashLen, gapLen] of laneSpec) {
-    const offset = ROAD_HALF_WIDTH * offsetMul;
+  {
+    const dashLen = 2.4, gapLen = 6.0;
     const slots = [];
-    let acc = 0;
-    let drawing = true;
+    let acc = 0, drawing = true;
     for (let i = 0; i < SAMPLES; i++) {
       const p = points[i];
       const next = points[(i + 1) % SAMPLES];
-      const seg = p.distanceTo(next);
-      acc += seg;
+      acc += p.distanceTo(next);
       const limit = drawing ? dashLen : gapLen;
-      if (gapLen === 0 || acc >= limit) {
+      if (acc >= limit) {
         if (drawing) slots.push(i);
-        if (gapLen > 0) drawing = !drawing;
+        drawing = !drawing;
         acc = 0;
       }
     }
-    if (slots.length === 0) continue;
-    const mat = new THREE.MeshBasicMaterial({ color });
-    const geo = new THREE.PlaneGeometry(0.10, dashLen * 0.9);
-    const inst = new THREE.InstancedMesh(geo, mat, slots.length);
+    if (slots.length > 0) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xc8b070 });
+      const geo = new THREE.PlaneGeometry(0.10, dashLen * 0.9);
+      const inst = new THREE.InstancedMesh(geo, mat, slots.length);
+      const dummy = new THREE.Object3D();
+      for (let s = 0; s < slots.length; s++) {
+        const i = slots[s];
+        const p = points[i];
+        const t = tangents[i];
+        right.crossVectors(t, up).normalize();
+        dummy.position.set(p.x, p.y + 0.03, p.z);
+        dummy.rotation.set(-Math.PI / 2, 0, -Math.atan2(t.x, t.z));
+        dummy.updateMatrix();
+        inst.setMatrixAt(s, dummy.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      laneGroup.add(inst);
+    }
+  }
+
+  // Solid edge lines — one continuous instance per sample, sized so they
+  // overlap and read as a single unbroken white line down each side.
+  for (const offsetMul of [-0.92, 0.92]) {
+    const offset = ROAD_HALF_WIDTH * offsetMul;
+    const mat = new THREE.MeshBasicMaterial({ color: 0x9098a4 });
+    const geo = new THREE.PlaneGeometry(0.10, continuousLen);
+    const inst = new THREE.InstancedMesh(geo, mat, SAMPLES);
     const dummy = new THREE.Object3D();
-    for (let s = 0; s < slots.length; s++) {
-      const i = slots[s];
+    for (let i = 0; i < SAMPLES; i++) {
       const p = points[i];
       const t = tangents[i];
       right.crossVectors(t, up).normalize();
       dummy.position.set(p.x + right.x * offset, p.y + 0.03, p.z + right.z * offset);
       dummy.rotation.set(-Math.PI / 2, 0, -Math.atan2(t.x, t.z));
-      dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
-      inst.setMatrixAt(s, dummy.matrix);
+      inst.setMatrixAt(i, dummy.matrix);
     }
     inst.instanceMatrix.needsUpdate = true;
     laneGroup.add(inst);
   }
 
-  // Kerb stripes — alternating colors at the road edge. Instanced per side
-  // so we collapse 480×2 mesh instances into 2 draw calls. Slimmer + lower
-  // profile so they read as painted curbs instead of speed bumps.
+  // Kerb stripes — alternating colors at the road edge. Length = continuousLen
+  // so the alternating segments TOUCH instead of leaving "scattered tile" gaps.
   const kerbGroup = new THREE.Group();
-  const kerbGeoFlat = new THREE.BoxGeometry(0.4, 0.06, 1.6);
+  const kerbGeoFlat = new THREE.BoxGeometry(0.4, 0.06, continuousLen);
   for (const side of [1, -1]) {
     const matA = new THREE.MeshStandardMaterial({ color: track.palette.kerbA, metalness: 0.15, roughness: 0.55 });
     const matB = new THREE.MeshStandardMaterial({ color: track.palette.kerbB, metalness: 0.15, roughness: 0.55 });
