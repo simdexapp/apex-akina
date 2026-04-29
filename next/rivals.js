@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=66";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=67";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -61,7 +61,10 @@ function makeRivalMesh(variant) {
   const bodyH = h * 1.25;
   // Single-extruded body matches the player car style.
   const bodyGeo = buildExtrudedCarBody(w, bodyH, l * 0.96);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.65, roughness: 0.28 });
+  // Match player metalness — body color must read clearly at any distance.
+  // envMapIntensity 0.45 means reflections add character but don't swallow
+  // the body color into the dark sky.
+  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.30, roughness: 0.42, envMapIntensity: 0.45 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;

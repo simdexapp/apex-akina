@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=66";
-import { buildScenery, tickAmbient } from "./scenery.js?v=66";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=66";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=66";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=66";
+import { buildTrack, getTrackList } from "./track.js?v=67";
+import { buildScenery, tickAmbient } from "./scenery.js?v=67";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=67";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=67";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=67";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=66";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=66";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=66";
-import { createReplay } from "./replay.js?v=66";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=66";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=66";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=66";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=66";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=66";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=66";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=66";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=67";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=67";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=67";
+import { createReplay } from "./replay.js?v=67";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=67";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=67";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=67";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=67";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=67";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=67";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=67";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=66";
+} from "./profile.js?v=67";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2850,7 +2850,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=66");
+  const mod = await import("./garagePreview.js?v=67");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

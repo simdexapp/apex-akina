@@ -139,7 +139,7 @@ export const CAR_SHAPES = {
 
 // Helper for material consistency.
 function pbr(color, metalness = 0.4, roughness = 0.5) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness });
+  return new THREE.MeshStandardMaterial({ color, metalness, roughness, envMapIntensity: 0.45 });
 }
 
 // Build a sleeker car body — a 14-vertex chamfered prism with a beveled
@@ -444,7 +444,10 @@ function buildBody(shape) {
   // (van-tall) to 1.25 so the proportions read sports car not minivan.
   const bodyH = shape.height * 1.25;
   const bodyGeo = buildExtrudedCarBody(shape.width, bodyH, shape.length * 0.96);
-  const bodyMat = pbr(shape.body, 0.65, 0.28);
+  // Lower metalness so the body color stays VISIBLE — at 0.65 the
+  // PMREM env reflection swallowed the body color entirely, leaving
+  // cars looking like just their tail lights from any distance.
+  const bodyMat = pbr(shape.body, 0.30, 0.42);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
