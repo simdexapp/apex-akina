@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=85";
-import { buildScenery, tickAmbient } from "./scenery.js?v=85";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=85";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=85";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=85";
+import { buildTrack, getTrackList } from "./track.js?v=86";
+import { buildScenery, tickAmbient } from "./scenery.js?v=86";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=86";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=86";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=86";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=85";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=85";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=85";
-import { createReplay } from "./replay.js?v=85";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=85";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=85";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=85";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=85";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=85";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=85";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=85";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=86";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=86";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=86";
+import { createReplay } from "./replay.js?v=86";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=86";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=86";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=86";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=86";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=86";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=86";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=86";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=85";
+} from "./profile.js?v=86";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -611,6 +611,33 @@ function spawnSmoke(x, y, z) {
   });
 }
 
+// Drift spark — small bright additive particle that arcs up and outward
+// from the tire when the player is drifting hard. Used to celebrate
+// long clean drifts.
+function spawnDriftSpark(x, y, z, side) {
+  if (particles.length >= particleCap()) return;
+  const geo = new THREE.SphereGeometry(0.06, 4, 4);
+  const colors = [0xffd166, 0xff8a4c, 0xff315c];
+  const mat = new THREE.MeshBasicMaterial({
+    color: colors[Math.floor(Math.random() * colors.length)],
+    transparent: true,
+    opacity: 0.95,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  particlePool.add(mesh);
+  particles.push({
+    mesh, mat,
+    vx: side * (3 + Math.random() * 4) + (Math.random() - 0.5) * 2,
+    vy: 2.5 + Math.random() * 3,
+    vz: (Math.random() - 0.5) * 3,
+    life: 0.55 + Math.random() * 0.25,
+    type: "spark"
+  });
+}
+
 // 3D confetti burst — spawns N small flat squares around (x,y,z) that
 // fly outward + drift down. Used on race-finish for the victory celebration.
 function spawnConfettiBurst(x, y, z, count = 50) {
@@ -662,6 +689,13 @@ function tickParticles(dt) {
       p.mesh.rotation.x += (p.rotX || 0) * dt;
       p.mesh.rotation.y += (p.rotY || 0) * dt;
       p.mesh.rotation.z += (p.rotZ || 0) * dt;
+    }
+    if (p.type === "spark") {
+      // Gravity + air drag + opacity fade.
+      p.vy -= 12.0 * dt;
+      p.vx *= 0.94;
+      p.vz *= 0.94;
+      if (p.mat) p.mat.opacity = Math.max(0, p.life * 1.6);
     }
     if (p.life <= 0) {
       particlePool.remove(p.mesh);
@@ -1472,20 +1506,31 @@ function tick(dt) {
   const slipMag = Math.abs(car.lateralV);
   if (slipMag > 6) {
     const spawnRate = Math.min(0.92, 0.35 + (slipMag - 6) * 0.05);
+    const sin = Math.sin(car.heading);
+    const cos = Math.cos(car.heading);
+    const rearOffsetZ = -1.6;
+    const rearWorldX = car.group.position.x + sin * rearOffsetZ;
+    const rearWorldZ = car.group.position.z + cos * rearOffsetZ;
+    const rightX = cos;
+    const rightZ = -sin;
     if (Math.random() < spawnRate) {
-      const sin = Math.sin(car.heading);
-      const cos = Math.cos(car.heading);
-      const rearOffsetZ = -1.6;
-      const rearWorldX = car.group.position.x + sin * rearOffsetZ;
-      const rearWorldZ = car.group.position.z + cos * rearOffsetZ;
-      // Right vector for tire offset.
-      const rightX = cos;
-      const rightZ = -sin;
       for (const side of [-1, 1]) {
         if (Math.random() < 0.7) {
           const tx = rearWorldX + rightX * side * 0.85;
           const tz = rearWorldZ + rightZ * side * 0.85;
           spawnSmoke(tx, 0.4, tz);
+        }
+      }
+    }
+    // Drift SPARKS — only on sustained drifts (>1.0s) when slip is intense.
+    // These are bright additive points that "shower" off the rear tires
+    // during a clean long drift. Pure visual juice, no gameplay tie.
+    if (car.driftActive && car.driftDuration > 1.0 && slipMag > 9 && Math.random() < 0.55) {
+      for (const side of [-1, 1]) {
+        if (Math.random() < 0.55) {
+          const tx = rearWorldX + rightX * side * 0.85;
+          const tz = rearWorldZ + rightZ * side * 0.85;
+          spawnDriftSpark(tx, 0.35, tz, side);
         }
       }
     }
@@ -3056,7 +3101,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=85");
+  const mod = await import("./garagePreview.js?v=86");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
