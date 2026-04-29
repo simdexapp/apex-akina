@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=50";
-import { buildScenery, tickAmbient } from "./scenery.js?v=50";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=50";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=50";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=50";
+import { buildTrack, getTrackList } from "./track.js?v=51";
+import { buildScenery, tickAmbient } from "./scenery.js?v=51";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=51";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=51";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=51";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=50";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=50";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=50";
-import { createReplay } from "./replay.js?v=50";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=50";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=50";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=50";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=50";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=50";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=50";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=50";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=51";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=51";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=51";
+import { createReplay } from "./replay.js?v=51";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=51";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=51";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=51";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=51";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=51";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=51";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=51";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=50";
+} from "./profile.js?v=51";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2306,24 +2306,52 @@ function startRace() {
   runIntroCamera(() => runStartLights());
 }
 
-// Pre-race cinematic — short flyby around the player car before lights.
+// Pre-race cinematic — three-stage camera pageant before lights:
+//   Stage 1 (0..0.35): overhead approach from above, descending toward the car
+//   Stage 2 (0.35..0.80): wide horizontal orbit, showing off the grid
+//   Stage 3 (0.80..1.00): smooth settle into the chase pose behind the player
 let introActive = false;
 function runIntroCamera(onDone) {
   introActive = true;
   const startT = performance.now() / 1000;
+  const TOTAL = 2.4;
   function frame() {
     if (!introActive) return;
     const elapsed = (performance.now() / 1000) - startT;
-    const t = Math.min(1, elapsed / 1.6);
-    const ang = Math.PI * (0.6 - t * 0.6);
-    const dist = 14 - t * 6;
-    const height = 2.4 - t * 0.8;
-    camera.position.set(
-      car.group.position.x + Math.sin(ang) * dist,
-      car.group.position.y + height,
-      car.group.position.z + Math.cos(ang) * dist
-    );
-    camera.lookAt(car.group.position.x, car.group.position.y + 0.6, car.group.position.z);
+    const t = Math.min(1, elapsed / TOTAL);
+    const cx = car.group.position.x;
+    const cy = car.group.position.y;
+    const cz = car.group.position.z;
+    const heading = car.heading || 0;
+    let camX, camY, camZ, lookY = cy + 0.6;
+    if (t < 0.35) {
+      // Overhead approach.
+      const u = t / 0.35;
+      camX = cx + Math.sin(heading) * (-2);
+      camY = cy + 14 - u * 9;
+      camZ = cz + Math.cos(heading) * (-2);
+    } else if (t < 0.80) {
+      // Wide horizontal orbit (1 full sweep).
+      const u = (t - 0.35) / 0.45;
+      const ang = heading + Math.PI - u * Math.PI * 1.2;
+      const dist = 11 - u * 2;
+      const height = 2.2;
+      camX = cx + Math.sin(ang) * dist;
+      camY = cy + height;
+      camZ = cz + Math.cos(ang) * dist;
+    } else {
+      // Settle into chase pose behind player.
+      const u = (t - 0.80) / 0.20;
+      const ease = u * u * (3 - 2 * u);
+      const ang = heading - Math.PI;
+      const dist = 9 - ease * 2;
+      const height = 2.2 - ease * 0.4;
+      camX = cx + Math.sin(ang) * dist;
+      camY = cy + height;
+      camZ = cz + Math.cos(ang) * dist;
+    }
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(cx, lookY, cz);
     if (t >= 1) {
       introActive = false;
       cameraInitialised = false;
@@ -2766,7 +2794,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=50");
+  const mod = await import("./garagePreview.js?v=51");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

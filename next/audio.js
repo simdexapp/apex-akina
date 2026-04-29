@@ -10,7 +10,7 @@ let osc1, osc2, engineGain, engineLowpass;
 let pulseLfo, pulseLfoGain;
 let tireNoise, tireGain, tireBandpass;
 let windNoise, windGain, windBandpass;
-let musicGain, musicScheduler, musicBeatTime, musicBeatIdx;
+let musicGain, musicReverbIn, musicScheduler, musicBeatTime, musicBeatIdx;
 let muted = false;
 let masterVolume = 0.4;
 let musicVolume = 0.6;
@@ -146,12 +146,31 @@ export function ensureAudio() {
     musicGain = ctx.createGain();
     musicGain.gain.value = 0;
     musicGain.connect(master);
+
+    // Reverb-style send — feedback delay through a lowpass filter for a
+    // dub-style ambient tail. Snare and chord-pad sends route here.
+    musicReverbIn = ctx.createGain();
+    musicReverbIn.gain.value = 0.35;
+    const delay = ctx.createDelay(1.2);
+    delay.delayTime.value = 0.32;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.42;
+    const lpf = ctx.createBiquadFilter();
+    lpf.type = "lowpass";
+    lpf.frequency.value = 2400;
+    lpf.Q.value = 0.7;
+    musicReverbIn.connect(delay);
+    delay.connect(lpf);
+    lpf.connect(fb);
+    fb.connect(delay);    // feedback path
+    lpf.connect(musicGain); // wet to mix
     startMusic();
   } catch (e) {
     ctx = null;
   }
 }
 
+let _arpPanIdx = 0;
 function playArpNote(freq, time, duration) {
   if (!ctx || freq <= 0) return;
   const osc = ctx.createOscillator();
@@ -168,10 +187,20 @@ function playArpNote(freq, time, duration) {
   g.gain.setValueAtTime(0.0001, time);
   g.gain.exponentialRampToValueAtTime(0.16, time + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+  // Stereo panner — arpeggio alternates left / right for width.
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  if (pan) {
+    pan.pan.value = (_arpPanIdx++ % 2 === 0) ? -0.45 : 0.45;
+  }
   osc.connect(lp);
   osc2.connect(lp);
   lp.connect(g);
-  g.connect(musicGain);
+  if (pan) {
+    g.connect(pan);
+    pan.connect(musicGain);
+  } else {
+    g.connect(musicGain);
+  }
   osc.start(time);
   osc2.start(time);
   osc.stop(time + duration + 0.02);
@@ -199,10 +228,11 @@ function playBassNote(freq, time, duration) {
 }
 
 // Pad chord — long sustained sound with multiple notes for atmosphere.
+// Spread across the stereo field via panner per note.
 function playChordPad(freqs, time, duration) {
   if (!ctx || !freqs?.length) return;
-  for (const f of freqs) {
-    if (f <= 0) continue;
+  freqs.forEach((f, i) => {
+    if (f <= 0) return;
     const osc = ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.value = f;
@@ -216,13 +246,31 @@ function playChordPad(freqs, time, duration) {
     g.gain.exponentialRampToValueAtTime(0.0001, time + duration);
     osc.connect(lp);
     lp.connect(g);
-    g.connect(musicGain);
+    // Spread chord notes across stereo: lowest left, highest right.
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (pan && freqs.length > 1) {
+      pan.pan.value = (i / (freqs.length - 1) - 0.5) * 0.8;
+      g.connect(pan);
+      pan.connect(musicGain);
+      // Reverb send.
+      const wet = ctx.createGain();
+      wet.gain.value = 0.20;
+      pan.connect(wet);
+      if (musicReverbIn) wet.connect(musicReverbIn);
+    } else {
+      g.connect(musicGain);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.20;
+      g.connect(wet);
+      if (musicReverbIn) wet.connect(musicReverbIn);
+    }
     osc.start(time);
     osc.stop(time + duration + 0.05);
-  }
+  });
 }
 
-// Kick drum — short low sine with pitch envelope.
+// Kick drum — short low sine with pitch envelope, plus a 50Hz sub layer
+// for chest-thump on better speakers.
 function playKick(time) {
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -237,9 +285,21 @@ function playKick(time) {
   g.connect(musicGain);
   osc.start(time);
   osc.stop(time + 0.20);
+  // Sub layer — pure 50Hz sine, longer decay.
+  const sub = ctx.createOscillator();
+  sub.type = "sine";
+  sub.frequency.value = 50;
+  const subG = ctx.createGain();
+  subG.gain.setValueAtTime(0.0001, time);
+  subG.gain.exponentialRampToValueAtTime(0.32, time + 0.012);
+  subG.gain.exponentialRampToValueAtTime(0.0001, time + 0.30);
+  sub.connect(subG);
+  subG.connect(musicGain);
+  sub.start(time);
+  sub.stop(time + 0.32);
 }
 
-// Snare — filtered noise burst.
+// Snare — filtered noise burst with a reverb send for ambient tail.
 function playSnare(time) {
   if (!ctx) return;
   const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
@@ -258,6 +318,11 @@ function playSnare(time) {
   src.connect(bp);
   bp.connect(g);
   g.connect(musicGain);
+  // Reverb send — 30% wet.
+  const wet = ctx.createGain();
+  wet.gain.value = 0.30;
+  g.connect(wet);
+  if (musicReverbIn) wet.connect(musicReverbIn);
   src.start(time);
   src.stop(time + 0.16);
 }
