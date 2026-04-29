@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=80";
-import { buildScenery, tickAmbient } from "./scenery.js?v=80";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=80";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=80";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=80";
+import { buildTrack, getTrackList } from "./track.js?v=81";
+import { buildScenery, tickAmbient } from "./scenery.js?v=81";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=81";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=81";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=81";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=80";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=80";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=80";
-import { createReplay } from "./replay.js?v=80";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=80";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=80";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=80";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=80";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=80";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=80";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=80";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=81";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=81";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=81";
+import { createReplay } from "./replay.js?v=81";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=81";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=81";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=81";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=81";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=81";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=81";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=81";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=80";
+} from "./profile.js?v=81";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2108,9 +2108,11 @@ function drawMinimap() {
   const cx = (x) => pad + (x - minX) * s;
   const cz = (z) => pad + (z - minZ) * s;
 
-  // Track outline glow + line.
-  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.18)";
-  minimapCtx.lineWidth = 6;
+  // Track outline — three-pass glow for visibility.
+  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.10)";
+  minimapCtx.lineWidth = 12;
+  minimapCtx.lineJoin = "round";
+  minimapCtx.lineCap = "round";
   minimapCtx.beginPath();
   for (let i = 0; i < track.points.length; i++) {
     const p = track.points[i];
@@ -2119,43 +2121,60 @@ function drawMinimap() {
   }
   minimapCtx.closePath();
   minimapCtx.stroke();
-  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.85)";
-  minimapCtx.lineWidth = 1.5;
+  minimapCtx.strokeStyle = "rgba(46, 233, 255, 0.30)";
+  minimapCtx.lineWidth = 6;
+  minimapCtx.stroke();
+  minimapCtx.strokeStyle = "rgba(220, 238, 255, 0.95)";
+  minimapCtx.lineWidth = 2;
   minimapCtx.stroke();
 
-  // Start marker — hot pink dot at point 0.
+  // Start marker — bigger pink dot with halo.
   const sp = track.points[0];
+  minimapCtx.fillStyle = "rgba(255, 49, 92, 0.30)";
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx(sp.x), cz(sp.z), 6, 0, Math.PI * 2);
+  minimapCtx.fill();
   minimapCtx.fillStyle = "#ff315c";
   minimapCtx.beginPath();
-  minimapCtx.arc(cx(sp.x), cz(sp.z), 2.5, 0, Math.PI * 2);
+  minimapCtx.arc(cx(sp.x), cz(sp.z), 3, 0, Math.PI * 2);
   minimapCtx.fill();
 
-  // Rival dots — color by personality, fade for far-back rivals.
+  // Rival dots — bigger, with glow ring + tail-light hint
   const PERSONALITY_COLORS = {
     aggressive: "#ff5e3a", smooth: "#4adf80", consistent: "#ffd166", wildcard: "#a66cff"
   };
   for (const r of rivals) {
     const col = PERSONALITY_COLORS[r.personality?.id] || "#ffd166";
+    const dx = cx(r.mesh.position.x), dy = cz(r.mesh.position.z);
+    minimapCtx.fillStyle = col + "55";   // halo
+    minimapCtx.beginPath();
+    minimapCtx.arc(dx, dy, 5, 0, Math.PI * 2);
+    minimapCtx.fill();
     minimapCtx.fillStyle = col;
     minimapCtx.beginPath();
-    minimapCtx.arc(cx(r.mesh.position.x), cz(r.mesh.position.z), 2.4, 0, Math.PI * 2);
+    minimapCtx.arc(dx, dy, 2.8, 0, Math.PI * 2);
     minimapCtx.fill();
   }
 
-  // Player — triangle pointing in heading direction.
+  // Player — bigger triangle + outer glow ring.
   const px = cx(car.group.position.x);
   const py = cz(car.group.position.z);
   const yaw = car.heading;
+  // Outer halo ring.
+  minimapCtx.fillStyle = "rgba(46, 233, 255, 0.25)";
+  minimapCtx.beginPath();
+  minimapCtx.arc(px, py, 8, 0, Math.PI * 2);
+  minimapCtx.fill();
   minimapCtx.save();
   minimapCtx.translate(px, py);
-  minimapCtx.rotate(-yaw);            // canvas Y is inverted vs world Z
+  minimapCtx.rotate(-yaw);
   minimapCtx.fillStyle = "#fbfdff";
-  minimapCtx.shadowColor = "#fbfdff";
-  minimapCtx.shadowBlur = 8;
+  minimapCtx.shadowColor = "#2ee9ff";
+  minimapCtx.shadowBlur = 10;
   minimapCtx.beginPath();
-  minimapCtx.moveTo(0, -5);            // tip
-  minimapCtx.lineTo(-3.5, 4);
-  minimapCtx.lineTo(3.5, 4);
+  minimapCtx.moveTo(0, -7);
+  minimapCtx.lineTo(-5, 5);
+  minimapCtx.lineTo(5, 5);
   minimapCtx.closePath();
   minimapCtx.fill();
   minimapCtx.shadowBlur = 0;
@@ -3022,7 +3041,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=80");
+  const mod = await import("./garagePreview.js?v=81");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

@@ -561,14 +561,15 @@ button:hover { filter: brightness(1.08); }
 
 .minimap {
   position: absolute;
-  right: 14px;
-  top: 56px;
-  width: 132px;
-  height: 88px;
+  right: 18px;
+  top: 64px;
+  width: 180px;
+  height: 120px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 7px;
   background: rgba(8, 13, 22, 0.78);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.40);
   z-index: 3;
 }
 
