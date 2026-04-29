@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=74";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=75";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -176,7 +176,9 @@ export function buildTrack(trackId = "lakeside") {
   const groundTex = buildGroundTexture(track.palette.ground);
   groundTex.repeat.set(80, 80);
   const groundMat = new THREE.MeshStandardMaterial({
-    color: 0x606878,         // dim the texture sample to ~38% so ground stays dark
+    // Multiply texture by 18% — pushes ground way darker than the road's
+    // emissive-boosted self-glow. Now there's clear contrast.
+    color: 0x303440,
     map: groundTex,
     metalness: 0.0,
     roughness: 0.95,
