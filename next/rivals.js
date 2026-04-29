@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=96";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=97";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -69,6 +69,25 @@ function makeRivalMesh(variant) {
   body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
   group.add(body);
+  // Ground contact shadow — soft radial ellipse below the car.
+  {
+    const c = document.createElement("canvas");
+    c.width = 128; c.height = 64;
+    const x = c.getContext("2d");
+    const grad = x.createRadialGradient(64, 32, 0, 64, 32, 64);
+    grad.addColorStop(0,   "rgba(0,0,0,0.55)");
+    grad.addColorStop(0.6, "rgba(0,0,0,0.20)");
+    grad.addColorStop(1,   "rgba(0,0,0,0)");
+    x.fillStyle = grad;
+    x.fillRect(0, 0, c.width, c.height);
+    const tex = new THREE.CanvasTexture(c);
+    const shadowMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(w * 1.4, l * 1.0), shadowMat);
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(0, 0.025, 0);
+    shadow.renderOrder = 1;
+    group.add(shadow);
+  }
   // Glass — tinted dark, matches player.
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x050810, metalness: 0.20, roughness: 0.12, transparent: true, opacity: 0.85 });
   const glassGeo = buildExtrudedGlass(w * 0.94, bodyH, l * 0.96);
