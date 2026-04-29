@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=49";
-import { buildScenery, tickAmbient } from "./scenery.js?v=49";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=49";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=49";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=49";
+import { buildTrack, getTrackList } from "./track.js?v=50";
+import { buildScenery, tickAmbient } from "./scenery.js?v=50";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=50";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=50";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=50";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=49";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=49";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=49";
-import { createReplay } from "./replay.js?v=49";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=49";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=49";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=49";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=49";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=49";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=49";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=49";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=50";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=50";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=50";
+import { createReplay } from "./replay.js?v=50";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=50";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=50";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=50";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=50";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=50";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=50";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=50";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=49";
+} from "./profile.js?v=50";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -763,6 +763,42 @@ function renderRank() {
   }
 }
 renderRank();
+
+// First-launch welcome modal — 3-slide carousel. Shown only once until
+// the user dismisses it. Storage key persists across sessions.
+const WELCOME_KEY = "apex-akina-3d:welcomedV1";
+function maybeShowWelcome() {
+  let seen = false;
+  try { seen = localStorage.getItem(WELCOME_KEY) === "1"; } catch (_) {}
+  if (seen) return;
+  const modal = document.getElementById("welcome-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  let idx = 0;
+  const slides = modal.querySelectorAll(".welcome-slide");
+  const dots = modal.querySelectorAll(".welcome-dot");
+  const prev = document.getElementById("welcome-prev");
+  const next = document.getElementById("welcome-next");
+  const start = document.getElementById("welcome-start");
+  function show(i) {
+    idx = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle("is-active", j === idx));
+    dots.forEach((d, j) => d.classList.toggle("is-active", j === idx));
+    prev.hidden = idx === 0;
+    next.hidden = idx === slides.length - 1;
+    start.hidden = idx !== slides.length - 1;
+  }
+  function dismiss() {
+    modal.hidden = true;
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch (_) {}
+  }
+  prev?.addEventListener("click", () => show(idx - 1));
+  next?.addEventListener("click", () => show(idx + 1));
+  start?.addEventListener("click", dismiss);
+  dots.forEach((d) => d.addEventListener("click", () => show(parseInt(d.dataset.i, 10) || 0)));
+  show(0);
+}
+maybeShowWelcome();
 
 // Quick Race — pick a random track + current car, drop into race mode.
 document.getElementById("btn-quick-race")?.addEventListener("click", () => {
@@ -2055,6 +2091,30 @@ const CHAMP_LIVERY_NAMES = {
   pro:    "Silver Series Wing",
   pro2:   "Master Champion Gold",
 };
+// Color presets for champion liveries — applied to cars after a championship win.
+const CHAMP_LIVERY_PRESETS = {
+  rookie: {
+    label: "Bronze",
+    body:    0x4a3020,
+    stripe:  0xcd7f32,
+    accent:  0xff9c4a,
+    preview: "linear-gradient(135deg, #4a3020, #cd7f32)"
+  },
+  pro: {
+    label: "Silver",
+    body:    0x202830,
+    stripe:  0xc0c0c0,
+    accent:  0x80f0ff,
+    preview: "linear-gradient(135deg, #202830, #c0c0c0)"
+  },
+  pro2: {
+    label: "Champion",
+    body:    0x101418,
+    stripe:  0xffd166,
+    accent:  0xff315c,
+    preview: "linear-gradient(135deg, #101418, #ffd166)"
+  }
+};
 function showChampVictory(champId) {
   const champ = CHAMPIONSHIPS[champId];
   if (!champ) return;
@@ -2631,6 +2691,14 @@ function renderGarage() {
       }
     }
     const bestLapStr = bestLap !== Infinity ? formatTime(bestLap) : "—";
+    // Champion-livery preset chips — only shown if player has won that championship.
+    const unlocked = getChampUnlocks();
+    const champChips = unlocked.map((cid) => {
+      const preset = CHAMP_LIVERY_PRESETS[cid];
+      if (!preset) return "";
+      return `<button type="button" class="champ-chip" data-car="${id}" data-champ="${cid}" title="${CHAMP_LIVERY_NAMES[cid]}" style="background:${preset.preview}">${preset.label}</button>`;
+    }).join("");
+    const champRow = unlocked.length ? `<div class="champ-row" data-car-row="${id}">${champChips}</div>` : "";
     const div = document.createElement("div");
     div.className = "garage-car";
     div.innerHTML = `
@@ -2646,8 +2714,26 @@ function renderGarage() {
         <label><span>Stripe</span><input type="color" data-car="${id}" data-part="stripe" value="${hex(livery.stripe)}"></label>
         <label><span>Accent</span><input type="color" data-car="${id}" data-part="accent" value="${accentHex}"></label>
         <label class="spoiler-pick"><span>Spoiler</span><select data-car="${id}" data-part="spoiler">${spoilerOptionsHtml}</select></label>
-      </div>`;
+      </div>
+      ${champRow}`;
     wrap.appendChild(div);
+  }
+  // Champion-livery preset clicks.
+  for (const chip of wrap.querySelectorAll(".champ-chip")) {
+    chip.addEventListener("click", () => {
+      const carId = chip.dataset.car;
+      const champId = chip.dataset.champ;
+      const preset = CHAMP_LIVERY_PRESETS[champId];
+      if (!preset || !carId) return;
+      setCarColors(carId, preset.body, preset.stripe);
+      setCarAccent(carId, preset.accent);
+      if (carId === car.shape) {
+        swapCar(carId);
+        refreshGaragePreview();
+      }
+      renderGarage();
+      flashCallout(`${CHAMP_LIVERY_NAMES[champId]} applied`, 1200);
+    });
   }
   for (const input of wrap.querySelectorAll('input[type="color"]')) {
     input.addEventListener("input", () => {
@@ -2680,7 +2766,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=49");
+  const mod = await import("./garagePreview.js?v=50");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

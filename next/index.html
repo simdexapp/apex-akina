@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=49">
+    <link rel="stylesheet" href="styles.css?v=50">
     <script type="importmap">
       {
         "imports": {
@@ -269,6 +269,44 @@
           </div>
         </div>
 
+        <!-- First-launch welcome modal — 3-step intro carousel -->
+        <div class="welcome-modal" id="welcome-modal" hidden>
+          <div class="welcome-card">
+            <span class="welcome-eyebrow">Welcome to</span>
+            <h2 class="welcome-title">APEX AKINA</h2>
+            <div class="welcome-slides" id="welcome-slides">
+              <div class="welcome-slide is-active" data-slide="0">
+                <div class="welcome-icon">🏁</div>
+                <h3>Six modes to play</h3>
+                <p>Quick Race, Time Trial, full Career championships with bosses,
+                  Hot Lap chasing, Drift Trial scored on style, and 10-lap Endurance.</p>
+              </div>
+              <div class="welcome-slide" data-slide="1">
+                <div class="welcome-icon">🎮</div>
+                <h3>Easy controls</h3>
+                <p><kbd>WASD</kbd> or arrows to drive. <kbd>Shift</kbd> for boost.
+                  <kbd>Space</kbd> to drift. <kbd>P</kbd> for photo mode, <kbd>K</kbd> to save a screenshot.</p>
+              </div>
+              <div class="welcome-slide" data-slide="2">
+                <div class="welcome-icon">⭐</div>
+                <h3>Climb the ranks</h3>
+                <p>Earn Bronze → Diamond mastery on every track, build your Skill
+                  Rating across races, unlock champion liveries from career wins.</p>
+              </div>
+            </div>
+            <div class="welcome-dots" id="welcome-dots">
+              <span class="welcome-dot is-active" data-i="0"></span>
+              <span class="welcome-dot" data-i="1"></span>
+              <span class="welcome-dot" data-i="2"></span>
+            </div>
+            <div class="welcome-actions">
+              <button type="button" id="welcome-prev" class="ghost-btn" hidden>Back</button>
+              <button type="button" id="welcome-next">Next</button>
+              <button type="button" id="welcome-start" hidden>Drop In</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Championship victory — shown when a championship is won outright -->
         <div class="champ-victory" id="champ-victory" hidden>
           <div class="champ-victory-card">
@@ -482,6 +520,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=49"></script>
+    <script type="module" src="main.js?v=50"></script>
   </body>
 </html>
