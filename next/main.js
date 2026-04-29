@@ -2,35 +2,38 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=60";
-import { buildScenery, tickAmbient } from "./scenery.js?v=60";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=60";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=60";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=60";
+import { buildTrack, getTrackList } from "./track.js?v=61";
+import { buildScenery, tickAmbient } from "./scenery.js?v=61";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=61";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=61";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=61";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=60";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=60";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=60";
-import { createReplay } from "./replay.js?v=60";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=60";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=60";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=60";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=60";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=60";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=60";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=60";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=61";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=61";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=61";
+import { createReplay } from "./replay.js?v=61";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=61";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=61";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=61";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=61";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=61";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=61";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=61";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=60";
+} from "./profile.js?v=61";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Cap pixel ratio at 1.5 — full retina (×2) is 4× the pixel work for
+// minimal perceptible gain in a fast-moving racing camera. Saves ~30%
+// fragment work on high-DPI screens.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.65;             // brighter, more cinematic
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -120,7 +123,7 @@ scene.add(ambient);
 const moonLight = new THREE.DirectionalLight(0xfde2c4, 2.4);
 moonLight.position.set(60, 110, 40);
 moonLight.castShadow = true;
-moonLight.shadow.mapSize.set(2048, 2048);
+moonLight.shadow.mapSize.set(1024, 1024);
 moonLight.shadow.camera.near = 10;
 moonLight.shadow.camera.far = 320;
 moonLight.shadow.camera.left = -90;
@@ -212,11 +215,30 @@ const initialCarShape = (() => {
 
 // Walk a Three.js subtree and flag meshes as shadow casters / receivers.
 // Skip MeshBasic (lamps, lights) — they shouldn't cast.
+// SELECTIVE shadow application — only the largest meshes cast shadows.
+// Tagging via userData.shadowCast picks specific parts (body, cabin, wheels)
+// and skips small details (lug nuts, mirror lenses, exhaust tips, vents,
+// splitter, fender flares, diffuser fins, hood vents) which contribute
+// almost nothing visually but cost a full shadow draw each.
+//
+// Effect on cars: ~20 shadow-cast meshes per car drops to ~6, so 14
+// rivals + player = 90 shadow casters instead of 300. That's the biggest
+// per-frame draw-call save in the engine.
 function applyShadows(root, { cast = true, receive = false } = {}) {
+  // For root meshes that haven't been tagged yet, fall back to the old
+  // behavior — only used by track scenery + ground.
+  let anyTagged = false;
+  root.traverse((obj) => { if (obj.userData && obj.userData.shadowCast === true) anyTagged = true; });
   root.traverse((obj) => {
     if (!obj.isMesh) return;
     const isBasic = obj.material && obj.material.isMeshBasicMaterial;
-    if (cast && !isBasic) obj.castShadow = true;
+    if (cast && !isBasic) {
+      if (anyTagged) {
+        obj.castShadow = obj.userData.shadowCast === true;
+      } else {
+        obj.castShadow = true;
+      }
+    }
     if (receive) obj.receiveShadow = true;
   });
 }
@@ -447,8 +469,10 @@ let cameraShake = 0;       // current shake intensity, decays to 0
 let fovPunch = 0;          // current fov delta over base, decays to 0
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-// Restrained bloom — keep the lights glowing but stop everything from looking neon-soaked.
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.55, 0.6, 0.85);
+// Restrained bloom — half-resolution internal buffers. Bloom is naturally
+// blurry so the half-res mip chain looks identical and costs ~75% less
+// fragment work than full-resolution. Big perf win on retina screens.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth * 0.5, canvas.clientHeight * 0.5), 0.55, 0.6, 0.85);
 composer.addPass(bloomPass);
 
 // Weather system — particle clouds + fog tweaks. Player can cycle modes
@@ -463,6 +487,8 @@ function resize() {
   const rect = canvas.getBoundingClientRect();
   renderer.setSize(rect.width, rect.height, false);
   composer.setSize(rect.width, rect.height);
+  // Keep bloom at half-resolution after resize.
+  bloomPass.setSize(rect.width * 0.5, rect.height * 0.5);
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
 }
@@ -2860,7 +2886,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=60");
+  const mod = await import("./garagePreview.js?v=61");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -3238,9 +3264,9 @@ const settings = loadSettings();
 // Graphics quality presets — more impactful than just toggling shadows.
 // "ultra" cranks everything; "low" prioritises framerate.
 const QUALITY_PRESETS = {
-  ultra:  { shadows: true,  shadowSize: 4096, bloom: true,  bloomStrength: 0.70, pixelRatio: Math.min(window.devicePixelRatio, 2),    particleCap: 160, sceneryScale: 1.0 },
-  high:   { shadows: true,  shadowSize: 2048, bloom: true,  bloomStrength: 0.55, pixelRatio: Math.min(window.devicePixelRatio, 1.75), particleCap: 100, sceneryScale: 1.0 },
-  medium: { shadows: true,  shadowSize: 1024, bloom: true,  bloomStrength: 0.40, pixelRatio: Math.min(window.devicePixelRatio, 1.25), particleCap: 60,  sceneryScale: 0.7 },
+  ultra:  { shadows: true,  shadowSize: 2048, bloom: true,  bloomStrength: 0.65, pixelRatio: Math.min(window.devicePixelRatio, 1.5),  particleCap: 120, sceneryScale: 1.0 },
+  high:   { shadows: true,  shadowSize: 1024, bloom: true,  bloomStrength: 0.50, pixelRatio: Math.min(window.devicePixelRatio, 1.25), particleCap: 80,  sceneryScale: 1.0 },
+  medium: { shadows: true,  shadowSize: 512,  bloom: true,  bloomStrength: 0.35, pixelRatio: 1.0,                                     particleCap: 50,  sceneryScale: 0.7 },
   low:    { shadows: false, shadowSize: 512,  bloom: false, bloomStrength: 0.0,  pixelRatio: 1.0,                                     particleCap: 25,  sceneryScale: 0.4 }
 };
 

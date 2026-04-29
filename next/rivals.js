@@ -64,12 +64,14 @@ function makeRivalMesh(variant) {
   const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.55, roughness: 0.30 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, h * 0.85 + h * 0.5, -l * 0.03);
+  body.userData.shadowCast = true;
   group.add(body);
   // Sloped cabin (more aggressive rake to match sleek style)
   const cabinW = w * 0.82, cabinH = h * 0.78, cabinL = l * 0.44;
   const cabinMat = new THREE.MeshStandardMaterial({ color: 0x101729, metalness: 0.25, roughness: 0.3 });
   const cabin = new THREE.Mesh(buildSlopedCabin(cabinW, cabinH, cabinL, -l * 0.04, 0.45, 0.35), cabinMat);
   cabin.position.y = h * 0.85 + h * 0.5 - 0.05;
+  cabin.userData.shadowCast = true;
   group.add(cabin);
   // Glass
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.36 });
@@ -116,6 +118,7 @@ function makeRivalMesh(variant) {
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(px, 0.36, pz);
+    wheel.userData.shadowCast = true;
     group.add(wheel);
   }
   // Spoiler per variant.

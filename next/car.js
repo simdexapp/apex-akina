@@ -319,6 +319,7 @@ function buildBody(shape) {
   const bodyMat = pbr(shape.body, 0.55, 0.30);  // higher metalness, lower roughness for richer reflections
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, shape.height * 0.85 + shape.height * 0.5, -shape.length * 0.03);
+  body.userData.shadowCast = true;
   group.add(body);
 
   // Sloped cabin (windshield + roof + rear glass tapered).
@@ -326,6 +327,7 @@ function buildBody(shape) {
   const cabinGeo = buildSlopedCabin(shape.cabin.w, cabinH, shape.cabin.l, shape.cabin.z);
   const cabin = new THREE.Mesh(cabinGeo, pbr(0x101729, 0.25, 0.28));
   cabin.position.y = shape.height * 0.85 + shape.height * 0.5 - 0.05;
+  cabin.userData.shadowCast = true;
   group.add(cabin);
 
   // Glass: a slightly inset copy of the cabin, semi-transparent.
@@ -392,6 +394,7 @@ function buildBody(shape) {
     const w = new THREE.Mesh(wheelGeo, wheelMat);
     w.rotation.z = Math.PI / 2;
     w.position.set(x, 0.40, z);
+    w.userData.shadowCast = true;
     group.add(w);
     const hub = new THREE.Mesh(hubGeo, hubMat);
     hub.rotation.z = Math.PI / 2;
