@@ -1031,8 +1031,11 @@ function stepTrack(car, dt, track) {
   } else if (Math.abs(proj.lateral) > track.halfWidth) {
     car.speed -= Math.sign(car.speed) * OFF_ROAD_DRAG * 0.4 * dt;
     car._lastBarrier = false;
+    // Mark off-road state so main.js can spawn dust particles.
+    car._offRoad = true;
   } else {
     car._lastBarrier = false;
+    car._offRoad = false;
   }
   const target = track.points[proj.segmentIndex].y;
   car.group.position.y += (target + 0.4 - car.group.position.y) * Math.min(1, dt * 8);
