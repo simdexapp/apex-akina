@@ -145,6 +145,94 @@ function pbr(color, metalness = 0.4, roughness = 0.5) {
 // Build a sleeker car body — a 14-vertex chamfered prism with a beveled
 // nose and tail, narrower waist than the wheel arches, and a slight
 // shoulder line. Replaces the old BoxGeometry "boxy" body.
+// Build the entire car body — including roof + cabin + windows — as ONE
+// extruded silhouette. Approach: define a 2D side-profile path (front bumper
+// up over hood, windshield, roof, rear glass, trunk, rear bumper, back along
+// the bottom), then extrude it along the Z axis to get a single coherent body.
+// This avoids the "stack of bolted-on parts" look the previous multi-mesh
+// builder produced. Bevel rounds the silhouette edges so it reads physical.
+export function buildExtrudedCarBody(w, h, l) {
+  // 2D shape lives in (X, Y) where X is car length (-l/2 = rear, +l/2 = front)
+  // and Y is car height (-h/2 = ground level, h/2 + cabin = roof).
+  const fHL = l * 0.5;  // front half-length
+  const rHL = l * 0.5;  // rear half-length
+  const bumperY = -h * 0.50;
+  const beltLineY = h * 0.05;       // top of body, below cabin
+  const roofY = h * 0.85;            // top of cabin
+  const noseFrontX  =  fHL;
+  const noseTopX    =  fHL * 0.78;   // hood meets windshield
+  const wsTopX      =  fHL * 0.20;   // top of windshield
+  const roofRearX   = -rHL * 0.20;   // back of roof
+  const rearGlassX  = -rHL * 0.60;   // top of trunk
+  const trunkRearX  = -rHL * 0.92;   // top corner of rear bumper
+  const rearTipX    = -rHL;
+  const shape = new THREE.Shape();
+  // Start at front-bottom (front bumper, ground level).
+  shape.moveTo(noseFrontX, bumperY + h * 0.10);
+  // Up the front bumper.
+  shape.lineTo(noseFrontX, h * -0.10);
+  // Over the hood (slight upward curve).
+  shape.lineTo(noseTopX, beltLineY);
+  // Up the windshield.
+  shape.lineTo(wsTopX, roofY);
+  // Across the roof.
+  shape.lineTo(roofRearX, roofY);
+  // Down the rear glass.
+  shape.lineTo(rearGlassX, beltLineY);
+  // Across the trunk.
+  shape.lineTo(trunkRearX, beltLineY);
+  // Down the rear bumper.
+  shape.lineTo(rearTipX, h * -0.10);
+  shape.lineTo(rearTipX, bumperY + h * 0.10);
+  // Back along the underbody.
+  shape.lineTo(noseFrontX, bumperY + h * 0.10);
+  const extrudeSettings = {
+    steps: 1,
+    depth: w,                         // extrude along Z = car width
+    bevelEnabled: true,
+    bevelThickness: w * 0.05,
+    bevelSize: w * 0.05,
+    bevelSegments: 4,
+    curveSegments: 6
+  };
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  // Center on origin: extrude starts at z=0; recenter to z = -w/2.
+  geo.translate(0, 0, -w * 0.5);
+  // Rotate so the X axis becomes the car's local Z (length), and Z becomes X (width).
+  geo.rotateY(Math.PI / 2);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Glass overlay — a thinner extrude of just the upper window line.
+export function buildExtrudedGlass(w, h, l) {
+  const fHL = l * 0.5;
+  const rHL = l * 0.5;
+  const beltLineY = h * 0.18;
+  const roofY = h * 0.82;
+  const wsTopX     =  fHL * 0.20;
+  const roofRearX  = -rHL * 0.20;
+  const noseTopX   =  fHL * 0.62;
+  const rearGlassX = -rHL * 0.60;
+  const shape = new THREE.Shape();
+  shape.moveTo(noseTopX, beltLineY);
+  shape.lineTo(wsTopX, roofY);
+  shape.lineTo(roofRearX, roofY);
+  shape.lineTo(rearGlassX, beltLineY);
+  shape.lineTo(noseTopX, beltLineY);
+  const settings = {
+    steps: 1,
+    depth: w * 0.86,
+    bevelEnabled: false,
+    curveSegments: 6
+  };
+  const geo = new THREE.ExtrudeGeometry(shape, settings);
+  geo.translate(0, 0, -w * 0.43);
+  geo.rotateY(Math.PI / 2);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function buildSleekBody(w, h, l) {
   const hw = w * 0.5;
   const hh = h * 0.5;
@@ -314,70 +402,45 @@ export function buildNoseWedge(w, h, l) {
 function buildBody(shape) {
   const group = new THREE.Group();
 
-  const bodyGeo = buildSleekBody(shape.width, shape.height, shape.length * 0.94);
-  const bodyMat = pbr(shape.body, 0.55, 0.30);  // higher metalness, lower roughness for richer reflections
+  // SINGLE extruded body — silhouette includes hood + windshield + roof +
+  // rear glass + trunk in one coherent shape. Looks like an actual car
+  // instead of a stack of glued-on parts.
+  const bodyH = shape.height * 1.65;     // overall vertical extent (body + cabin)
+  const bodyGeo = buildExtrudedCarBody(shape.width, bodyH, shape.length * 0.96);
+  const bodyMat = pbr(shape.body, 0.55, 0.32);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.set(0, shape.height * 0.85 + shape.height * 0.5, -shape.length * 0.03);
+  body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
   group.add(body);
 
-  // Sloped cabin (windshield + roof + rear glass tapered).
-  const cabinH = shape.cabin.h * 1.05;
-  const cabinGeo = buildSlopedCabin(shape.cabin.w, cabinH, shape.cabin.l, shape.cabin.z);
-  const cabin = new THREE.Mesh(cabinGeo, pbr(0x101729, 0.25, 0.28));
-  cabin.position.y = shape.height * 0.85 + shape.height * 0.5 - 0.05;
-  cabin.userData.shadowCast = true;
-  group.add(cabin);
-
-  // Glass: a slightly inset copy of the cabin, semi-transparent.
+  // Glass — same silhouette but only the upper window section, tinted dark.
   const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.36
+    color: 0x080a14, metalness: 0.10, roughness: 0.18, transparent: true, opacity: 0.78
   });
-  const glassGeo = buildSlopedCabin(shape.cabin.w * 0.96, cabinH * 0.94, shape.cabin.l * 0.96, shape.cabin.z);
+  const glassGeo = buildExtrudedGlass(shape.width * 0.94, bodyH, shape.length * 0.96);
   const glass = new THREE.Mesh(glassGeo, glassMat);
-  glass.position.copy(cabin.position);
-  glass.position.y += 0.02;
+  glass.position.set(0, bodyH * 0.5 + 0.06, 0);
   group.add(glass);
 
-  // Window frames — thin chrome strips around the cabin top.
-  const frameMat = pbr(shape.accent ?? 0xc8d4e6, 0.85, 0.22);
-  const cabinTopY = cabin.position.y + cabinH;
-  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(shape.cabin.w * 0.84, 0.04, shape.cabin.l * 0.45), frameMat);
-  frameTop.position.set(0, cabinTopY, shape.cabin.z);
-  group.add(frameTop);
-  // Waistline strip — bottom of the windows.
-  for (const side of [-1, 1]) {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, shape.cabin.l * 0.94), frameMat);
-    strip.position.set(side * (shape.cabin.w * 0.5 - 0.02), cabin.position.y, shape.cabin.z);
-    group.add(strip);
-  }
-
-  // Side mirrors — small wedges on the front pillar.
+  // Side mirrors — small wedges on the A-pillar.
   const mirrorMat = pbr(shape.body, 0.4, 0.5);
   for (const side of [-1, 1]) {
-    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.10, 0.14), mirrorMat);
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.12), mirrorMat);
     mirror.position.set(
-      side * (shape.cabin.w * 0.5 + 0.06),
-      cabin.position.y + cabinH * 0.45,
-      shape.cabin.z + shape.cabin.l * 0.32
+      side * (shape.width * 0.5 + 0.04),
+      bodyH * 0.78,
+      shape.length * 0.10
     );
     group.add(mirror);
-    // Mirror glass facet.
-    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.10), pbr(0x2ee9ff, 0.0, 0.2));
-    lens.position.set(
-      side * (shape.cabin.w * 0.5 + 0.16),
-      cabin.position.y + cabinH * 0.45,
-      shape.cabin.z + shape.cabin.l * 0.32
-    );
-    group.add(lens);
   }
 
-  // Stripe
+  // Centerline racing stripe — thin band on the hood + roof.
+  const stripeMat = pbr(shape.stripe, 0.1, 0.4);
   const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.30, shape.height + 0.02, shape.length + 0.02),
-    pbr(shape.stripe, 0.1, 0.4)
+    new THREE.BoxGeometry(0.20, 0.04, shape.length * 0.96),
+    stripeMat
   );
-  stripe.position.y = shape.height * 0.85;
+  stripe.position.set(0, bodyH * 1.02, 0);
   group.add(stripe);
 
   // Wheels with chrome hubs (color customizable via livery.accent).
@@ -407,7 +470,7 @@ function buildBody(shape) {
     new THREE.BoxGeometry(shape.width * 0.66, shape.height * 0.22, 0.04),
     grilleMat
   );
-  grille.position.set(0, shape.height * 0.38, shape.length * 0.51);
+  grille.position.set(0, bodyH * 0.20, shape.length * 0.51);
   group.add(grille);
 
   // Rear bumper panel — dark band across the back.
@@ -415,7 +478,7 @@ function buildBody(shape) {
     new THREE.BoxGeometry(shape.width * 0.86, shape.height * 0.20, 0.04),
     grilleMat
   );
-  rearBumper.position.set(0, shape.height * 0.34, -shape.length * 0.51);
+  rearBumper.position.set(0, bodyH * 0.18, -shape.length * 0.51);
   group.add(rearBumper);
 
   // Twin exhaust tips — small chrome rings, integrated into the bumper.
@@ -426,7 +489,7 @@ function buildBody(shape) {
       exhaustMat
     );
     exh.rotation.x = Math.PI / 2;
-    exh.position.set(side * shape.width * 0.26, shape.height * 0.30, -shape.length * 0.52);
+    exh.position.set(side * shape.width * 0.26, bodyH * 0.15, -shape.length * 0.52);
     group.add(exh);
   }
 
@@ -485,7 +548,8 @@ function buildBody(shape) {
   // Tail lights — slim, integrated at body height (matches the upper edge
   // of the rear bumper so they read as part of the body panel, not stuck on).
   const tailLights = [];
-  const tailY = shape.height * 0.48;
+  // Position at the rear-deck height (just below the rear glass).
+  const tailY = bodyH * 0.42;
   for (const side of [-1, 1]) {
     const tailMat = new THREE.MeshStandardMaterial({
       color: 0xff315c,
@@ -496,7 +560,7 @@ function buildBody(shape) {
       new THREE.BoxGeometry(shape.width * 0.32, 0.05, 0.04),
       tailMat
     );
-    tail.position.set(side * shape.width * 0.28, tailY, -shape.length * 0.52);
+    tail.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.52);
     group.add(tail);
     tailLights.push(tailMat);
   }
@@ -544,9 +608,9 @@ function buildBody(shape) {
   hubM.rotation.x = Math.PI / 2 - 0.35;
   wheelGroup.add(hubM);
   wheelGroup.position.set(
-    -shape.cabin.w * 0.20,                                       // driver's side (left in JDM RHD = right; left for now)
-    shape.height * 0.85 + shape.cabin.h * 0.55,
-    shape.cabin.z + shape.cabin.l * 0.10
+    -shape.width * 0.16,                  // driver's side
+    bodyH * 0.78,                          // cabin height
+    -shape.length * 0.10                   // slightly behind centerline
   );
   group.add(wheelGroup);
   group.userData.steeringWheel = wheelGroup;
@@ -739,19 +803,12 @@ function stepLateral(car, dt) {
   // letting the rear rotate into the corner.
   const input = car._lastInput || {};
   const trailFactor = (input.brake && Math.abs(car.steer) > 0.18) ? (1 + TRAIL_BRAKE_BOOST) : 1;
-  // Tire load transfer — subtle bias only, smoothly applied so it doesn't
-  // make the car feel "different" between throttle/brake/coast states.
-  // Smoothed via a per-car float so transitions are continuous.
-  let loadTarget = 1.0;
-  if (input.brake) loadTarget = 1.08;
-  else if (input.throttle) loadTarget = 0.97;
-  car._loadFactor = (car._loadFactor ?? 1.0) + (loadTarget - (car._loadFactor ?? 1.0)) * Math.min(1, dt * 6);
-  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct * car._loadFactor;
+  // Pure response, no load-transfer smoothing — the smoothing was making
+  // the car feel mushy on quick throttle/brake transitions.
+  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct;
   car.lateralV += sideKick * dt * (car.driftActive ? 11 : 4);
-  // Grip damping — only slightly stronger when not drifting; bigger ratios
-  // were making the car feel sluggish on straights.
-  const dampMul = car.driftActive ? 1.0 : 1.06;
-  car.lateralV -= car.lateralV * Math.min(1, grip * dt * dampMul);
+  // Grip damping — back to a simple value, no extra multiplier.
+  car.lateralV -= car.lateralV * Math.min(1, grip * dt);
 }
 
 function stepIntegrate(car, dt) {

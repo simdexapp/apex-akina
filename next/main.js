@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=62";
-import { buildScenery, tickAmbient } from "./scenery.js?v=62";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=62";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=62";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=62";
+import { buildTrack, getTrackList } from "./track.js?v=63";
+import { buildScenery, tickAmbient } from "./scenery.js?v=63";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=63";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=63";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=63";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=62";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=62";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=62";
-import { createReplay } from "./replay.js?v=62";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=62";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=62";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=62";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=62";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=62";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=62";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=62";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=63";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=63";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=63";
+import { createReplay } from "./replay.js?v=63";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=63";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=63";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=63";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=63";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=63";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=63";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=63";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=62";
+} from "./profile.js?v=63";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1223,8 +1223,11 @@ function tick(dt) {
   const playerProj = track.project(car.group.position);
   const playerTotal = lap * track.length + playerProj.s;
 
-  if (gameMode === "race") {
-    tickRivals(rivals, dt, track, car, playerTotal, settings.difficulty || "normal");
+  if (gameMode === "race" || gameMode === "career" || gameMode === "endurance") {
+    // During slow-mo, rivals tick slower than the player — the player gets
+    // ~1.5× more ground covered than rivals while Shift is held.
+    const rivalDtScale = (car && car.slowActive) ? 0.65 : 1.0;
+    tickRivals(rivals, dt, track, car, playerTotal, settings.difficulty || "normal", rivalDtScale);
   }
 
   // Replay — always record while racing.
@@ -1446,7 +1449,10 @@ function loop(now) {
       if (finalZone) target = Math.min(target, 0.55);
     }
     if (car && car.slowActive) {
-      target = Math.min(target, 0.40);   // slow-mo when player holds Shift
+      // World runs at 60% — player ticks at this rate, rivals get an
+      // extra 0.65× multiplier inside tickRivals = ~39% real time.
+      // Net: player covers ~1.54× more ground than rivals during slow-mo.
+      target = Math.min(target, 0.60);
       raceCtx.slowMoUsed = true;
     }
     slowMoFactor += (target - slowMoFactor) * Math.min(1, dt * (target < 1 ? 8 : 4));
@@ -2844,7 +2850,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=62");
+  const mod = await import("./garagePreview.js?v=63");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

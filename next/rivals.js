@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody } from "./car.js";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -55,34 +55,27 @@ export const BOSS_VARIANTS = [
 
 function makeRivalMesh(variant) {
   const group = new THREE.Group();
-  // Apply sleek-JDM proportions: lower stance, wider stance.
   const w = variant.w * 1.05;
   const h = variant.h * 0.74;
   const l = variant.l * 1.04;
-  // Body — sleek JDM chamfered prism instead of box.
-  const bodyGeo = buildSleekBody(w, h, l * 0.94);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.55, roughness: 0.30 });
+  const bodyH = h * 1.65;
+  // Single-extruded body matches the player car style.
+  const bodyGeo = buildExtrudedCarBody(w, bodyH, l * 0.96);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.55, roughness: 0.32 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.set(0, h * 0.85 + h * 0.5, -l * 0.03);
+  body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
   group.add(body);
-  // Sloped cabin (more aggressive rake to match sleek style)
-  const cabinW = w * 0.82, cabinH = h * 0.78, cabinL = l * 0.44;
-  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x101729, metalness: 0.25, roughness: 0.3 });
-  const cabin = new THREE.Mesh(buildSlopedCabin(cabinW, cabinH, cabinL, -l * 0.04, 0.45, 0.35), cabinMat);
-  cabin.position.y = h * 0.85 + h * 0.5 - 0.05;
-  cabin.userData.shadowCast = true;
-  group.add(cabin);
-  // Glass
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x2ee9ff, metalness: 0.0, roughness: 0.1, transparent: true, opacity: 0.36 });
-  const glass = new THREE.Mesh(buildSlopedCabin(cabinW * 0.96, cabinH * 0.94, cabinL * 0.96, -l * 0.04, 0.45, 0.35), glassMat);
-  glass.position.copy(cabin.position);
-  glass.position.y += 0.02;
+  // Glass — tinted dark, matches player.
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x080a14, metalness: 0.10, roughness: 0.18, transparent: true, opacity: 0.78 });
+  const glassGeo = buildExtrudedGlass(w * 0.94, bodyH, l * 0.96);
+  const glass = new THREE.Mesh(glassGeo, glassMat);
+  glass.position.set(0, bodyH * 0.5 + 0.06, 0);
   group.add(glass);
-  // Stripe — center racing stripe, simple band.
+  // Centerline racing stripe across the roof.
   const stripeMat = new THREE.MeshStandardMaterial({ color: variant.stripe, metalness: 0.1, roughness: 0.4 });
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, h + 0.02, l + 0.02), stripeMat);
-  stripe.position.y = h * 0.85;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, l * 0.94), stripeMat);
+  stripe.position.set(0, bodyH * 1.02, 0);
   group.add(stripe);
   // Wheels — black tire + simple chrome hub.
   const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12);
@@ -109,40 +102,42 @@ function makeRivalMesh(variant) {
     new THREE.BoxGeometry(w * 0.66, h * 0.22, 0.04),
     grilleMat
   );
-  grille.position.set(0, h * 0.38, l * 0.51);
+  grille.position.set(0, bodyH * 0.20, l * 0.51);
   group.add(grille);
   // Rear bumper panel.
   const rearBumper = new THREE.Mesh(
     new THREE.BoxGeometry(w * 0.86, h * 0.20, 0.04),
     grilleMat
   );
-  rearBumper.position.set(0, h * 0.34, -l * 0.51);
+  rearBumper.position.set(0, bodyH * 0.18, -l * 0.51);
   group.add(rearBumper);
-  // Spoiler per variant.
+  // Spoiler per variant — Y values rebased on bodyH.
+  const roofY = bodyH * 0.95;
+  const trunkY = bodyH * 0.50;
   if (variant.spoiler === "wing") {
     const wingMat = new THREE.MeshStandardMaterial({ color: 0x10131e });
     const wing = new THREE.Mesh(new THREE.BoxGeometry(w * 0.95, 0.06, 0.30), wingMat);
-    wing.position.set(0, h * 0.85 + h * 0.5 + 0.50, -l * 0.42);
+    wing.position.set(0, trunkY + 0.52, -l * 0.42);
     group.add(wing);
     for (const side of [-1, 1]) {
-      const r = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.46, 0.10), wingMat);
-      r.position.set(side * w * 0.32, h * 0.85 + h * 0.5 + 0.27, -l * 0.42);
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.46, 0.10), wingMat);
+      r.position.set(side * w * 0.32, trunkY + 0.28, -l * 0.42);
       group.add(r);
     }
   } else if (variant.spoiler === "ducktail") {
     const tailMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.4 });
     const tail = new THREE.Mesh(new THREE.BoxGeometry(w * 0.85, 0.10, 0.32), tailMat);
-    tail.position.set(0, h * 0.85 + h * 0.55, -l * 0.40);
+    tail.position.set(0, trunkY + 0.10, -l * 0.40);
     group.add(tail);
   } else if (variant.spoiler === "deck") {
     const tailMat = new THREE.MeshStandardMaterial({ color: 0x10131e });
     const tail = new THREE.Mesh(new THREE.BoxGeometry(w * 0.95, 0.06, 0.18), tailMat);
-    tail.position.set(0, h * 0.85 + h * 0.5 + 0.10, -l * 0.46);
+    tail.position.set(0, trunkY + 0.05, -l * 0.46);
     group.add(tail);
   } else if (variant.spoiler === "lip") {
     const lipMat = new THREE.MeshStandardMaterial({ color: 0x0a0d18 });
     const lip = new THREE.Mesh(new THREE.BoxGeometry(w * 0.85, 0.05, 0.20), lipMat);
-    lip.position.set(0, h * 0.18, -l * 0.44);
+    lip.position.set(0, bodyH * 0.10, -l * 0.44);
     group.add(lip);
   }
   // Tail lights — slim emissive bars at body height (matches player car).
@@ -151,7 +146,7 @@ function makeRivalMesh(variant) {
     emissive: 0xff315c,
     emissiveIntensity: 0.95
   });
-  const tailY = h * 0.48;
+  const tailY = bodyH * 0.42;
   for (const side of [-1, 1]) {
     const tail = new THREE.Mesh(new THREE.BoxGeometry(w * 0.32, 0.05, 0.04), tailMat);
     tail.position.set(side * w * 0.28, tailY, -l * 0.52);
@@ -301,7 +296,8 @@ const DIFFICULTY_PROFILES = {
   brutal:  { paceMul: 1.24, rubberCatchup: 1.00, rubberEase: 1.00, rubberMode: "none" }
 };
 
-export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, difficulty = "normal") {
+export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, difficulty = "normal", rivalDtScale = 1.0) {
+  dt = dt * rivalDtScale;
   const trackLen = track.length;
   const prof = DIFFICULTY_PROFILES[difficulty] || DIFFICULTY_PROFILES.normal;
   // Rubber-band: rivals just behind/ahead of the player get a small boost/drag.
