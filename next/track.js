@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=117";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=118";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
