@@ -815,16 +815,18 @@ function stepLateral(car, dt) {
   // letting the rear rotate into the corner.
   const input = car._lastInput || {};
   const trailFactor = (input.brake && Math.abs(car.steer) > 0.18) ? (1 + TRAIL_BRAKE_BOOST) : 1;
-  // Tire load transfer — front grip increases under braking (more steering
-  // authority), decreases under throttle. Subtle but adds "fluid" feel.
-  let loadFactor = 1.0;
-  if (input.brake) loadFactor = 1.18;
-  else if (input.throttle) loadFactor = 0.94;
-  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct * loadFactor;
+  // Tire load transfer — subtle bias only, smoothly applied so it doesn't
+  // make the car feel "different" between throttle/brake/coast states.
+  // Smoothed via a per-car float so transitions are continuous.
+  let loadTarget = 1.0;
+  if (input.brake) loadTarget = 1.08;
+  else if (input.throttle) loadTarget = 0.97;
+  car._loadFactor = (car._loadFactor ?? 1.0) + (loadTarget - (car._loadFactor ?? 1.0)) * Math.min(1, dt * 6);
+  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct * car._loadFactor;
   car.lateralV += sideKick * dt * (car.driftActive ? 11 : 4);
-  // Grip damping — slightly stronger when not drifting so the car settles
-  // smoothly toward 0 lateral instead of feeling jittery on straights.
-  const dampMul = car.driftActive ? 1.0 : 1.18;
+  // Grip damping — only slightly stronger when not drifting; bigger ratios
+  // were making the car feel sluggish on straights.
+  const dampMul = car.driftActive ? 1.0 : 1.06;
   car.lateralV -= car.lateralV * Math.min(1, grip * dt * dampMul);
 }
 

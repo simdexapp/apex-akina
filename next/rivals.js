@@ -220,13 +220,13 @@ export function createRivals(track, count = 14, opts = {}) {
       s: gridS,
       lane: gridLane,
       homeLane,
-      // Faster baseline pace — front pack now hovers in 90-95 m/s range
-      // (~340 km/h on straights, AI throttles down through corners) so they
-      // actually contest the player instead of cruising.
-      targetSpeed: isBoss ? variant.basePace + Math.random() * 6
-                  : i < 4 ? 90 + Math.random() * 6
-                  : i < 9 ? 84 + Math.random() * 6
-                  : 76 + Math.random() * 6,
+      // Baseline pace tuned for smooth motion — too fast and the corner
+      // brake-urgency stutters constantly. Front pack ~84 m/s; mid 78;
+      // back of the field 71. Difficulty multiplier scales these later.
+      targetSpeed: isBoss ? variant.basePace + Math.random() * 5
+                  : i < 4 ? 84 + Math.random() * 5
+                  : i < 9 ? 78 + Math.random() * 5
+                  : 71 + Math.random() * 5,
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
@@ -439,30 +439,46 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     r.lane += (targetLane - r.lane) * Math.min(1, dt * 2.4);
 
     // ---- Mistakes ----
-    // Aggressive + wildcard drivers occasionally overshoot a corner or
-    // brake too late, dropping pace for ~1.5 sec. Adds drama: AI sometimes
-    // gives the player a chance to pass without artificial rubber-banding.
+    // Mistakes drop pace for ~1.5 sec at sharp corner entries. Both the
+    // start and end of the mistake fade in/out smoothly via an easing
+    // curve so the car doesn't snap to/from slow pace.
     if (r.crashedT <= 0) {
       r.mistakeCooldown -= dt;
       if (r.mistakeT > 0) r.mistakeT -= dt;
       else if (r.mistakeCooldown <= 0) {
-        // Roll for mistake on every entry into a sharp corner.
-        const cornerSharp = curveSeverity > 0.020;
-        const baseChance = (r.personality?.id === "smooth") ? 0.04
-                         : (r.personality?.id === "aggressive") ? 0.16
-                         : (r.personality?.id === "wildcard") ? 0.20 : 0.10;
-        // Bosses make far fewer mistakes.
+        const cornerSharp = curveSeverity > 0.022;
+        const baseChance = (r.personality?.id === "smooth") ? 0.03
+                         : (r.personality?.id === "aggressive") ? 0.10
+                         : (r.personality?.id === "wildcard") ? 0.13 : 0.06;
         const mistakeChance = (r.isBoss ? baseChance * 0.30 : baseChance) * dt;
         if (cornerSharp && Math.random() < mistakeChance) {
-          r.mistakeT = 1.0 + Math.random() * 0.8;
-          r.mistakeCooldown = 12 + Math.random() * 18;
+          r.mistakeT = 1.0 + Math.random() * 0.6;
+          r.mistakeFullDur = r.mistakeT;
+          r.mistakeCooldown = 14 + Math.random() * 18;
         }
       }
     }
-    const mistakeFactor = r.mistakeT > 0 ? 0.62 : 1.0;
+    // Smooth mistake factor: fade in over first 30% of duration,
+    // hold for middle 40%, fade back out for last 30%. Only -22% pace
+    // at peak (was -38% — too aggressive).
+    let mistakeFactor = 1.0;
+    if (r.mistakeT > 0 && r.mistakeFullDur > 0) {
+      const elapsed = r.mistakeFullDur - r.mistakeT;
+      const total = r.mistakeFullDur;
+      const phase = elapsed / total;
+      let strength;
+      if (phase < 0.30)      strength = phase / 0.30;
+      else if (phase < 0.70) strength = 1.0;
+      else                   strength = (1.0 - phase) / 0.30;
+      mistakeFactor = 1.0 - 0.22 * Math.max(0, Math.min(1, strength));
+    }
 
     // ---- Pace ----
-    let pace = r.targetSpeed * (1 - cornerDrag) * attackBoost * mistakeFactor;
+    // Smooth attackBoost — lerp the cached value toward the new target so
+    // overtake commits don't snap pace by 6% per frame.
+    const targetAttack = attackBoost;
+    r._attackSmooth = (r._attackSmooth ?? 1.0) + (targetAttack - (r._attackSmooth ?? 1.0)) * Math.min(1, dt * 4);
+    let pace = r.targetSpeed * (1 - cornerDrag) * r._attackSmooth * mistakeFactor;
     // If blocker is significantly slower AND we can't easily pass (no room),
     // tuck in their slipstream — slow to 96% of their speed for a draft setup.
     if (blockerSpeed != null && blockerSpeed < r.targetSpeed * 0.95 && Math.abs(dodge) < 1.0) {
@@ -485,15 +501,20 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     else if (r.hp < 80) hpMul = 0.92;
     pace *= hpMul;
     // Approaching a sharp upcoming turn? Brake harder than steady drag.
+    // Crucially, never decelerate BELOW pace — that creates a visible
+    // stutter as the car re-accelerates back up to where it should be.
     const brakeUrgency = Math.min(1, c2 * 12.0);
     const brakeThreshold = 0.55 / personality.brakeBoldness;
     if (brakeUrgency > brakeThreshold && r.speed > pace) {
-      r.speed -= dt * 18 * brakeUrgency;
+      const decel = dt * 18 * brakeUrgency;
+      r.speed = Math.max(pace, r.speed - decel);
     }
     // Lane jitter — wildcards weave a bit. Crashed rivals weave more.
     const jitter = personality.laneJitter * (r.crashedT > 0 ? 2.5 : 1);
     r.lane += Math.sin(performance.now() * 0.001 + r.s * 0.05) * jitter * dt * 0.4;
-    r.speed += (pace - r.speed) * Math.min(1, dt * 2.4);
+    // Speed lerp toward pace — slightly slower so brakeUrgency events
+    // don't fight the pace target on the way back up.
+    r.speed += (pace - r.speed) * Math.min(1, dt * 2.0);
 
     // Crash visual: wobble the mesh slightly while recovering.
     if (r.crashedT > 0 && r.mesh) {

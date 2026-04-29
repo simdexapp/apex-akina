@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=59";
-import { buildScenery, tickAmbient } from "./scenery.js?v=59";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=59";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=59";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=59";
+import { buildTrack, getTrackList } from "./track.js?v=60";
+import { buildScenery, tickAmbient } from "./scenery.js?v=60";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=60";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=60";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=60";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=59";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=59";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=59";
-import { createReplay } from "./replay.js?v=59";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=59";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=59";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=59";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=59";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=59";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=59";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=59";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=60";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=60";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=60";
+import { createReplay } from "./replay.js?v=60";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=60";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=60";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=60";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=60";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=60";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=60";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=60";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=59";
+} from "./profile.js?v=60";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2269,6 +2269,9 @@ function startRace() {
   overlay.hidden = true;
   finishOverlay.hidden = true;
   ensureAudio();
+  // Auto-scaler ignores the first 5s of every race — JIT warm-up + first
+  // shader compiles can dip FPS briefly without indicating real stress.
+  resetAutoScalerWarmup();
   // Hot lap — 1 lap, no rivals.
   if (gameMode === "hotlap") {
     raceLapsOverride = 1;
@@ -2857,7 +2860,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=59");
+  const mod = await import("./garagePreview.js?v=60");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -3043,20 +3046,23 @@ window.addEventListener("keydown", (e) => {
 let fpsOverlayEnabled = false;
 
 // ---- Dynamic quality auto-scaler ----
-// Tracks 500ms FPS samples and downgrades quality if sustained <45 FPS,
-// upgrades back if sustained >58 FPS. Anti-thrash via dwell timers.
+// Conservative: only steps DOWN one tier on sustained <40 FPS for 6 sec.
+// Never steps back up mid-session — rebuilding shadow maps to upgrade
+// would cause a visible hitch every time. Sleeps for 5 sec after race
+// start to avoid tripping on JIT warm-up frames.
 const QUALITY_LADDER = ["low", "medium", "high", "ultra"];
 let _autoScalerLowFps = 0;
-let _autoScalerHighFps = 0;
 let _autoScalerCooldown = 0;
 let _autoScalerEnabled = true;
+let _autoScalerWarmup = 10;   // 10 samples × 500ms = 5s
+function resetAutoScalerWarmup() { _autoScalerWarmup = 10; }
 function tickAutoScaler(fps) {
   if (!_autoScalerEnabled) return;
+  if (_autoScalerWarmup > 0) { _autoScalerWarmup--; return; }
   if (_autoScalerCooldown > 0) { _autoScalerCooldown--; return; }
-  if (fps < 45) {
+  if (fps < 40) {
     _autoScalerLowFps++;
-    _autoScalerHighFps = 0;
-    if (_autoScalerLowFps >= 6) {        // 6 samples × 500ms = 3 sec
+    if (_autoScalerLowFps >= 12) {       // 6 sec sustained low
       const cur = settings.quality || "high";
       const idx = QUALITY_LADDER.indexOf(cur);
       if (idx > 0) {
@@ -3064,32 +3070,12 @@ function tickAutoScaler(fps) {
         applySettings();
         try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
         flashCallout(`Auto-scaler · ${settings.quality.toUpperCase()}`, 1400);
-        _autoScalerCooldown = 12;        // 6 sec cooldown
+        _autoScalerCooldown = 30;        // 15 sec cooldown — no thrash
       }
       _autoScalerLowFps = 0;
     }
-  } else if (fps > 58) {
-    _autoScalerHighFps++;
-    _autoScalerLowFps = 0;
-    if (_autoScalerHighFps >= 12) {      // 6 sec sustained high before bumping back up
-      const cur = settings.quality || "high";
-      const idx = QUALITY_LADDER.indexOf(cur);
-      if (idx >= 0 && idx < QUALITY_LADDER.length - 1 && cur !== _autoScalerInitialQuality) {
-        // Only step back UP toward the user's original setting; don't push past it.
-        const targetIdx = Math.min(idx + 1, QUALITY_LADDER.indexOf(_autoScalerInitialQuality));
-        if (targetIdx > idx) {
-          settings.quality = QUALITY_LADDER[targetIdx];
-          applySettings();
-          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
-          flashCallout(`Auto-scaler · ${settings.quality.toUpperCase()}`, 1200);
-          _autoScalerCooldown = 12;
-        }
-      }
-      _autoScalerHighFps = 0;
-    }
   } else {
     _autoScalerLowFps = Math.max(0, _autoScalerLowFps - 1);
-    _autoScalerHighFps = Math.max(0, _autoScalerHighFps - 1);
   }
 }
 let _autoScalerInitialQuality = "high";  // captured at applySettings() time
