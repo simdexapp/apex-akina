@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=98";
-import { buildScenery, tickAmbient } from "./scenery.js?v=98";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=98";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=98";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=98";
+import { buildTrack, getTrackList } from "./track.js?v=99";
+import { buildScenery, tickAmbient } from "./scenery.js?v=99";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=99";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=99";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=99";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=98";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=98";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=98";
-import { createReplay } from "./replay.js?v=98";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=98";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=98";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=98";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=98";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=98";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=98";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=98";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=99";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=99";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=99";
+import { createReplay } from "./replay.js?v=99";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=99";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=99";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=99";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=99";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=99";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=99";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=99";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=98";
+} from "./profile.js?v=99";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1255,7 +1255,18 @@ function tick(dt) {
   if (car.shiftEvent) {
     playShift(car.shiftEvent);
     if (car.shiftEvent > 0) {
-      if (i.throttle) playEnginePop();
+      if (i.throttle) {
+        playEnginePop();
+        // Visual exhaust flame puff at the rear of the car — 6 yellow/red
+        // sparks fly out the back. Pure visual juice on upshift.
+        const sin = Math.sin(car.heading);
+        const cos = Math.cos(car.heading);
+        const ex = car.group.position.x - sin * 1.9;
+        const ez = car.group.position.z - cos * 1.9;
+        for (let s = 0; s < 6; s++) {
+          spawnSpark(ex + (Math.random() - 0.5) * 0.5, 0.3 + Math.random() * 0.2, ez + (Math.random() - 0.5) * 0.5, Math.random() < 0.5 ? -1 : 1);
+        }
+      }
       flashCallout(`▲ ${car.gear}`, 360);
       maybeTutHint("shift", "Gear up", `Auto-transmission shifted at redline. Each gear has its own pitch range.`);
     }
@@ -3171,7 +3182,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=98");
+  const mod = await import("./garagePreview.js?v=99");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
