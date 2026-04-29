@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=67";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=68";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -87,18 +87,18 @@ export function buildTrack(trackId = "lakeside") {
   const roadMesh = new THREE.Mesh(geo, mat);
   roadMesh.receiveShadow = true;
 
-  // Lane lines — flat emissive plane stripes. Use PlaneGeometry laid flat on
-  // the road so they read as paint, not 3D bricks. Center line gold, side
-  // lines white. InstancedMesh per lane for cheap draw calls.
+  // Lane lines — minimal: just one center dashed line (gold) and two edge
+  // lines (off-white). Stripes thinned + dimmed so they read as paint
+  // not bright neon paint stripes scattered everywhere.
   const laneGroup = new THREE.Group();
-  const laneCount = 5;
-  for (let lane = 1; lane < laneCount; lane++) {
-    const offset = -ROAD_HALF_WIDTH + (ROAD_HALF_WIDTH * 2) * (lane / laneCount);
-    const isCenter = lane === Math.floor(laneCount / 2);
-    const color = isCenter ? 0xffe88a : 0xeef2ff;
-    const dashLen = 2.5;
-    const gapLen = 5.5;
-    // Pre-count slots so we can size the InstancedMesh exactly.
+  // [offsetMul, color, dashLen, gapLen]
+  const laneSpec = [
+    [0,    0xc8b070, 2.4, 6.0],   // center dashed gold
+    [-0.92, 0x9098a4, 2.0, 0.0], // left solid edge
+    [0.92,  0x9098a4, 2.0, 0.0]  // right solid edge
+  ];
+  for (const [offsetMul, color, dashLen, gapLen] of laneSpec) {
+    const offset = ROAD_HALF_WIDTH * offsetMul;
     const slots = [];
     let acc = 0;
     let drawing = true;
@@ -108,15 +108,15 @@ export function buildTrack(trackId = "lakeside") {
       const seg = p.distanceTo(next);
       acc += seg;
       const limit = drawing ? dashLen : gapLen;
-      if (acc >= limit) {
+      if (gapLen === 0 || acc >= limit) {
         if (drawing) slots.push(i);
-        drawing = !drawing;
+        if (gapLen > 0) drawing = !drawing;
         acc = 0;
       }
     }
     if (slots.length === 0) continue;
     const mat = new THREE.MeshBasicMaterial({ color });
-    const geo = new THREE.PlaneGeometry(0.16, dashLen * 0.9);
+    const geo = new THREE.PlaneGeometry(0.10, dashLen * 0.9);
     const inst = new THREE.InstancedMesh(geo, mat, slots.length);
     const dummy = new THREE.Object3D();
     for (let s = 0; s < slots.length; s++) {
