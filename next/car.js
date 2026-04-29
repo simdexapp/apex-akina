@@ -477,16 +477,15 @@ function buildBody(shape) {
   // (racing stripe removed — was visual noise on the new body shape)
 
   // Wheels with chrome hubs (color customizable via livery.accent).
-  // Each wheel is wrapped in a small group so we can rotate the wheel
-  // around its own X axis (driving rotation) while the group provides
-  // the chassis-mount anchor. We also tag the wheel with userData.spin
-  // so main.js can update visible rotation each tick.
-  const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 18);
-  const wheelMat = pbr(0x0a0e18, 0.0, 0.9);
-  const hubGeo = new THREE.CylinderGeometry(0.20, 0.20, 0.32, 14);
-  const hubMat = pbr(shape.accent ?? 0xc8d4e6, 0.85, 0.18);
-  const lugMat = pbr(shape.accent ?? 0xc8d4e6, 0.92, 0.15);
-  const wx = shape.width * 0.5 - 0.06;
+  // Tire width slimmed (0.30 -> 0.24) and wheels pulled inward by 14cm
+  // (so they don't stick out past the body sides like a kart). Hub
+  // material toned down — was reading orange under sunset env.
+  const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.24, 18);
+  const wheelMat = pbr(0x05070d, 0.05, 0.95);
+  const hubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.26, 14);
+  const hubMat = pbr(0x6a727a, 0.55, 0.45);   // matte metal, not chrome
+  const lugMat = pbr(0x6a727a, 0.55, 0.45);
+  const wx = shape.width * 0.5 - 0.18;
   const wzF = shape.length * 0.36;
   const wzR = -shape.length * 0.36;
   const wheelMeshes = [];

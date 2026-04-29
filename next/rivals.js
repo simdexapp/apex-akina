@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=77";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=78";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -82,12 +82,13 @@ function makeRivalMesh(variant) {
     stripe.position.set(side * w * 0.51, bodyH * 0.50, 0);
     group.add(stripe);
   }
-  // Wheels — black tire + simple chrome hub.
-  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0e18, roughness: 0.9 });
-  const hubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.30, 10);
-  const hubMat = new THREE.MeshStandardMaterial({ color: 0xc8d4e6, metalness: 0.85, roughness: 0.18 });
-  const wx = w * 0.5 - 0.06;
+  // Wheels — slim tire + matte rim. Chrome was reading orange under
+  // sunset env reflection; matte gunmetal stays neutral.
+  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.22, 12);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x05070d, roughness: 0.95 });
+  const hubGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.24, 10);
+  const hubMat = new THREE.MeshStandardMaterial({ color: 0x6a727a, metalness: 0.55, roughness: 0.45 });
+  const wx = w * 0.5 - 0.16;
   const wzF = l * 0.36;
   const wzR = -l * 0.36;
   for (const [px, pz] of [[-wx, wzF], [wx, wzF], [-wx, wzR], [wx, wzR]]) {

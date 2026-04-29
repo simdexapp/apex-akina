@@ -576,6 +576,53 @@ export function playBrakeHiss() {
   src.stop(t + len + 0.05);
 }
 
+// Brake squeal — high-frequency tone that simulates pad-on-rotor squeal at
+// near-stop heavy braking. Fades out quickly. Distinct from the brake hiss
+// which fires once on press.
+export function playBrakeSqueal() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(2800, t);
+  osc.frequency.exponentialRampToValueAtTime(1800, t + 0.4);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 2400;
+  bp.Q.value = 14;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.06, t + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  osc.connect(bp); bp.connect(g); g.connect(sfxBus);
+  osc.start(t);
+  osc.stop(t + 0.5);
+}
+
+// Engine pop — short backfire/exhaust pop on upshift or sudden lift.
+// Unfiltered low-mid frequency burst.
+export function playEnginePop() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const len = 0.08;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const env = Math.exp(-i / (d.length * 0.3));
+    d[i] = (Math.random() * 2 - 1) * 0.7 * env;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 600;
+  const g = ctx.createGain();
+  g.gain.value = 0.18;
+  src.connect(lp); lp.connect(g); g.connect(sfxBus);
+  src.start(t);
+  src.stop(t + len + 0.05);
+}
+
 // Gear-shift "thunk" — a quick filtered noise burst plus, on downshift, a
 // rev-match blip (short pitched tone above the engine note).
 export function playShift(direction = 1) {
