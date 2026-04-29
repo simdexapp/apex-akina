@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=88";
-import { buildScenery, tickAmbient } from "./scenery.js?v=88";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=88";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=88";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=88";
+import { buildTrack, getTrackList } from "./track.js?v=89";
+import { buildScenery, tickAmbient } from "./scenery.js?v=89";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=89";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=89";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=89";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=88";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=88";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=88";
-import { createReplay } from "./replay.js?v=88";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=88";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=88";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=88";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=88";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=88";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=88";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=88";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=89";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=89";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=89";
+import { createReplay } from "./replay.js?v=89";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=89";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=89";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=89";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=89";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=89";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=89";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=89";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=88";
+} from "./profile.js?v=89";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1337,9 +1337,19 @@ function tick(dt) {
     document.body.classList.remove("is-damaged");
     void document.body.offsetWidth;
     document.body.classList.add("is-damaged");
-    cameraShake = Math.max(cameraShake, 0.45);
+    cameraShake = Math.max(cameraShake, 0.55);
+    fovPunch = Math.max(fovPunch, 6);
     setTimeout(() => document.body.classList.remove("is-damaged"), 460);
     vibrate(0.8, 1.0, 280);
+    // Spark burst at the front of the car — 12-16 yellow/red sparks fly up.
+    const sin = Math.sin(car.heading);
+    const cos = Math.cos(car.heading);
+    const fx = car.group.position.x + sin * 1.8;
+    const fz = car.group.position.z + cos * 1.8;
+    const sparkCount = 14;
+    for (let s = 0; s < sparkCount; s++) {
+      spawnSpark(fx + (Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.4, fz + (Math.random() - 0.5) * 0.8, Math.random() < 0.5 ? -1 : 1);
+    }
   }
 
   // Drift score popup — when a drift exits with reward, show points.
@@ -3126,7 +3136,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=88");
+  const mod = await import("./garagePreview.js?v=89");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
