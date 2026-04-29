@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=102";
-import { buildScenery, tickAmbient } from "./scenery.js?v=102";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=102";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=102";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=102";
+import { buildTrack, getTrackList } from "./track.js?v=103";
+import { buildScenery, tickAmbient } from "./scenery.js?v=103";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=103";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=103";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=103";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=102";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=102";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=102";
-import { createReplay } from "./replay.js?v=102";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=102";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=102";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=102";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=102";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=102";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=102";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=102";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=103";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=103";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=103";
+import { createReplay } from "./replay.js?v=103";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=103";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=103";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=103";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=103";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=103";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=103";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=103";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=102";
+} from "./profile.js?v=103";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1290,6 +1290,14 @@ function tick(dt) {
   if (car.launchEvent) {
     flashCallout("PERFECT LAUNCH", 900);
     car.launchEvent = false;
+    // White flash + camera shake + score popup for the perfect launch.
+    cameraShake = Math.max(cameraShake, 0.30);
+    fovPunch = Math.max(fovPunch, 4);
+    showScorePopup("+250 LAUNCH", 50, 50, "cyan");
+    document.body.classList.remove("is-launch-flash");
+    void document.body.offsetWidth;
+    document.body.classList.add("is-launch-flash");
+    setTimeout(() => document.body.classList.remove("is-launch-flash"), 380);
   }
 
   // Brake hiss on first brake-press at speed.
@@ -3215,7 +3223,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=102");
+  const mod = await import("./garagePreview.js?v=103");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
