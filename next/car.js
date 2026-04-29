@@ -143,6 +143,93 @@ function pbr(color, metalness = 0.4, roughness = 0.5) {
   return new THREE.MeshStandardMaterial({ color, metalness, roughness });
 }
 
+// Build a sleeker car body — a 14-vertex chamfered prism with a beveled
+// nose and tail, narrower waist than the wheel arches, and a slight
+// shoulder line. Replaces the old BoxGeometry "boxy" body.
+export function buildSleekBody(w, h, l) {
+  const hw = w * 0.5;
+  const hh = h * 0.5;
+  const hl = l * 0.5;
+  // Bevel ratios.
+  const noseTaper = 0.78;   // front gets narrower
+  const tailTaper = 0.86;   // rear narrows slightly less
+  const bevelZ = l * 0.10;  // longitudinal bevel from nose tip
+  const tailBevelZ = l * 0.06;
+  // Vertices order (z + means front):
+  //   0..3  front bottom rim (chamfered nose tip, expand to full width)
+  //   4..7  front top rim
+  //   8..11 rear bottom rim
+  //   12..15 rear top rim
+  // We'll build 16 vertices total.
+  const v = new Float32Array([
+    // Front-bottom chamfer (4 vertices in a trapezoid):
+    -hw * noseTaper, -hh, hl - bevelZ * 0.4,   // 0: front bottom L
+     hw * noseTaper, -hh, hl - bevelZ * 0.4,   // 1: front bottom R
+    -hw * 0.55,      -hh, hl,                  // 2: nose tip L
+     hw * 0.55,      -hh, hl,                  // 3: nose tip R
+    // Front-top:
+    -hw * 0.86,       hh, hl - bevelZ,          // 4: front top L
+     hw * 0.86,       hh, hl - bevelZ,          // 5: front top R
+    -hw * 0.50,       hh * 0.6, hl - bevelZ * 0.3, // 6: nose top L
+     hw * 0.50,       hh * 0.6, hl - bevelZ * 0.3, // 7: nose top R
+    // Rear-bottom:
+    -hw * tailTaper, -hh, -hl + tailBevelZ * 0.4, // 8
+     hw * tailTaper, -hh, -hl + tailBevelZ * 0.4, // 9
+    -hw * 0.62,      -hh, -hl,                    // 10
+     hw * 0.62,      -hh, -hl,                    // 11
+    // Rear-top:
+    -hw * 0.90,       hh, -hl + tailBevelZ,        // 12
+     hw * 0.90,       hh, -hl + tailBevelZ,        // 13
+    -hw * 0.62,       hh * 0.78, -hl,              // 14
+     hw * 0.62,       hh * 0.78, -hl,              // 15
+  ]);
+  const idx = new Uint16Array([
+    // Front nose face (between 2,3 nose tips and 6,7 nose top)
+    2, 3, 7,  2, 7, 6,
+    // Front nose top-bevels (between 6,7 nose top and 4,5 main top)
+    6, 7, 5,  6, 5, 4,
+    // Front nose-bottom-bevels (between 0,1 main bottom and 2,3 nose tips)
+    0, 2, 3,  0, 3, 1,
+    // Front face (between 0,1 main bottom and 4,5 main top)
+    0, 1, 5,  0, 5, 4,
+    // Front-bottom L bevel (0 to 2 + 6 to 4)
+    0, 4, 6,  0, 6, 2,
+    // Front-bottom R bevel
+    1, 3, 7,  1, 7, 5,
+    // Bottom (8,9,10,11 rear + 0,1,2,3 front)
+    0, 1, 9,  0, 9, 8,
+    8, 9, 11, 8, 11, 10,
+    2, 0, 8,  2, 8, 10,    // left bottom strip
+    1, 3, 11, 1, 11, 9,    // right bottom strip
+    // Top (4,5,6,7 front + 12,13,14,15 rear)
+    4, 5, 13, 4, 13, 12,
+    12, 13, 15, 12, 15, 14,
+    6, 4, 12, 6, 12, 14,    // left top strip
+    5, 7, 15, 5, 15, 13,    // right top strip
+    // Left side (0,4,8,12 + 2,6,10,14 zigzag)
+    0, 8, 12,  0, 12, 4,
+    // Right side
+    1, 5, 13,  1, 13, 9,
+    // Rear nose face (10,11 tip + 14,15 top)
+    10, 11, 15,  10, 15, 14,
+    // Rear top-bevels (14,15 to 12,13)
+    14, 15, 13,  14, 13, 12,
+    // Rear bottom-bevels (8,9 to 10,11)
+    8, 10, 11,  8, 11, 9,
+    // Rear main face (8,9,12,13)
+    9, 8, 12,  9, 12, 13,
+    // Rear-bottom L bevel
+    8, 14, 10,  8, 12, 14,
+    // Rear-bottom R bevel
+    9, 11, 15,  9, 15, 13
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(v, 3));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.computeVertexNormals();
+  return geo;
+}
+
 // Build a tapered cabin (sloped windshield + sloped rear glass) using a custom
 // 8-vertex BufferGeometry. Front top and rear top are pulled inward along Z
 // so the silhouette reads like a real coupe rather than a stacked box.
@@ -228,8 +315,10 @@ export function buildNoseWedge(w, h, l) {
 function buildBody(shape) {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(shape.width, shape.height, shape.length * 0.94), pbr(shape.body, 0.4, 0.5));
-  body.position.set(0, shape.height * 0.85, -shape.length * 0.03);
+  const bodyGeo = buildSleekBody(shape.width, shape.height, shape.length * 0.94);
+  const bodyMat = pbr(shape.body, 0.55, 0.30);  // higher metalness, lower roughness for richer reflections
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.set(0, shape.height * 0.85 + shape.height * 0.5, -shape.length * 0.03);
   group.add(body);
 
   // Sloped cabin (windshield + roof + rear glass tapered).

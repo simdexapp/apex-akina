@@ -2,40 +2,41 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=55";
-import { buildScenery, tickAmbient } from "./scenery.js?v=55";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=55";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=55";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=55";
+import { buildTrack, getTrackList } from "./track.js?v=56";
+import { buildScenery, tickAmbient } from "./scenery.js?v=56";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=56";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=56";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=56";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=55";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=55";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=55";
-import { createReplay } from "./replay.js?v=55";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=55";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=55";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=55";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=55";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=55";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=55";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=55";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=56";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=56";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=56";
+import { createReplay } from "./replay.js?v=56";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=56";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=56";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=56";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=56";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=56";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=56";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=56";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=55";
+} from "./profile.js?v=56";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.55;
+renderer.toneMappingExposure = 1.65;             // brighter, more cinematic
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.physicallyCorrectLights = true;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x2a1c5a, 120, 480);
@@ -2811,7 +2812,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=55");
+  const mod = await import("./garagePreview.js?v=56");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -3154,9 +3155,9 @@ const settings = loadSettings();
 // Graphics quality presets — more impactful than just toggling shadows.
 // "ultra" cranks everything; "low" prioritises framerate.
 const QUALITY_PRESETS = {
-  ultra:  { shadows: true,  shadowSize: 2048, bloom: true,  bloomStrength: 0.65, pixelRatio: Math.min(window.devicePixelRatio, 2),    particleCap: 120, sceneryScale: 1.0 },
-  high:   { shadows: true,  shadowSize: 1024, bloom: true,  bloomStrength: 0.55, pixelRatio: Math.min(window.devicePixelRatio, 1.75), particleCap: 80,  sceneryScale: 1.0 },
-  medium: { shadows: false, shadowSize: 512,  bloom: true,  bloomStrength: 0.40, pixelRatio: Math.min(window.devicePixelRatio, 1.25), particleCap: 50,  sceneryScale: 0.6 },
+  ultra:  { shadows: true,  shadowSize: 4096, bloom: true,  bloomStrength: 0.70, pixelRatio: Math.min(window.devicePixelRatio, 2),    particleCap: 160, sceneryScale: 1.0 },
+  high:   { shadows: true,  shadowSize: 2048, bloom: true,  bloomStrength: 0.55, pixelRatio: Math.min(window.devicePixelRatio, 1.75), particleCap: 100, sceneryScale: 1.0 },
+  medium: { shadows: true,  shadowSize: 1024, bloom: true,  bloomStrength: 0.40, pixelRatio: Math.min(window.devicePixelRatio, 1.25), particleCap: 60,  sceneryScale: 0.7 },
   low:    { shadows: false, shadowSize: 512,  bloom: false, bloomStrength: 0.0,  pixelRatio: 1.0,                                     particleCap: 25,  sceneryScale: 0.4 }
 };
 

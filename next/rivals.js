@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge } from "./car.js";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody } from "./car.js";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -59,11 +59,11 @@ function makeRivalMesh(variant) {
   const w = variant.w * 1.05;
   const h = variant.h * 0.74;
   const l = variant.l * 1.04;
-  // Body
-  const bodyGeo = new THREE.BoxGeometry(w, h, l * 0.94);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.4, roughness: 0.5 });
+  // Body — sleek JDM chamfered prism instead of box.
+  const bodyGeo = buildSleekBody(w, h, l * 0.94);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.55, roughness: 0.30 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.set(0, h * 0.85, -l * 0.03);
+  body.position.set(0, h * 0.85 + h * 0.5, -l * 0.03);
   group.add(body);
   // Sloped cabin (more aggressive rake to match sleek style)
   const cabinW = w * 0.82, cabinH = h * 0.78, cabinL = l * 0.44;
@@ -189,10 +189,10 @@ const COL_OFFSET = 3;
 // AI personality archetypes. Each affects how aggressively the rival defends
 // position, how late they brake, and how often they take wide racing lines.
 const PERSONALITIES = [
-  { id: "aggressive",  brakeBoldness: 1.20, blockChance: 0.65, laneJitter: 0.40, paceVariance: 0.05 },
-  { id: "smooth",      brakeBoldness: 0.90, blockChance: 0.20, laneJitter: 0.10, paceVariance: 0.02 },
-  { id: "consistent",  brakeBoldness: 1.00, blockChance: 0.35, laneJitter: 0.18, paceVariance: 0.01 },
-  { id: "wildcard",    brakeBoldness: 1.10, blockChance: 0.50, laneJitter: 0.55, paceVariance: 0.10 }
+  { id: "aggressive",  brakeBoldness: 1.20, blockChance: 0.65, laneJitter: 0.40, paceVariance: 0.05, attackBoldness: 1.30 },
+  { id: "smooth",      brakeBoldness: 0.90, blockChance: 0.20, laneJitter: 0.10, paceVariance: 0.02, attackBoldness: 0.85 },
+  { id: "consistent",  brakeBoldness: 1.00, blockChance: 0.35, laneJitter: 0.18, paceVariance: 0.01, attackBoldness: 1.00 },
+  { id: "wildcard",    brakeBoldness: 1.10, blockChance: 0.50, laneJitter: 0.55, paceVariance: 0.10, attackBoldness: 1.20 }
 ];
 
 export function createRivals(track, count = 14, opts = {}) {
@@ -220,10 +220,13 @@ export function createRivals(track, count = 14, opts = {}) {
       s: gridS,
       lane: gridLane,
       homeLane,
-      targetSpeed: isBoss ? variant.basePace + Math.random() * 4
-                  : i < 4 ? 78 + Math.random() * 6
-                  : i < 9 ? 70 + Math.random() * 6
-                  : 60 + Math.random() * 6,
+      // Faster baseline pace — front pack now hovers in 90-95 m/s range
+      // (~340 km/h on straights, AI throttles down through corners) so they
+      // actually contest the player instead of cruising.
+      targetSpeed: isBoss ? variant.basePace + Math.random() * 6
+                  : i < 4 ? 90 + Math.random() * 6
+                  : i < 9 ? 84 + Math.random() * 6
+                  : 76 + Math.random() * 6,
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
@@ -282,10 +285,10 @@ export function placeRivalsOnGrid(rivals, track) {
 // Difficulty profiles. paceMul scales target speeds; rubberStrength scales
 // the rubber-band logic; rubberMode "none" disables rubber-band entirely.
 const DIFFICULTY_PROFILES = {
-  easy:    { paceMul: 0.88, rubberCatchup: 1.05, rubberEase: 0.85, rubberMode: "soft" },
-  normal:  { paceMul: 1.00, rubberCatchup: 1.15, rubberEase: 0.92, rubberMode: "soft" },
-  hard:    { paceMul: 1.08, rubberCatchup: 1.22, rubberEase: 0.96, rubberMode: "tight" },
-  brutal:  { paceMul: 1.16, rubberCatchup: 1.00, rubberEase: 1.00, rubberMode: "none" }
+  easy:    { paceMul: 0.92, rubberCatchup: 1.05, rubberEase: 0.85, rubberMode: "soft" },
+  normal:  { paceMul: 1.04, rubberCatchup: 1.15, rubberEase: 0.94, rubberMode: "soft" },
+  hard:    { paceMul: 1.14, rubberCatchup: 1.22, rubberEase: 0.98, rubberMode: "tight" },
+  brutal:  { paceMul: 1.24, rubberCatchup: 1.00, rubberEase: 1.00, rubberMode: "none" }
 };
 
 export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, difficulty = "normal") {
@@ -383,13 +386,19 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
         }
       }
     }
-    // If there's traffic ahead, plan overtake: pick the side with more room.
-    if (blockerLane != null && blockerDist < 25) {
-      // Choose which side to dive to. Prefer the side AWAY from blocker's lane.
+    // If there's traffic ahead, plan overtake: pick the side with more room
+    // and commit hard. Aggressive personalities dive deeper.
+    if (blockerLane != null && blockerDist < 28) {
       const overtakeSide = blockerLane >= 0 ? -1 : 1;
-      // Commitment scales with how close we are.
-      const commit = Math.max(0.4, 1.0 - blockerDist / 25);
-      dodge = overtakeSide * 3.6 * commit;
+      const commit = Math.max(0.45, 1.0 - blockerDist / 28);
+      const aggression = (r.personality?.attackBoldness ?? 1.0);
+      dodge = overtakeSide * 4.2 * commit * aggression;
+    }
+    // Slipstream attack — when behind a slower or comparable car within 14m,
+    // bursts get a temporary +6% pace boost (simulating draft + commit).
+    let attackBoost = 1.0;
+    if (blockerSpeed != null && blockerDist < 14 && blockerSpeed > r.targetSpeed * 0.8) {
+      attackBoost = 1.06;
     }
 
     // ---- Defending: if a car is RIGHT BEHIND us, weave slightly to defend ----
@@ -423,7 +432,7 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     r.lane += (targetLane - r.lane) * Math.min(1, dt * 2.4);
 
     // ---- Pace ----
-    let pace = r.targetSpeed * (1 - cornerDrag);
+    let pace = r.targetSpeed * (1 - cornerDrag) * attackBoost;
     // If blocker is significantly slower AND we can't easily pass (no room),
     // tuck in their slipstream — slow to 96% of their speed for a draft setup.
     if (blockerSpeed != null && blockerSpeed < r.targetSpeed * 0.95 && Math.abs(dodge) < 1.0) {
