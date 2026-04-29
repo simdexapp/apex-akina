@@ -462,6 +462,34 @@ function buildBody(shape) {
   glass.position.set(0, bodyH * 0.5 + 0.06, 0);
   group.add(glass);
 
+  // Ground contact shadow — dark elliptical plane under the car. Floats at
+  // y=0.03 (just above road surface to avoid z-fighting). Soft radial
+  // gradient via shader-based circle texture (created via canvas) → fakes
+  // proper ambient occlusion without computing real shadows. Cheap.
+  {
+    const c = document.createElement("canvas");
+    c.width = 128; c.height = 64;
+    const x = c.getContext("2d");
+    const grad = x.createRadialGradient(64, 32, 0, 64, 32, 64);
+    grad.addColorStop(0,   "rgba(0,0,0,0.55)");
+    grad.addColorStop(0.6, "rgba(0,0,0,0.20)");
+    grad.addColorStop(1,   "rgba(0,0,0,0)");
+    x.fillStyle = grad;
+    x.fillRect(0, 0, c.width, c.height);
+    const tex = new THREE.CanvasTexture(c);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false
+    });
+    const shadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(shape.width * 1.4, shape.length * 1.0),
+      shadowMat
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(0, 0.025, 0);
+    shadow.renderOrder = 1;
+    group.add(shadow);
+  }
+
   // Side mirrors — small wedges on the A-pillar.
   const mirrorMat = pbr(shape.body, 0.65, 0.30);
   for (const side of [-1, 1]) {
