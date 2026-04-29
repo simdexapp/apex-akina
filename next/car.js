@@ -200,6 +200,30 @@ export function buildExtrudedCarBody(w, h, l) {
   geo.translate(0, 0, -w * 0.5);
   // Rotate so the X axis becomes the car's local Z (length), and Z becomes X (width).
   geo.rotateY(Math.PI / 2);
+
+  // Per-vertex taper — turns the brick into a car silhouette in 3D, not just
+  // in side view. Two effects:
+  //   1. Greenhouse taper: roof + windshield narrower than the body floor
+  //      (so the cabin doesn't read as full-width like a van)
+  //   2. Front/rear taper: nose + tail slightly narrower than the middle
+  //      (so the car has a real teardrop plan view)
+  // After rotateY(PI/2), the shape's local axes are: X = car width,
+  // Y = height, Z = length (front +Z, rear -Z).
+  const pos = geo.getAttribute('position');
+  const arr = pos.array;
+  const halfL = l * 0.5;
+  const halfH = h * 0.5;
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = arr[i], y = arr[i + 1], z = arr[i + 2];
+    // Greenhouse taper: factor goes from 1.0 at body floor to 0.78 at roof.
+    const yNorm = Math.max(0, Math.min(1, (y - (-halfH * 0.4)) / (h * 1.0)));
+    const greenhouse = 1.0 - 0.22 * Math.pow(Math.max(0, yNorm - 0.45) / 0.55, 1.4);
+    // Length taper: factor goes from 1.0 at center to 0.88 at nose/tail tips.
+    const zNorm = Math.abs(z) / halfL;
+    const lengthTaper = 1.0 - 0.12 * Math.pow(zNorm, 2.0);
+    arr[i] = x * greenhouse * lengthTaper;
+  }
+  pos.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
@@ -229,6 +253,19 @@ export function buildExtrudedGlass(w, h, l) {
   const geo = new THREE.ExtrudeGeometry(shape, settings);
   geo.translate(0, 0, -w * 0.43);
   geo.rotateY(Math.PI / 2);
+  // Match the body's greenhouse taper so glass doesn't poke through the roof.
+  const pos = geo.getAttribute('position');
+  const arr = pos.array;
+  const halfL = l * 0.5;
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = arr[i], y = arr[i + 1], z = arr[i + 2];
+    const yNorm = Math.max(0, Math.min(1, (y - (-h * 0.2)) / (h * 1.0)));
+    const greenhouse = 1.0 - 0.24 * Math.pow(Math.max(0, yNorm - 0.45) / 0.55, 1.4);
+    const zNorm = Math.abs(z) / halfL;
+    const lengthTaper = 1.0 - 0.14 * Math.pow(zNorm, 2.0);
+    arr[i] = x * greenhouse * lengthTaper;
+  }
+  pos.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
@@ -403,11 +440,11 @@ function buildBody(shape) {
   const group = new THREE.Group();
 
   // SINGLE extruded body — silhouette includes hood + windshield + roof +
-  // rear glass + trunk in one coherent shape. Looks like an actual car
-  // instead of a stack of glued-on parts.
-  const bodyH = shape.height * 1.65;     // overall vertical extent (body + cabin)
+  // rear glass + trunk in one coherent shape. bodyH tightened from 1.65
+  // (van-tall) to 1.25 so the proportions read sports car not minivan.
+  const bodyH = shape.height * 1.25;
   const bodyGeo = buildExtrudedCarBody(shape.width, bodyH, shape.length * 0.96);
-  const bodyMat = pbr(shape.body, 0.55, 0.32);
+  const bodyMat = pbr(shape.body, 0.65, 0.28);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
@@ -415,7 +452,7 @@ function buildBody(shape) {
 
   // Glass — same silhouette but only the upper window section, tinted dark.
   const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x080a14, metalness: 0.10, roughness: 0.18, transparent: true, opacity: 0.78
+    color: 0x050810, metalness: 0.20, roughness: 0.12, transparent: true, opacity: 0.85
   });
   const glassGeo = buildExtrudedGlass(shape.width * 0.94, bodyH, shape.length * 0.96);
   const glass = new THREE.Mesh(glassGeo, glassMat);
@@ -423,25 +460,18 @@ function buildBody(shape) {
   group.add(glass);
 
   // Side mirrors — small wedges on the A-pillar.
-  const mirrorMat = pbr(shape.body, 0.4, 0.5);
+  const mirrorMat = pbr(shape.body, 0.65, 0.30);
   for (const side of [-1, 1]) {
-    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.12), mirrorMat);
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.06, 0.10), mirrorMat);
     mirror.position.set(
-      side * (shape.width * 0.5 + 0.04),
-      bodyH * 0.78,
-      shape.length * 0.10
+      side * (shape.width * 0.5 + 0.02),
+      bodyH * 0.72,
+      shape.length * 0.08
     );
     group.add(mirror);
   }
 
-  // Centerline racing stripe — thin band on the hood + roof.
-  const stripeMat = pbr(shape.stripe, 0.1, 0.4);
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.20, 0.04, shape.length * 0.96),
-    stripeMat
-  );
-  stripe.position.set(0, bodyH * 1.02, 0);
-  group.add(stripe);
+  // (racing stripe removed — was visual noise on the new body shape)
 
   // Wheels with chrome hubs (color customizable via livery.accent).
   const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 18);
@@ -549,7 +579,7 @@ function buildBody(shape) {
   // of the rear bumper so they read as part of the body panel, not stuck on).
   const tailLights = [];
   // Position at the rear-deck height (just below the rear glass).
-  const tailY = bodyH * 0.42;
+  const tailY = bodyH * 0.55;
   for (const side of [-1, 1]) {
     const tailMat = new THREE.MeshStandardMaterial({
       color: 0xff315c,

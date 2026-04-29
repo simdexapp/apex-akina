@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=65";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=66";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -58,25 +58,27 @@ function makeRivalMesh(variant) {
   const w = variant.w * 1.05;
   const h = variant.h * 0.74;
   const l = variant.l * 1.04;
-  const bodyH = h * 1.65;
+  const bodyH = h * 1.25;
   // Single-extruded body matches the player car style.
   const bodyGeo = buildExtrudedCarBody(w, bodyH, l * 0.96);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.55, roughness: 0.32 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: variant.body, metalness: 0.65, roughness: 0.28 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.set(0, bodyH * 0.5 + 0.05, 0);
   body.userData.shadowCast = true;
   group.add(body);
   // Glass — tinted dark, matches player.
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x080a14, metalness: 0.10, roughness: 0.18, transparent: true, opacity: 0.78 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x050810, metalness: 0.20, roughness: 0.12, transparent: true, opacity: 0.85 });
   const glassGeo = buildExtrudedGlass(w * 0.94, bodyH, l * 0.96);
   const glass = new THREE.Mesh(glassGeo, glassMat);
   glass.position.set(0, bodyH * 0.5 + 0.06, 0);
   group.add(glass);
-  // Centerline racing stripe across the roof.
-  const stripeMat = new THREE.MeshStandardMaterial({ color: variant.stripe, metalness: 0.1, roughness: 0.4 });
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, l * 0.94), stripeMat);
-  stripe.position.set(0, bodyH * 1.02, 0);
-  group.add(stripe);
+  // Side accent stripes (subtle) instead of a thick roof stripe.
+  const accentMat = new THREE.MeshStandardMaterial({ color: variant.stripe, metalness: 0.2, roughness: 0.4 });
+  for (const side of [-1, 1]) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, l * 0.84), accentMat);
+    stripe.position.set(side * w * 0.51, bodyH * 0.50, 0);
+    group.add(stripe);
+  }
   // Wheels — black tire + simple chrome hub.
   const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12);
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0e18, roughness: 0.9 });
@@ -146,7 +148,7 @@ function makeRivalMesh(variant) {
     emissive: 0xff315c,
     emissiveIntensity: 0.95
   });
-  const tailY = bodyH * 0.42;
+  const tailY = bodyH * 0.55;
   for (const side of [-1, 1]) {
     const tail = new THREE.Mesh(new THREE.BoxGeometry(w * 0.32, 0.05, 0.04), tailMat);
     tail.position.set(side * w * 0.28, tailY, -l * 0.52);
