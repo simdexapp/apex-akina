@@ -707,6 +707,22 @@ function buildBody(shape) {
     tailHalos.push(haloMat);
   }
   group.userData.tailHaloMats = tailHalos;
+
+  // High-mount third brake light at the top of the rear window — small
+  // emissive bar that flares dramatically on brake input. Real cars have
+  // this; sells the brake bite at chase-cam distance.
+  const cmblMat = new THREE.MeshStandardMaterial({
+    color: 0xff315c,
+    emissive: 0xff315c,
+    emissiveIntensity: 0.30
+  });
+  const cmbl = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.width * 0.45, 0.05, 0.04),
+    cmblMat
+  );
+  cmbl.position.set(0, bodyH * 0.85, -shape.length * 0.30);
+  group.add(cmbl);
+  tailLights.push(cmblMat);
   group.userData.tailMats = tailLights;
 
   // Side air vents — angled slits behind front wheels.
