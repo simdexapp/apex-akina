@@ -1,31 +1,32 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=111";
-import { buildScenery, tickAmbient } from "./scenery.js?v=111";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=111";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=111";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=111";
+import { buildTrack, getTrackList } from "./track.js?v=112";
+import { buildScenery, tickAmbient } from "./scenery.js?v=112";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=112";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=112";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=112";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=111";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=111";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=111";
-import { createReplay } from "./replay.js?v=111";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=111";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=111";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=111";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=111";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=111";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=111";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=111";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=112";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=112";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=112";
+import { createReplay } from "./replay.js?v=112";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=112";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=112";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=112";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=112";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=112";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=112";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=112";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=111";
+} from "./profile.js?v=112";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -481,6 +482,57 @@ composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth * 0.5, canvas.clientHeight * 0.5), 0.55, 0.6, 0.85);
 composer.addPass(bloomPass);
 
+// CINEMATIC PASS — chromatic aberration on screen edges + film grain +
+// subtle vignette + warm/cool color grade. Single fragment shader does
+// all four cheaply because it's already reading the bloomed buffer.
+// uChromaStrength is bumped up by main.js during slow-mo for a "going
+// faster than physics" cyber-time-bend effect.
+const cinematicPass = new ShaderPass({
+  uniforms: {
+    tDiffuse:        { value: null },
+    uTime:           { value: 0 },
+    uChromaStrength: { value: 0.35 },     // base aberration; main.js overrides during slow-mo
+    uGrainStrength:  { value: 0.06 },
+    uVignette:       { value: 0.32 }
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uChromaStrength;
+    uniform float uGrainStrength;
+    uniform float uVignette;
+    varying vec2 vUv;
+    float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec2 uv = vUv;
+      vec2 center = vec2(0.5);
+      vec2 dir = uv - center;
+      float r2 = dot(dir, dir);
+      // Chromatic aberration — radial offset, growing toward screen edges.
+      // r/g/b sample at slightly different uv distances. Strength scales
+      // by uChromaStrength × r² so the center stays clean.
+      float chroma = uChromaStrength * r2 * 0.06;
+      float r = texture2D(tDiffuse, uv - dir * chroma * 1.0).r;
+      float g = texture2D(tDiffuse, uv).g;
+      float b = texture2D(tDiffuse, uv + dir * chroma * 1.0).b;
+      vec3 col = vec3(r, g, b);
+      // Color grade — warm midtones, cool shadows. Adds film stock vibe.
+      vec3 cool = vec3(0.92, 0.96, 1.05);
+      vec3 warm = vec3(1.06, 1.00, 0.92);
+      float lum = dot(col, vec3(0.299, 0.587, 0.114));
+      col *= mix(cool, warm, smoothstep(0.20, 0.70, lum));
+      // Vignette — soft darkening at edges.
+      col *= 1.0 - uVignette * smoothstep(0.30, 0.95, r2 * 1.6);
+      // Film grain — animated noise modulated by uTime + uv.
+      float grain = (hash21(uv * 1500.0 + vec2(uTime, uTime * 1.7)) - 0.5) * uGrainStrength;
+      col += grain;
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+composer.addPass(cinematicPass);
+
 // Weather system — particle clouds + fog tweaks. Player can cycle modes
 // from the pause menu; persisted in localStorage.
 const weather = createWeather(scene, camera);
@@ -495,6 +547,7 @@ function resize() {
   composer.setSize(rect.width, rect.height);
   // Keep bloom at half-resolution after resize.
   bloomPass.setSize(rect.width * 0.5, rect.height * 0.5);
+  if (cinematicPass) cinematicPass.setSize(rect.width, rect.height);
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
 }
@@ -2244,6 +2297,19 @@ function loop(now) {
   // Weather particles — follow camera, recycle.
   weather.tick(dt);
 
+  // Cinematic shader uniforms — chromatic aberration ramps up during
+  // slow-mo + at high speed for a "warping time" effect.
+  if (cinematicPass && cinematicPass.uniforms) {
+    cinematicPass.uniforms.uTime.value = performance.now() / 1000;
+    const slowMoBoost = car?.slowActive ? 2.6 : 1.0;
+    const speedBoost = car && car.maxSpeed
+      ? 1.0 + Math.min(1, Math.abs(car.speed) / car.maxSpeed) * 0.7
+      : 1.0;
+    const target = 0.35 * slowMoBoost * speedBoost;
+    const cur = cinematicPass.uniforms.uChromaStrength.value;
+    cinematicPass.uniforms.uChromaStrength.value = cur + (target - cur) * Math.min(1, dt * 6);
+  }
+
   composer.render();
   requestAnimationFrame(loop);
 }
@@ -3262,7 +3328,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=111");
+  const mod = await import("./garagePreview.js?v=112");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
