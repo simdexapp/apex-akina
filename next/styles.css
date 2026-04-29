@@ -1020,6 +1020,36 @@ body.is-drafting .game-frame::after {
   to   { opacity: 1.0; }
 }
 
+/* Floating score popups — "+125" text that flies up and fades.
+   Used for drift exit, near-miss bonuses, combo milestones. */
+.score-popups {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+.score-popup {
+  position: absolute;
+  font-size: clamp(20px, 2.4vw, 34px);
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  color: var(--gold);
+  text-shadow: 0 0 14px rgba(255, 209, 102, 0.65), 0 4px 8px rgba(0,0,0,0.6);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: score-fly 1.2s ease-out forwards;
+}
+.score-popup.is-hot   { color: var(--hot);  text-shadow: 0 0 16px rgba(255, 49, 92, 0.75), 0 4px 8px rgba(0,0,0,0.6); }
+.score-popup.is-cyan  { color: var(--cyan); text-shadow: 0 0 16px rgba(46, 233, 255, 0.75), 0 4px 8px rgba(0,0,0,0.6); }
+.score-popup.is-green { color: #4adf80;     text-shadow: 0 0 16px rgba(74, 223, 128, 0.75), 0 4px 8px rgba(0,0,0,0.6); }
+
+@keyframes score-fly {
+  0%   { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+  18%  { transform: translate(-50%, -8px) scale(1.20); opacity: 1; }
+  100% { transform: translate(-50%, -86px) scale(1.05); opacity: 0; }
+}
+
 /* ---- Slow-Mo FX overlay (cyan vignette + chromatic edge) ---- */
 .boost-fx {
   position: absolute;
