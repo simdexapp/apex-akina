@@ -1402,23 +1402,239 @@ body.is-replay::after {
   z-index: 10;
 }
 
-body.is-photo-mode::after {
-  content: "PHOTO MODE — P exit · ←→ orbit · ↑↓ zoom · K save PNG";
+/* Championship victory overlay — gold + confetti */
+.champ-victory {
   position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 14px;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 213, 0, 0.18), transparent 60%),
+    rgba(5, 8, 15, 0.85);
+  animation: cv-fade 0.5s ease-out forwards;
+}
+.champ-victory[hidden] { display: none !important; }
+
+.champ-victory-card {
+  text-align: center;
+  padding: 28px 36px;
+  max-width: 520px;
+  width: min(94%, 520px);
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 213, 0, 0.18), rgba(8, 13, 22, 0.95));
+  box-shadow: 0 0 70px rgba(255, 213, 0, 0.45);
+  animation: cv-pop 0.6s cubic-bezier(.2,.9,.2,1.1) forwards;
+}
+
+.cv-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+.cv-name {
+  margin: 0 0 8px;
+  font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(255, 213, 0, 0.6);
+}
+.cv-points {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+.cv-standings {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.cv-standings li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  color: var(--ink);
+}
+.cv-standings li.is-player {
+  background: rgba(255, 213, 0, 0.18);
+  border: 1px solid rgba(255, 213, 0, 0.45);
+}
+.cv-standings li .cv-rank { font-weight: 900; color: var(--gold); width: 28px; }
+.cv-standings li .cv-driver { flex: 1; }
+.cv-standings li .cv-pts { color: var(--muted); }
+.cv-standings li.is-player .cv-pts { color: var(--ink); }
+
+.cv-unlock {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(120deg, rgba(46, 233, 255, 0.18), rgba(255, 213, 0, 0.18));
+  border: 1px solid rgba(255, 213, 0, 0.45);
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+.cv-unlock-eyebrow {
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  z-index: 10;
+  color: var(--cyan);
 }
+.cv-unlock-name {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+#cv-close-btn {
+  appearance: none;
+  border: 1px solid var(--gold);
+  background: rgba(255, 213, 0, 0.10);
+  color: var(--gold);
+  padding: 10px 30px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#cv-close-btn:hover { background: var(--gold); color: #06101e; }
+
+@keyframes cv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cv-pop {
+  0%   { transform: scale(0.90) translateY(8px); opacity: 0; }
+  60%  { transform: scale(1.03) translateY(0); opacity: 1; }
+  100% { transform: scale(1.0) translateY(0); opacity: 1; }
+}
+
+/* Photo mode action bar — replaces the old text strip with a real toolset */
+.photo-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(46, 233, 255, 0.32);
+  border-radius: 14px;
+  background: rgba(8, 11, 18, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0 30px rgba(46, 233, 255, 0.18);
+  z-index: 10;
+  max-width: 92%;
+}
+.photo-bar[hidden] { display: none !important; }
+
+.photo-bar-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.photo-filter {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.04);
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.photo-filter:hover { background: rgba(46,233,255,0.10); border-color: rgba(46,233,255,0.45); }
+.photo-filter.is-active {
+  background: var(--cyan);
+  color: #08121f;
+  border-color: var(--cyan);
+}
+
+.photo-bar-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.photo-action {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.20);
+  background: rgba(255,255,255,0.06);
+  color: var(--ink);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.photo-action.photo-capture {
+  background: linear-gradient(120deg, var(--cyan), var(--gold));
+  color: #06101e;
+  border-color: transparent;
+}
+.photo-action.photo-capture:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(46, 233, 255, 0.4); }
+.photo-action.ghost-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.photo-bar-hints {
+  display: flex;
+  gap: 12px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.photo-bar-hints kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(46,233,255,0.10);
+  border: 1px solid rgba(46,233,255,0.25);
+  color: var(--ink);
+  font-family: inherit;
+  margin-right: 3px;
+}
+
+/* Photo filter classes — applied on the canvas via CSS filter while
+   photoMode is active. Captures honor the filter via OffscreenCanvas. */
+body.is-photo-mode #game { transition: filter 0.25s ease-out; }
+body.is-photo-mode.photo-fx-bw    #game { filter: grayscale(1) contrast(1.15) brightness(0.96); }
+body.is-photo-mode.photo-fx-sepia #game { filter: sepia(0.85) saturate(1.2) contrast(1.05); }
+body.is-photo-mode.photo-fx-vivid #game { filter: saturate(1.6) contrast(1.18); }
+body.is-photo-mode.photo-fx-cinema #game { filter: contrast(1.25) saturate(0.85) brightness(0.96) hue-rotate(-6deg); }
+body.is-photo-mode.photo-fx-dream #game { filter: blur(0.4px) saturate(1.4) brightness(1.06); }
+body.is-photo-mode.photo-fx-night #game { filter: grayscale(0.75) contrast(1.4) brightness(0.7) saturate(1.2); }
 
 /* Track preview SVG inside the picker card */
 .track-preview {

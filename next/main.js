@@ -2,27 +2,27 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=45";
-import { buildScenery, tickAmbient } from "./scenery.js?v=45";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=45";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=45";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=45";
+import { buildTrack, getTrackList } from "./track.js?v=46";
+import { buildScenery, tickAmbient } from "./scenery.js?v=46";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=46";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=46";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=46";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=45";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=45";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=45";
-import { createReplay } from "./replay.js?v=45";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=45";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=45";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=45";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=45";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=45";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=46";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=46";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=46";
+import { createReplay } from "./replay.js?v=46";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=46";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=46";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=46";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=46";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=46";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=45";
+} from "./profile.js?v=46";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1886,7 +1886,78 @@ function showFinish(standings) {
   // Hide sector splits.
   const sectorsEl = document.getElementById("sectors");
   if (sectorsEl) sectorsEl.hidden = true;
+  // Championship victory pageant — show on top of finish overlay if won.
+  if (gameMode === "career") {
+    const careerState = getCareerState();
+    if (careerState.finalStandings && careerState.finalStandings[0]?.isPlayer) {
+      setTimeout(() => showChampVictory(careerState.championshipId), 1200);
+    }
+  }
 }
+
+// Persisted set of champion-tier liveries unlocked. One per championship win.
+const CHAMP_UNLOCKS_KEY = "apex-akina-3d:champion-unlocks";
+function getChampUnlocks() {
+  try {
+    const raw = localStorage.getItem(CHAMP_UNLOCKS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) { return []; }
+}
+function addChampUnlock(id) {
+  const cur = getChampUnlocks();
+  if (cur.includes(id)) return false;
+  cur.push(id);
+  try { localStorage.setItem(CHAMP_UNLOCKS_KEY, JSON.stringify(cur)); } catch (_) {}
+  return true;
+}
+const CHAMP_LIVERY_NAMES = {
+  rookie: "Bronze Cup Stripe",
+  pro:    "Silver Series Wing",
+  pro2:   "Master Champion Gold",
+};
+function showChampVictory(champId) {
+  const champ = CHAMPIONSHIPS[champId];
+  if (!champ) return;
+  const el = document.getElementById("champ-victory");
+  if (!el) return;
+  const state = getCareerState();
+  document.getElementById("cv-name").textContent = champ.name;
+  document.getElementById("cv-points").textContent = `Final · ${state.points.player} pts`;
+  // Standings list — top 8.
+  const list = document.getElementById("cv-standings");
+  if (list) {
+    list.innerHTML = "";
+    (state.finalStandings || []).slice(0, 8).forEach((entry, i) => {
+      const li = document.createElement("li");
+      if (entry.isPlayer) li.classList.add("is-player");
+      li.innerHTML = `
+        <span class="cv-rank">${i + 1}</span>
+        <span class="cv-driver">${entry.isPlayer ? "YOU" : entry.name}</span>
+        <span class="cv-pts">${entry.points} pts</span>
+      `;
+      list.appendChild(li);
+    });
+  }
+  // Livery unlock — first time only per championship.
+  const newUnlock = addChampUnlock(champId);
+  const unlockEl = document.getElementById("cv-unlock");
+  if (unlockEl) {
+    if (newUnlock) {
+      unlockEl.hidden = false;
+      document.getElementById("cv-unlock-name").textContent = CHAMP_LIVERY_NAMES[champId] || "Trophy Decal";
+    } else {
+      unlockEl.hidden = true;
+    }
+  }
+  el.hidden = false;
+  // Confetti vibe — reuse victory class for screen flourish.
+  document.body.classList.add("is-victory");
+  setTimeout(() => document.body.classList.remove("is-victory"), 4500);
+}
+document.getElementById("cv-close-btn")?.addEventListener("click", () => {
+  const el = document.getElementById("champ-victory");
+  if (el) el.hidden = true;
+});
 
 // Replay playback — drive a virtual car (the player's group) along recorded
 // poses. Hides HUD, runs at 1.5× speed for snappier viewing.
@@ -2443,7 +2514,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=45");
+  const mod = await import("./garagePreview.js?v=46");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2598,25 +2669,11 @@ window.addEventListener("keydown", (e) => {
     if (el) el.hidden = !fpsOverlayEnabled;
   }
   if (e.code === "KeyP" && running) {
-    photoMode = !photoMode;
-    document.body.classList.toggle("is-photo-mode", photoMode);
+    setPhotoMode(!photoMode);
   }
   // Photo capture: K key downloads current frame as PNG.
   if (e.code === "KeyK") {
-    try {
-      // Force a fresh render so the canvas has current pixels.
-      composer.render();
-      const dataURL = renderer.domElement.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = dataURL;
-      a.download = `apex-akina-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      flashCallout("PNG saved", 700);
-    } catch (err) {
-      console.warn("Photo capture failed:", err);
-    }
+    capturePhoto();
   }
   if (e.code === "KeyV" && running) {
     spectatorMode = !spectatorMode;
@@ -2624,8 +2681,9 @@ window.addEventListener("keydown", (e) => {
   }
   if (e.code === "KeyR" && (running || finishShown)) {
     // Quick restart current race.
-    spectatorMode = false; photoMode = false;
-    document.body.classList.remove("is-spectator", "is-photo-mode");
+    spectatorMode = false;
+    document.body.classList.remove("is-spectator");
+    setPhotoMode(false);
     startRace();
   }
 });
@@ -2644,6 +2702,64 @@ let spectatorYaw = 0;
 // can orbit with arrow keys.
 let photoMode = false;
 let photoCam = { yaw: 0, pitch: -0.2, dist: 12, height: 4, target: new THREE.Vector3() };
+let photoFilter = "none";
+const PHOTO_FX_CLASSES = ["photo-fx-bw","photo-fx-sepia","photo-fx-vivid","photo-fx-cinema","photo-fx-dream","photo-fx-night"];
+function setPhotoFilter(name) {
+  photoFilter = name;
+  document.body.classList.remove(...PHOTO_FX_CLASSES);
+  if (name && name !== "none") document.body.classList.add("photo-fx-" + name);
+  document.querySelectorAll(".photo-filter").forEach((b) => {
+    b.classList.toggle("is-active", b.dataset.filter === name);
+  });
+}
+function setPhotoMode(v) {
+  photoMode = v;
+  document.body.classList.toggle("is-photo-mode", photoMode);
+  const bar = document.getElementById("photo-bar");
+  if (bar) bar.hidden = !photoMode;
+  if (!photoMode) {
+    // Clean filter classes when leaving photo mode.
+    document.body.classList.remove(...PHOTO_FX_CLASSES);
+  } else {
+    // Reapply current filter.
+    if (photoFilter && photoFilter !== "none") document.body.classList.add("photo-fx-" + photoFilter);
+  }
+}
+function capturePhoto() {
+  try {
+    composer.render();
+    const w = renderer.domElement.width;
+    const h = renderer.domElement.height;
+    // Compose: render canvas with current CSS filter, then watermark.
+    const off = document.createElement("canvas");
+    off.width = w; off.height = h;
+    const ctx = off.getContext("2d");
+    // Apply same filter on the 2d context for parity with screen.
+    const cssFilter = getComputedStyle(renderer.domElement).filter;
+    if (cssFilter && cssFilter !== "none") ctx.filter = cssFilter;
+    ctx.drawImage(renderer.domElement, 0, 0);
+    ctx.filter = "none";
+    // Watermark — small bottom-right tag.
+    ctx.font = `bold ${Math.max(14, Math.round(h * 0.025))}px ui-sans-serif, system-ui`;
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    const tag = "APEX AKINA";
+    ctx.shadowColor = "rgba(0,0,0,0.7)";
+    ctx.shadowBlur = 6;
+    ctx.fillText(tag, w - 18, h - 14);
+    ctx.shadowBlur = 0;
+    const a = document.createElement("a");
+    a.href = off.toDataURL("image/png");
+    a.download = `apex-akina-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    flashCallout("📸 Photo saved", 900);
+  } catch (err) {
+    console.warn("Photo capture failed:", err);
+  }
+}
 function tickPhotoMode(dt) {
   if (!photoMode) return;
   // Orbit with arrows.
@@ -2661,6 +2777,16 @@ function tickPhotoMode(dt) {
   );
   camera.lookAt(photoCam.target);
 }
+// Wire up photo bar UI.
+document.querySelectorAll(".photo-filter").forEach((btn) => {
+  btn.addEventListener("click", () => setPhotoFilter(btn.dataset.filter));
+});
+document.getElementById("photo-capture-btn")?.addEventListener("click", capturePhoto);
+document.getElementById("photo-exit-btn")?.addEventListener("click", () => setPhotoMode(false));
+document.getElementById("pause-photo")?.addEventListener("click", () => {
+  setPaused(false);
+  setPhotoMode(true);
+});
 document.getElementById("hud-toggle-btn")?.addEventListener("click", () => {
   document.body.classList.toggle("is-hud-min");
 });

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=45">
+    <link rel="stylesheet" href="styles.css?v=46">
     <script type="importmap">
       {
         "imports": {
@@ -250,6 +250,43 @@
           </div>
         </div>
 
+        <!-- Championship victory — shown when a championship is won outright -->
+        <div class="champ-victory" id="champ-victory" hidden>
+          <div class="champ-victory-card">
+            <span class="cv-eyebrow">Championship Champion</span>
+            <h2 class="cv-name" id="cv-name">…</h2>
+            <p class="cv-points" id="cv-points">…</p>
+            <ol class="cv-standings" id="cv-standings"></ol>
+            <div class="cv-unlock" id="cv-unlock" hidden>
+              <span class="cv-unlock-eyebrow">New Livery Unlocked</span>
+              <span class="cv-unlock-name" id="cv-unlock-name">…</span>
+            </div>
+            <button type="button" id="cv-close-btn">Continue</button>
+          </div>
+        </div>
+
+        <!-- Photo mode action bar — visible only while photoMode is on -->
+        <div class="photo-bar" id="photo-bar" hidden>
+          <div class="photo-bar-strip">
+            <button type="button" data-filter="none"     class="photo-filter is-active">Original</button>
+            <button type="button" data-filter="bw"       class="photo-filter">B&amp;W</button>
+            <button type="button" data-filter="sepia"    class="photo-filter">Sepia</button>
+            <button type="button" data-filter="vivid"    class="photo-filter">Vivid</button>
+            <button type="button" data-filter="cinema"   class="photo-filter">Cinema</button>
+            <button type="button" data-filter="dream"    class="photo-filter">Dream</button>
+            <button type="button" data-filter="night"    class="photo-filter">Noir</button>
+          </div>
+          <div class="photo-bar-actions">
+            <button type="button" id="photo-capture-btn" class="photo-action photo-capture">📸 Capture</button>
+            <button type="button" id="photo-exit-btn"    class="photo-action ghost-btn">Exit (P)</button>
+          </div>
+          <div class="photo-bar-hints">
+            <span><kbd>← →</kbd> orbit</span>
+            <span><kbd>↑ ↓</kbd> dolly</span>
+            <span><kbd>K</kbd> capture</span>
+          </div>
+        </div>
+
         <div class="overlay" id="finish-overlay" hidden>
           <div class="title-card">
             <p class="eyebrow">Race complete</p>
@@ -273,6 +310,7 @@
             <div class="prerace-actions">
               <button id="pause-resume" type="button">Resume</button>
               <button id="pause-restart" type="button" class="ghost-btn">Restart</button>
+              <button id="pause-photo" type="button" class="ghost-btn">📷 Photo Mode</button>
               <button id="pause-quit" type="button" class="ghost-btn">Quit to menu</button>
               <button id="pause-settings" type="button" class="ghost-btn">Settings</button>
             </div>
@@ -424,6 +462,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=45"></script>
+    <script type="module" src="main.js?v=46"></script>
   </body>
 </html>
