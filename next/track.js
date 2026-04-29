@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=73";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=74";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -84,10 +84,11 @@ export function buildTrack(trackId = "lakeside") {
     normalScale: new THREE.Vector2(0.55, 0.55),
     metalness: 0.10,
     roughness: 0.78,
-    // Brighter emissive so the road self-illuminates slightly even in dark
-    // scenes — guarantees the road never blends into the ground completely.
-    emissive: 0x6a6e78,
-    emissiveIntensity: 0.18
+    // Strong emissive — the road needs to read as a distinct surface in
+    // every lighting condition. 0x808088 at 0.55 gives it ~50% self-glow
+    // so it's never confused with the off-road ground.
+    emissive: 0x808088,
+    emissiveIntensity: 0.55
   });
   const roadMesh = new THREE.Mesh(geo, mat);
   roadMesh.receiveShadow = true;
@@ -169,18 +170,18 @@ export function buildTrack(trackId = "lakeside") {
     kerbGroup.add(instA, instB);
   }
 
-  // Ground plane below the track — now with a procedural varied texture
-  // (dirt patches + grain) so it doesn't read as a flat slab.
+  // Ground plane below the track — DARKER than the road by design so
+  // the asphalt strip pops visibly against the off-road terrain.
   const groundGeo = new THREE.PlaneGeometry(2400, 2400, 32, 32);
   const groundTex = buildGroundTexture(track.palette.ground);
   groundTex.repeat.set(80, 80);
   const groundMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: 0x606878,         // dim the texture sample to ~38% so ground stays dark
     map: groundTex,
     metalness: 0.0,
     roughness: 0.95,
-    emissive: track.palette.ground,
-    emissiveIntensity: 0.10
+    emissive: 0x000000,
+    emissiveIntensity: 0
   });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
