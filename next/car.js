@@ -494,6 +494,33 @@ function buildBody(shape) {
     group.add(shadow);
   }
 
+  // UNDERGLOW — neon-cyan radial under the car. Pure synthwave aesthetic.
+  // Plane sits below the body, additive blending so it lights up the road
+  // below the car. Color matches livery accent or defaults to cyan.
+  {
+    const c = document.createElement("canvas");
+    c.width = 256; c.height = 128;
+    const x = c.getContext("2d");
+    const grad = x.createRadialGradient(128, 64, 0, 128, 64, 110);
+    grad.addColorStop(0,    "rgba(46, 233, 255, 1.0)");
+    grad.addColorStop(0.45, "rgba(46, 233, 255, 0.5)");
+    grad.addColorStop(1.0,  "rgba(46, 233, 255, 0)");
+    x.fillStyle = grad;
+    x.fillRect(0, 0, c.width, c.height);
+    const tex = new THREE.CanvasTexture(c);
+    const glowMat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(shape.width * 2.2, shape.length * 1.6),
+      glowMat
+    );
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.set(0, 0.04, 0);
+    glow.renderOrder = 2;
+    group.add(glow);
+  }
+
   // Side mirrors — small wedges on the A-pillar.
   const mirrorMat = pbr(shape.body, 0.65, 0.30);
   for (const side of [-1, 1]) {

@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=112";
-import { buildScenery, tickAmbient } from "./scenery.js?v=112";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=112";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=112";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=112";
+import { buildTrack, getTrackList } from "./track.js?v=113";
+import { buildScenery, tickAmbient } from "./scenery.js?v=113";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=113";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=113";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=113";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=112";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=112";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=112";
-import { createReplay } from "./replay.js?v=112";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=112";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=112";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=112";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=112";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=112";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=112";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=112";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=113";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=113";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=113";
+import { createReplay } from "./replay.js?v=113";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=113";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=113";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=113";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=113";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=113";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=113";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=113";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=112";
+} from "./profile.js?v=113";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -3328,7 +3328,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=112");
+  const mod = await import("./garagePreview.js?v=113");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
