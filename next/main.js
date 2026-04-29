@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=83";
-import { buildScenery, tickAmbient } from "./scenery.js?v=83";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=83";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=83";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=83";
+import { buildTrack, getTrackList } from "./track.js?v=84";
+import { buildScenery, tickAmbient } from "./scenery.js?v=84";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=84";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=84";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=84";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=83";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=83";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=83";
-import { createReplay } from "./replay.js?v=83";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=83";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=83";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=83";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=83";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=83";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=83";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=83";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=84";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=84";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=84";
+import { createReplay } from "./replay.js?v=84";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=84";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=84";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=84";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=84";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=84";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=84";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=84";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=83";
+} from "./profile.js?v=84";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1767,8 +1767,11 @@ function loop(now) {
     if (d > 35) {
       draftStack.hidden = false;
       document.getElementById("draft-value").textContent = `${d}%`;
+      // Strong-draft pulse class triggers cyan glow animation.
+      draftStack.classList.toggle("is-strong", d > 65);
     } else {
       draftStack.hidden = true;
+      draftStack.classList.remove("is-strong");
     }
   }
   // Final-lap badge glow.
@@ -1814,12 +1817,19 @@ function loop(now) {
   const heatMeter = document.querySelector(".heat-meter");
   if (heatMeter) heatMeter.classList.toggle("is-overheating", !!car.overheating);
 
-  // Combo HUD
+  // Combo HUD — bump animation on increase.
   const comboStack = document.getElementById("combo-stack");
   if (comboStack) {
     if (combo > 0) {
       comboStack.hidden = false;
-      document.getElementById("combo-value").textContent = `x${combo}`;
+      const valueEl = document.getElementById("combo-value");
+      const newText = `x${combo}`;
+      if (valueEl.textContent !== newText) {
+        valueEl.textContent = newText;
+        comboStack.classList.remove("is-bumping");
+        void comboStack.offsetWidth;       // force reflow to restart animation
+        comboStack.classList.add("is-bumping");
+      }
       comboStack.classList.toggle("is-hot", combo >= 5);
     } else {
       comboStack.hidden = true;
@@ -3040,7 +3050,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=83");
+  const mod = await import("./garagePreview.js?v=84");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
