@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=84";
-import { buildScenery, tickAmbient } from "./scenery.js?v=84";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=84";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=84";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=84";
+import { buildTrack, getTrackList } from "./track.js?v=85";
+import { buildScenery, tickAmbient } from "./scenery.js?v=85";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=85";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=85";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=85";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=84";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=84";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=84";
-import { createReplay } from "./replay.js?v=84";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=84";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=84";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=84";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=84";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=84";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=84";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=84";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=85";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=85";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=85";
+import { createReplay } from "./replay.js?v=85";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=85";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=85";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=85";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=85";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=85";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=85";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=85";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=84";
+} from "./profile.js?v=85";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2646,10 +2646,16 @@ function runStartLights() {
       if (i < bulbs.length - 1) playCountdownBeep("tick");
       i++;
     } else {
-      // GO.
+      // GO — flash all bulbs green, hold for 360ms, then hide.
       clearInterval(interval);
-      bulbs.forEach((b) => b.classList.remove("is-lit"));
-      setTimeout(() => { startLightsEl.hidden = true; }, 220);
+      // Make sure they're all lit so the green class visibly affects them.
+      bulbs.forEach((b) => b.classList.add("is-lit"));
+      startLightsEl.classList.add("is-go");
+      setTimeout(() => {
+        bulbs.forEach((b) => b.classList.remove("is-lit"));
+        startLightsEl.classList.remove("is-go");
+        startLightsEl.hidden = true;
+      }, 380);
       running = true;
       if (car) car.raceLiveTime = 0;
       playCountdownBeep("go");
@@ -3050,7 +3056,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=84");
+  const mod = await import("./garagePreview.js?v=85");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

@@ -647,29 +647,53 @@ button:hover { filter: brightness(1.08); }
 .start-lights {
   position: absolute;
   left: 50%;
-  top: 18%;
+  top: 14%;
   transform: translateX(-50%);
   display: flex;
-  gap: 18px;
-  padding: 14px 22px;
-  border: 1px solid rgba(46, 233, 255, 0.35);
-  border-radius: 10px;
-  background: rgba(5, 8, 15, 0.78);
-  backdrop-filter: blur(10px);
+  gap: 22px;
+  padding: 18px 28px;
+  border: 2px solid rgba(46, 233, 255, 0.35);
+  border-radius: 14px;
+  background: rgba(5, 8, 15, 0.85);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.6), 0 0 24px rgba(46, 233, 255, 0.15);
   z-index: 5;
 }
 
 .start-lights span {
-  width: clamp(18px, 2vw, 28px);
-  height: clamp(18px, 2vw, 28px);
+  width: clamp(24px, 2.6vw, 36px);
+  height: clamp(24px, 2.6vw, 36px);
   border-radius: 50%;
-  background: rgba(255, 49, 92, 0.12);
-  border: 1px solid rgba(255, 49, 92, 0.25);
+  background: rgba(255, 49, 92, 0.10);
+  border: 2px solid rgba(255, 49, 92, 0.30);
+  transition: background 120ms, box-shadow 120ms, transform 200ms cubic-bezier(.2,.9,.2,1.1);
 }
 
 .start-lights span.is-lit {
-  background: #ff315c;
-  box-shadow: 0 0 18px rgba(255, 49, 92, 0.85);
+  background: radial-gradient(circle at 35% 30%, #ff8aab, #ff315c 60%);
+  border-color: rgba(255, 200, 220, 0.75);
+  box-shadow:
+    0 0 24px rgba(255, 49, 92, 0.95),
+    0 0 48px rgba(255, 49, 92, 0.5),
+    inset 0 0 8px rgba(255, 230, 240, 0.4);
+  transform: scale(1.08);
+}
+
+/* When all lights go GREEN at lights-out, swap colors and pulse. */
+.start-lights.is-go span {
+  background: radial-gradient(circle at 35% 30%, #b0ffd4, #4adf80 60%);
+  border-color: rgba(220, 255, 230, 0.75);
+  box-shadow:
+    0 0 28px rgba(74, 223, 128, 0.95),
+    0 0 56px rgba(74, 223, 128, 0.6),
+    inset 0 0 8px rgba(230, 255, 240, 0.5);
+  animation: start-go-pulse 0.4s ease-out;
+}
+
+@keyframes start-go-pulse {
+  0%   { transform: scale(1.0); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1.08); }
 }
 
 .start-lights[hidden] { display: none !important; }
