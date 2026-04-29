@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=90";
-import { buildScenery, tickAmbient } from "./scenery.js?v=90";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=90";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=90";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=90";
+import { buildTrack, getTrackList } from "./track.js?v=91";
+import { buildScenery, tickAmbient } from "./scenery.js?v=91";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=91";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=91";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=91";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=90";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=90";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=90";
-import { createReplay } from "./replay.js?v=90";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=90";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=90";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=90";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=90";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=90";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=90";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=90";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=91";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=91";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=91";
+import { createReplay } from "./replay.js?v=91";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=91";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=91";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=91";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=91";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=91";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=91";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=91";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=90";
+} from "./profile.js?v=91";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -102,13 +102,22 @@ const skyUniforms = {
       // Quick hash for sky stipple noise (subtle horizon haze).
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       void main() {
-        float h = normalize(vWorld + vec3(0.0, offset, 0.0)).y;
+        vec3 dir = normalize(vWorld + vec3(0.0, offset, 0.0));
+        float h = dir.y;
         // Hot horizon band: amplify bottom color near horizon.
         vec3 horizon = mix(bottomColor * 1.2, midColor, smoothstep(-0.05, 0.35, h));
         vec3 col = mix(horizon, topColor, smoothstep(0.35, 0.95, h));
         // Soft horizon haze noise.
         float n = hash(floor(vWorld.xz * 0.04));
         col += vec3(0.04, 0.02, 0.05) * n * (1.0 - smoothstep(0.0, 0.4, h));
+        // Sun / moon disc — fixed direction, soft falloff. Position is
+        // 30° above horizon, slightly to the SE. Color = bottomColor * warm.
+        vec3 sunDir = normalize(vec3(0.55, 0.36, -0.75));
+        float sunDot = max(0.0, dot(dir, sunDir));
+        float sunCore = smoothstep(0.985, 0.998, sunDot);
+        float sunGlow = pow(sunDot, 60.0) * 0.55;
+        vec3 sunCol = mix(bottomColor * 1.6, vec3(1.0, 0.92, 0.78), 0.4);
+        col += sunCol * (sunCore + sunGlow);
         gl_FragColor = vec4(col, 1.0);
       }`
   });
@@ -3152,7 +3161,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=90");
+  const mod = await import("./garagePreview.js?v=91");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
