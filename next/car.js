@@ -589,6 +589,36 @@ function buildBody(shape) {
   group.add(headlightRight);
   group.userData.headlights = [headlightLeft, headlightRight];
 
+  // Volumetric headlight cones — visible translucent cone meshes that
+  // show the beam projecting forward. Off by default; main.js makes them
+  // visible at night. Each cone is a stretched ConeGeometry with additive
+  // blending so it reads as light, not solid geometry.
+  const beamMats = [];
+  const beams = [];
+  for (const side of [-1, 1]) {
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffeec4,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    // Cone geometry pointing along its +Y axis. We rotate to point forward
+    // (along +Z in car-local space).
+    const beamGeo = new THREE.ConeGeometry(2.4, 14, 16, 1, true);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    // Cone's apex is at position + Y/2; we want apex at headlight, base 14m
+    // ahead. Rotate -PI/2 around X so cone points along +Z, then translate.
+    beam.rotation.x = -Math.PI / 2;
+    beam.position.set(side * shape.width * 0.26, bodyH * 0.42 - 0.20, shape.length * 0.52 + 7);
+    group.add(beam);
+    beams.push(beam);
+    beamMats.push(beamMat);
+  }
+  group.userData.headlightBeams = beams;
+  group.userData.headlightBeamMats = beamMats;
+
   // Hood detail (subtle).
   if (shape.spoiler === "wing" || shape.spoiler === "lip") {
     const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.36), pbr(0x05070d, 0.5, 0.6));
