@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=92";
-import { buildScenery, tickAmbient } from "./scenery.js?v=92";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=92";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=92";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=92";
+import { buildTrack, getTrackList } from "./track.js?v=93";
+import { buildScenery, tickAmbient } from "./scenery.js?v=93";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=93";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=93";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=93";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=92";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=92";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=92";
-import { createReplay } from "./replay.js?v=92";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=92";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=92";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=92";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=92";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=92";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=92";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=92";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=93";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=93";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=93";
+import { createReplay } from "./replay.js?v=93";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=93";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=93";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=93";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=93";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=93";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=93";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=93";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=92";
+} from "./profile.js?v=93";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1129,6 +1129,14 @@ function recordSector(idx, time) {
     const delta = time - prev;
     d.textContent = (delta >= 0 ? "+" : "") + delta.toFixed(2);
     d.className = "sector-delta " + (delta < 0 ? "is-faster" : "is-slower");
+    // Floating popup celebrates the delta — green for faster, hot for slower.
+    if (delta < -0.05) {
+      showScorePopup(`S${idx} ${delta.toFixed(2)}`, 50, 22, "green");
+    } else if (delta > 0.05) {
+      showScorePopup(`S${idx} +${delta.toFixed(2)}`, 50, 22, "hot");
+    } else {
+      showScorePopup(`S${idx} =${delta.toFixed(2)}`, 50, 22, "cyan");
+    }
   }
   if (prev == null || time < prev) {
     best[key] = time;
@@ -3161,7 +3169,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=92");
+  const mod = await import("./garagePreview.js?v=93");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
