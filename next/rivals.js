@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=104";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=105";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -35,21 +35,21 @@ export const BOSS_VARIANTS = [
     bio: "Fastest driver to ever come down the pass. Has not lost on Akagi in two seasons.",
     homeTrack: "mountainpass",
     body: 0xff0033, stripe: 0xfbfdff, w: 1.98, h: 0.55, l: 4.45, spoiler: "wing",
-    boss: true, basePace: 88
+    boss: true, basePace: 95
   },
   {
     name: "NEON KING",
     bio: "City prowler. Owns the Neon Highway after dark.",
     homeTrack: "neon",
     body: 0x9f00ff, stripe: 0x4ce8ff, w: 2.02, h: 0.46, l: 4.55, spoiler: "deck",
-    boss: true, basePace: 90
+    boss: true, basePace: 97
   },
   {
     name: "DAIKOKU GOD",
     bio: "Enters every race. Wins half. Smokes after every one.",
     homeTrack: "drift",
     body: 0x141828, stripe: 0xff315c, w: 2.10, h: 0.54, l: 4.75, spoiler: "wing",
-    boss: true, basePace: 86
+    boss: true, basePace: 93
   }
 ];
 
@@ -232,6 +232,16 @@ export function createRivals(track, count = 14, opts = {}) {
     const gridLane = col * COL_OFFSET;
     const homeLane = ((i % 5) - 2) * 1.6;
     const isBoss = !!variant.boss;
+    // Per-rival driving traits — gives each AI a distinct character.
+    // skill: 0..1, controls racing-line precision. Higher = closer to optimal.
+    // brakeStyle: -0.2..+0.3, controls brake-point. Negative = brake earlier (cautious).
+    // wobblePhase: random phase so each rival's natural line wander is unique.
+    const skill = isBoss ? 0.92 + Math.random() * 0.06
+                : i < 4 ? 0.78 + Math.random() * 0.14
+                : i < 9 ? 0.65 + Math.random() * 0.18
+                : 0.55 + Math.random() * 0.18;
+    const brakeStyle = isBoss ? -0.05 + Math.random() * 0.10
+                : -0.18 + Math.random() * 0.36;
     rivals.push({
       name: variant.name,
       bio: variant.bio || "",
@@ -240,17 +250,20 @@ export function createRivals(track, count = 14, opts = {}) {
       variant,                        // expose for HUD coloring
       personality,
       isBoss,
+      skill,                          // 0..1 racing-line precision
+      brakeStyle,                     // brake offset (negative = earlier)
+      wobblePhase: Math.random() * Math.PI * 2,
       s: gridS,
       lane: gridLane,
       homeLane,
-      // Rivals match player top speed (player BASE_MAX_SPEED = 78 m/s).
-      // Front pack runs at the player's max — no handicap. Bosses and
-      // mid-pack get small spreads so the field has natural variation
-      // but every rival can keep up on a straight.
+      // Rivals match player top speed (player BASE_MAX_SPEED = 92 m/s).
+      // Front pack runs ~at player's max with small variation. Mid +
+      // back of the field 2-6 m/s slower. Bosses use their per-variant
+      // basePace which is also bumped via the variant data.
       targetSpeed: isBoss ? variant.basePace + Math.random() * 4
-                  : i < 5 ? 78 + Math.random() * 2
-                  : i < 10 ? 76 + Math.random() * 3
-                  : 73 + Math.random() * 3,
+                  : i < 5 ? 90 + Math.random() * 2
+                  : i < 10 ? 87 + Math.random() * 3
+                  : 84 + Math.random() * 3,
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
@@ -373,18 +386,23 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     // The current lateral curvature c1signed tells us if we're IN a corner now.
     let racingLine = r.homeLane;
     if (curveSeverity > 0.012) {
-      // We're approaching/in a corner. Bias lane toward outside on entry,
-      // inside at apex (max curvature ahead now), outside on exit.
-      const inApex = c1 > c2 * 0.8;       // current curve >= upcoming curve = at/just past apex
-      const turnSign = Math.sign(c2signed || c1signed || 1);  // +1 right turn, -1 left turn
+      const inApex = c1 > c2 * 0.8;
+      const turnSign = Math.sign(c2signed || c1signed || 1);
+      // Skill scales how cleanly the rival hits the apex. Lower skill =
+      // smaller line excursion (they don't go fully wide → apex → wide).
+      const skill = r.skill ?? 0.8;
       if (inApex) {
-        // Apex/exit phase — drift to the outside of the turn (opposite of turnSign).
-        racingLine = -turnSign * 3.2;
+        racingLine = -turnSign * (1.8 + 1.6 * skill);
       } else {
-        // Entry phase — drive on the outside before the apex.
-        racingLine = -turnSign * 4.0;
+        racingLine = -turnSign * (2.2 + 2.0 * skill);
       }
     }
+    // Per-rival natural line wander — slow sine wave with unique phase per
+    // rival so they don't all stay glued to the optimal line. Lower skill
+    // = bigger wander.
+    const wanderAmp = (1.0 - (r.skill ?? 0.8)) * 1.4;
+    const wanderHz = 0.18 + (1.0 - (r.skill ?? 0.8)) * 0.25;
+    racingLine += Math.sin(performance.now() * 0.001 * wanderHz + (r.wobblePhase || 0)) * wanderAmp;
 
     // ---- Traffic awareness: scan ahead for slower cars + plan overtake ----
     let blockerSpeed = null;
@@ -529,7 +547,9 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     // Crucially, never decelerate BELOW pace — that creates a visible
     // stutter as the car re-accelerates back up to where it should be.
     const brakeUrgency = Math.min(1, c2 * 12.0);
-    const brakeThreshold = 0.55 / personality.brakeBoldness;
+    // Per-rival brakeStyle shifts the threshold: cautious rivals brake
+    // earlier (lower threshold), bold rivals later (higher threshold).
+    const brakeThreshold = (0.55 + (r.brakeStyle || 0)) / personality.brakeBoldness;
     if (brakeUrgency > brakeThreshold && r.speed > pace) {
       const decel = dt * 18 * brakeUrgency;
       r.speed = Math.max(pace, r.speed - decel);

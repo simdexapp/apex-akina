@@ -19,17 +19,21 @@ import * as THREE from "three";
 // Tuning constants live up top so balance is in one place.
 // ============================================================
 
-// ---- Tuning knobs (realism-leaning, slower acceleration curve) ----
-const BASE_MAX_SPEED = 78;       // m/s top speed unchanged so chases still pop
-const ACCEL = 13;                // m/s² peak (was 22 — feels much heavier now)
-const BRAKE = 38;                // m/s² (was 42, slightly less so braking has weight)
-const DRAG = 5;                  // m/s² coast-down (was 4, so car bleeds speed if you stop accelerating)
-const OFF_ROAD_DRAG = 28;        // m/s² off-road (was 24, more punishing)
-const STEER_RATE = 2.5;          // rad/s lock rate (slightly slower for weighty feel)
-const STEER_MAX = 0.7;
-const GRIP = 12;
+// ---- Tuning knobs ----
+// Snappier acceleration + steering. Top speed bumped because the bigger
+// tracks (TRACK_SCALE 1.7) need cars that actually go fast enough to
+// feel the straights. Steering rate bumped so the car responds when you
+// flick the input — was too sluggish at 2.5.
+const BASE_MAX_SPEED = 92;       // m/s top speed (was 78 — ~330 km/h, racetrack pace)
+const ACCEL = 19;                // m/s² peak (was 13 — felt like driving in mud)
+const BRAKE = 44;                // m/s² (was 38 — snappier stop)
+const DRAG = 4;                  // m/s² coast-down (was 5)
+const OFF_ROAD_DRAG = 28;        // m/s² off-road
+const STEER_RATE = 3.4;          // rad/s lock rate (was 2.5 — flick response)
+const STEER_MAX = 0.75;
+const GRIP = 13;                 // slightly higher so the car holds the line
 const DRIFT_GRIP = 4.5;
-const STEER_AUTHORITY = 1.85;
+const STEER_AUTHORITY = 2.05;    // 1.85 -> 2.05 for crisper turn-in
 
 // Engine heat.
 const HEAT_THRESHOLD = 0.97;

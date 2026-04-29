@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=104";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=105";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -17,13 +17,18 @@ export function getTrackList() {
   return Object.entries(TRACKS).map(([id, t]) => ({ id, name: t.name, description: t.description, palette: t.palette }));
 }
 
+// Track scale — applied to all control points to make tracks bigger.
+// 1.0 was too tight for cars at 78 m/s + sweeping turns. 1.7 gives
+// proper highway-length straights and corner radii.
+const TRACK_SCALE = 1.7;
+
 export function buildTrack(trackId = "lakeside") {
   const track = TRACKS[trackId] || TRACKS.lakeside;
-  // Use CHORDAL CatmullRom — avoids the "twist" / overshoot artifacts that the
-  // default tensioned spline produces at unevenly-spaced control points. The
-  // curve sticks closer to the actual point sequence without creating kinks
-  // or self-intersections at sharp turns.
-  const curve = new THREE.CatmullRomCurve3(track.points, true, "chordal", 0.5);
+  // Scale the source control points up before fitting the spline.
+  const scaledPoints = track.points.map((p) =>
+    new THREE.Vector3(p.x * TRACK_SCALE, p.y, p.z * TRACK_SCALE)
+  );
+  const curve = new THREE.CatmullRomCurve3(scaledPoints, true, "chordal", 0.5);
   const points = curve.getSpacedPoints(SAMPLES);
   const tangents = [];
   for (let i = 0; i < SAMPLES; i++) {
@@ -485,6 +490,6 @@ export function buildTrack(trackId = "lakeside") {
     halfWidth: ROAD_HALF_WIDTH,
     points,
     tangents,
-    controlPoints: track.points
+    controlPoints: scaledPoints      // scaled so minimap bounds + scenery placement match
   };
 }
