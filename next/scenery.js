@@ -4,7 +4,7 @@
 // geometry+material, and per-track density is conservative.
 
 import * as THREE from "three";
-import { buildBuildingTexture } from "./textures.js?v=81";
+import { buildBuildingTexture } from "./textures.js?v=82";
 
 // Build the texture once, share across all building instances.
 let _BUILDING_TEX = null;

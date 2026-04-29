@@ -689,20 +689,20 @@ function buildBody(shape) {
     tail.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.52);
     group.add(tail);
     tailLights.push(tailMat);
-    // Soft sphere halo behind each tail light — additive blending so it
-    // reads as a glow, not solid geometry. Brake state ramps opacity up.
+    // Soft halo behind each tail light — small enough to read as a glow,
+    // not phallic globes. Tiny sphere, additive blending, off by default.
     const haloMat = new THREE.MeshBasicMaterial({
       color: 0xff315c,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.25,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
     const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.32, 8, 8),
+      new THREE.SphereGeometry(0.10, 8, 8),
       haloMat
     );
-    halo.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.55);
+    halo.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.53);
     group.add(halo);
     tailHalos.push(haloMat);
   }
