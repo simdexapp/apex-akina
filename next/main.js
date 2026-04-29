@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=113";
-import { buildScenery, tickAmbient } from "./scenery.js?v=113";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=113";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=113";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=113";
+import { buildTrack, getTrackList } from "./track.js?v=114";
+import { buildScenery, tickAmbient } from "./scenery.js?v=114";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=114";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=114";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=114";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=113";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=113";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=113";
-import { createReplay } from "./replay.js?v=113";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=113";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=113";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=113";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=113";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=113";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=113";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=113";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=114";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=114";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=114";
+import { createReplay } from "./replay.js?v=114";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=114";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=114";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=114";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=114";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=114";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=114";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=114";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=113";
+} from "./profile.js?v=114";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -696,6 +696,36 @@ function spawnSmoke(x, y, z) {
 }
 
 // Drift spark — small bright additive particle that arcs up and outward
+// Speed streak — short bright line flying past camera at high speed.
+// Spawned around the car's near-future trajectory, moves backward in
+// world space. Pure visual juice for sense of velocity.
+function spawnSpeedStreak() {
+  if (particles.length >= particleCap()) return;
+  const sin = Math.sin(car.heading);
+  const cos = Math.cos(car.heading);
+  const sideOff = (Math.random() - 0.5) * 14;
+  const upOff = 0.5 + Math.random() * 3.0;
+  const ahead = 6 + Math.random() * 10;
+  const x = car.group.position.x + sin * ahead + cos * sideOff;
+  const y = car.group.position.y + upOff;
+  const z = car.group.position.z + cos * ahead - sin * sideOff;
+  const geo = new THREE.BoxGeometry(0.05, 0.05, 5.0);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xeef4ff, transparent: true, opacity: 0.55,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.rotation.y = car.heading;
+  particlePool.add(mesh);
+  particles.push({
+    mesh, mat,
+    vx: -sin * 70, vy: 0, vz: -cos * 70,
+    life: 0.30,
+    type: "streak"
+  });
+}
+
 // from the tire when the player is drifting hard. Used to celebrate
 // long clean drifts.
 function spawnDriftSpark(x, y, z, side) {
@@ -793,6 +823,10 @@ function tickParticles(dt) {
       p.vx *= 0.94;
       p.vz *= 0.94;
       if (p.mat) p.mat.opacity = Math.max(0, p.life * 1.6);
+    }
+    if (p.type === "streak") {
+      // No gravity, fast linear motion + opacity fade.
+      if (p.mat) p.mat.opacity = Math.max(0, p.life * 1.8);
     }
     if (p.life <= 0) {
       particlePool.remove(p.mesh);
@@ -1630,6 +1664,17 @@ function tick(dt) {
     spawnSkidPair();
   }
   tickSkids(dt);
+
+  // Speed streaks — at >55% top speed, spawn bright streaks flying past
+  // the camera. Spawn rate scales with speed beyond 55%.
+  if (running && Number.isFinite(car.speed) && car.maxSpeed) {
+    const sp = Math.min(1, Math.abs(car.speed) / car.maxSpeed);
+    if (sp > 0.55) {
+      const rate = (sp - 0.55) / 0.45;   // 0..1 over 55%-100%
+      const spawnChance = rate * rate * 0.9;
+      if (Math.random() < spawnChance) spawnSpeedStreak();
+    }
+  }
 
   // Off-road dust — when running on the off-road ground at speed, kick
   // up dust from each rear wheel. "You're in the grass" cue.
@@ -3328,7 +3373,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=113");
+  const mod = await import("./garagePreview.js?v=114");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
