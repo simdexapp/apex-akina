@@ -6,7 +6,7 @@
 let ctx = null;
 let master = null;
 let sfxBus = null;
-let osc1, osc2, engineGain, engineLowpass;
+let osc1, osc2, osc3, osc3Gain, engineGain, engineLowpass;
 let pulseLfo, pulseLfoGain;
 let tireNoise, tireGain, tireBandpass;
 let windNoise, windGain, windBandpass;
@@ -70,7 +70,10 @@ export function ensureAudio() {
     sfxBus.gain.value = sfxVolume;
     sfxBus.connect(master);
 
-    // Engine
+    // Engine — three-oscillator stack for richer harmonic content:
+    //   osc1 = sawtooth fundamental (gravelly low)
+    //   osc2 = square detuned above (mid bite)
+    //   osc3 = sawtooth at 2× fundamental (top-end scream — only active high RPM)
     osc1 = ctx.createOscillator();
     osc1.type = PROFILE.type1;
     osc1.frequency.value = PROFILE.idleHz;
@@ -81,6 +84,13 @@ export function ensureAudio() {
     osc2.detune.value = PROFILE.detune2 + 8;
     const detune2Gain = ctx.createGain();
     detune2Gain.gain.value = PROFILE.gain2;
+    // Top-end scream — sawtooth at 2× fundamental, gain modulated by RPM.
+    osc3 = ctx.createOscillator();
+    osc3.type = "sawtooth";
+    osc3.frequency.value = PROFILE.idleHz * 2;
+    osc3.detune.value = 12;
+    osc3Gain = ctx.createGain();
+    osc3Gain.gain.value = 0;
 
     engineLowpass = ctx.createBiquadFilter();
     engineLowpass.type = "lowpass";
@@ -100,10 +110,13 @@ export function ensureAudio() {
     osc1.connect(engineLowpass);
     osc2.connect(detune2Gain);
     detune2Gain.connect(engineLowpass);
+    osc3.connect(osc3Gain);
+    osc3Gain.connect(engineLowpass);
     engineLowpass.connect(engineGain);
     engineGain.connect(sfxBus);
     osc1.start();
     osc2.start();
+    osc3.start();
     pulseLfo.start();
 
     // Tire screech
@@ -411,6 +424,13 @@ export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, rac
   const targetFreq = (PROFILE.idleHz + gearRpmFrac * range) * freqMul * gearBoostBase;
   osc1.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.022);
   osc2.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.022);
+  // Top-end scream — kicks in above 60% RPM, peaks at redline. Gives high-RPM
+  // engine a real "wail" that flat oscillator stacks can't.
+  if (osc3) {
+    osc3.frequency.setTargetAtTime(targetFreq * 2, ctx.currentTime, 0.022);
+    const screamGain = Math.max(0, (gearRpmFrac - 0.55) / 0.45) * 0.32;
+    if (osc3Gain) osc3Gain.gain.setTargetAtTime(racing && onThrottle ? screamGain : 0, ctx.currentTime, 0.04);
+  }
 
   const loadGain = onThrottle ? 1.0 : onBrake ? 0.34 : offThrottle ? 0.50 : 0.30;
   const baseGain = racing ? PROFILE.body * (0.30 + sp * 0.65) * loadGain : PROFILE.body * 0.14;

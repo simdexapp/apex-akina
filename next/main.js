@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=57";
-import { buildScenery, tickAmbient } from "./scenery.js?v=57";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=57";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=57";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=57";
+import { buildTrack, getTrackList } from "./track.js?v=58";
+import { buildScenery, tickAmbient } from "./scenery.js?v=58";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=58";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=58";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=58";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=57";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=57";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=57";
-import { createReplay } from "./replay.js?v=57";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=57";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=57";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=57";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=57";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=57";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=57";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=57";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=58";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=58";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=58";
+import { createReplay } from "./replay.js?v=58";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=58";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=58";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=58";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=58";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=58";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=58";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=58";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=57";
+} from "./profile.js?v=58";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -40,6 +40,45 @@ renderer.physicallyCorrectLights = true;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x2a1c5a, 120, 480);
+
+// Build a procedural environment map for PBR reflections — gives the cars
+// genuine reflective bodywork without needing an external HDR file. We
+// render a small cubemap from a synthetic gradient sky + ground plane,
+// then run it through PMREMGenerator for filtered roughness mip levels.
+function buildEnvironmentMap() {
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 512;
+  const x = c.getContext("2d");
+  // Equirectangular gradient: top sky → mid horizon → bottom ground.
+  const grad = x.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0,    "#1a1a4e");
+  grad.addColorStop(0.45, "#7a2c8e");
+  grad.addColorStop(0.55, "#ff8a4c");
+  grad.addColorStop(1,    "#1a0a14");
+  x.fillStyle = grad;
+  x.fillRect(0, 0, c.width, c.height);
+  // A soft sun disc.
+  const sunGrad = x.createRadialGradient(c.width * 0.7, c.height * 0.32, 0, c.width * 0.7, c.height * 0.32, 80);
+  sunGrad.addColorStop(0, "rgba(255,225,170,0.95)");
+  sunGrad.addColorStop(1, "rgba(255,225,170,0)");
+  x.fillStyle = sunGrad;
+  x.beginPath();
+  x.arc(c.width * 0.7, c.height * 0.32, 80, 0, Math.PI * 2);
+  x.fill();
+  const eqTex = new THREE.CanvasTexture(c);
+  eqTex.mapping = THREE.EquirectangularReflectionMapping;
+  eqTex.colorSpace = THREE.SRGBColorSpace;
+  return eqTex;
+}
+const _envTex = buildEnvironmentMap();
+// PMREMGenerator filters the cubemap into roughness-correct mip chain so
+// MeshStandardMaterial reads it as a real environment.
+const _pmrem = new THREE.PMREMGenerator(renderer);
+_pmrem.compileEquirectangularShader();
+const _envMap = _pmrem.fromEquirectangular(_envTex).texture;
+scene.environment = _envMap;
+_envTex.dispose();
+_pmrem.dispose();
 
 // Sky shader — dawn / dusk gradient with a hot horizon band so the world reads
 // luminous instead of black.
@@ -1835,15 +1874,21 @@ function loop(now) {
   // Photo mode camera + replay playback + FPS overlay.
   if (photoMode) tickPhotoMode(dt);
   if (replayPlaying) tickReplay(dt);
-  if (fpsOverlayEnabled) {
-    fpsFrameCount++;
+  // FPS sampling — always on for the auto-scaler; the overlay just shows
+  // the current value when toggled.
+  fpsFrameCount++;
+  {
     const now2 = performance.now();
     if (now2 - fpsLastSample >= 500) {
       fpsValue = Math.round(fpsFrameCount * 1000 / (now2 - fpsLastSample));
       fpsLastSample = now2;
       fpsFrameCount = 0;
-      const el = document.getElementById("fps-value");
-      if (el) el.textContent = fpsValue;
+      if (fpsOverlayEnabled) {
+        const el = document.getElementById("fps-value");
+        if (el) el.textContent = fpsValue;
+      }
+      // Auto-scaler — observe sustained FPS and downgrade/upgrade.
+      tickAutoScaler(fpsValue);
     }
   }
 
@@ -2812,7 +2857,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=57");
+  const mod = await import("./garagePreview.js?v=58");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2996,6 +3041,58 @@ window.addEventListener("keydown", (e) => {
 
 // FPS counter state.
 let fpsOverlayEnabled = false;
+
+// ---- Dynamic quality auto-scaler ----
+// Tracks 500ms FPS samples and downgrades quality if sustained <45 FPS,
+// upgrades back if sustained >58 FPS. Anti-thrash via dwell timers.
+const QUALITY_LADDER = ["low", "medium", "high", "ultra"];
+let _autoScalerLowFps = 0;
+let _autoScalerHighFps = 0;
+let _autoScalerCooldown = 0;
+let _autoScalerEnabled = true;
+function tickAutoScaler(fps) {
+  if (!_autoScalerEnabled) return;
+  if (_autoScalerCooldown > 0) { _autoScalerCooldown--; return; }
+  if (fps < 45) {
+    _autoScalerLowFps++;
+    _autoScalerHighFps = 0;
+    if (_autoScalerLowFps >= 6) {        // 6 samples × 500ms = 3 sec
+      const cur = settings.quality || "high";
+      const idx = QUALITY_LADDER.indexOf(cur);
+      if (idx > 0) {
+        settings.quality = QUALITY_LADDER[idx - 1];
+        applySettings();
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
+        flashCallout(`Auto-scaler · ${settings.quality.toUpperCase()}`, 1400);
+        _autoScalerCooldown = 12;        // 6 sec cooldown
+      }
+      _autoScalerLowFps = 0;
+    }
+  } else if (fps > 58) {
+    _autoScalerHighFps++;
+    _autoScalerLowFps = 0;
+    if (_autoScalerHighFps >= 12) {      // 6 sec sustained high before bumping back up
+      const cur = settings.quality || "high";
+      const idx = QUALITY_LADDER.indexOf(cur);
+      if (idx >= 0 && idx < QUALITY_LADDER.length - 1 && cur !== _autoScalerInitialQuality) {
+        // Only step back UP toward the user's original setting; don't push past it.
+        const targetIdx = Math.min(idx + 1, QUALITY_LADDER.indexOf(_autoScalerInitialQuality));
+        if (targetIdx > idx) {
+          settings.quality = QUALITY_LADDER[targetIdx];
+          applySettings();
+          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
+          flashCallout(`Auto-scaler · ${settings.quality.toUpperCase()}`, 1200);
+          _autoScalerCooldown = 12;
+        }
+      }
+      _autoScalerHighFps = 0;
+    }
+  } else {
+    _autoScalerLowFps = Math.max(0, _autoScalerLowFps - 1);
+    _autoScalerHighFps = Math.max(0, _autoScalerHighFps - 1);
+  }
+}
+let _autoScalerInitialQuality = "high";  // captured at applySettings() time
 let fpsLastSample = performance.now();
 let fpsFrameCount = 0;
 let fpsValue = 60;
@@ -3167,6 +3264,11 @@ function applySettings() {
   const q = settings.quality || "high";
   const preset = QUALITY_PRESETS[q] || QUALITY_PRESETS.high;
   activeQualityPreset = preset;
+  // Capture the user's chosen quality on first apply — auto-scaler won't
+  // upgrade past this even if the GPU has headroom.
+  if (!_autoScalerInitialQuality || _autoScalerInitialQuality === "high") {
+    _autoScalerInitialQuality = q;
+  }
   renderer.shadowMap.enabled = preset.shadows;
   if (preset.shadows && moonLight.shadow.mapSize.x !== preset.shadowSize) {
     moonLight.shadow.mapSize.set(preset.shadowSize, preset.shadowSize);

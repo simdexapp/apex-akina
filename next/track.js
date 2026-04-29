@@ -1,9 +1,17 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=58";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
 const SAMPLES = 480;
+
+// Build textures once, reuse across track rebuilds (track loadTrack swaps the
+// road geometry but not the surface look).
+let _ROAD_MAP = null;
+let _ROAD_NORMAL = null;
+function getRoadMap()    { return _ROAD_MAP    || (_ROAD_MAP    = buildAsphaltTexture()); }
+function getRoadNormal() { return _ROAD_NORMAL || (_ROAD_NORMAL = buildAsphaltNormal()); }
 
 export function getTrackList() {
   return Object.entries(TRACKS).map(([id, t]) => ({ id, name: t.name, description: t.description, palette: t.palette }));
@@ -25,13 +33,17 @@ export function buildTrack(trackId = "lakeside") {
   // Build a ribbon mesh by extruding a width vector perpendicular to each tangent.
   const positions = [];
   const colors = [];
+  const uvs = [];
   const indices = [];
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3();
-  // Brighter asphalt — lighter base + alternating darker stripe so the road
-  // surface visibly streaks past the player, instead of being a uniform black.
-  const innerColor = new THREE.Color("#3a3f4f");
-  const altColor = new THREE.Color("#2a2e3c");
+  // Vertex colors are now a subtle stripe modulation that multiplies on top
+  // of the asphalt texture, not a replacement for it.
+  const innerColor = new THREE.Color("#a8b0bc");
+  const altColor = new THREE.Color("#8c95a4");
+  // Accumulate arclength for V coordinate so the texture doesn't repeat per
+  // segment — it tiles down the road naturally.
+  let accLen = 0;
   for (let i = 0; i < SAMPLES; i++) {
     const p = points[i];
     const t = tangents[i];
@@ -44,6 +56,11 @@ export function buildTrack(trackId = "lakeside") {
     positions.push(rx, p.y, rz);
     const c = i % 6 < 3 ? innerColor : altColor;
     colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    // U: 0 = left edge, 1 = right edge.
+    // V: arclength / 6m (so texture tiles every 6m along the road).
+    if (i > 0) accLen += p.distanceTo(points[i - 1]);
+    const v = accLen / 6.0;
+    uvs.push(0, v, 1, v);
   }
   for (let i = 0; i < SAMPLES; i++) {
     const j = (i + 1) % SAMPLES;
@@ -54,16 +71,21 @@ export function buildTrack(trackId = "lakeside") {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.20,
-    roughness: 0.62,
-    emissive: 0x0a0c14,
-    emissiveIntensity: 0.4
+    map: getRoadMap(),
+    normalMap: getRoadNormal(),
+    normalScale: new THREE.Vector2(0.55, 0.55),
+    metalness: 0.10,
+    roughness: 0.78,
+    emissive: 0x080a10,
+    emissiveIntensity: 0.20
   });
   const roadMesh = new THREE.Mesh(geo, mat);
+  roadMesh.receiveShadow = true;
 
   // Lane lines — flat emissive plane stripes. Use PlaneGeometry laid flat on
   // the road so they read as paint, not 3D bricks. Center line gold, side
@@ -142,19 +164,23 @@ export function buildTrack(trackId = "lakeside") {
     kerbGroup.add(instA, instB);
   }
 
-  // Ground plane below the track. Closer to road level + emissive base so it
-  // doesn't read as black at the horizon.
+  // Ground plane below the track — now with a procedural varied texture
+  // (dirt patches + grain) so it doesn't read as a flat slab.
   const groundGeo = new THREE.PlaneGeometry(2400, 2400, 32, 32);
+  const groundTex = buildGroundTexture(track.palette.ground);
+  groundTex.repeat.set(80, 80);
   const groundMat = new THREE.MeshStandardMaterial({
-    color: track.palette.ground,
+    color: 0xffffff,
+    map: groundTex,
     metalness: 0.0,
-    roughness: 0.92,
+    roughness: 0.95,
     emissive: track.palette.ground,
-    emissiveIntensity: 0.18
+    emissiveIntensity: 0.10
   });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -2.2;
+  ground.receiveShadow = true;
 
   // Bridge / guardrail barriers — looser than before so it doesn't feel claustrophobic.
   const barrierGroup = new THREE.Group();
