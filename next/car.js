@@ -671,10 +671,10 @@ function buildBody(shape) {
     lens.position.set(side * shape.width * 0.32, 0.55, shape.length * 0.50);
     group.add(lens);
   }
-  // Tail lights — slim, integrated at body height (matches the upper edge
-  // of the rear bumper so they read as part of the body panel, not stuck on).
+  // Tail lights — slim emissive bars + soft halo sphere for glow visible
+  // from chase camera. Halo opacity wired to brake state from main.js.
   const tailLights = [];
-  // Position at the rear-deck height (just below the rear glass).
+  const tailHalos = [];
   const tailY = bodyH * 0.55;
   for (const side of [-1, 1]) {
     const tailMat = new THREE.MeshStandardMaterial({
@@ -689,7 +689,24 @@ function buildBody(shape) {
     tail.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.52);
     group.add(tail);
     tailLights.push(tailMat);
+    // Soft sphere halo behind each tail light — additive blending so it
+    // reads as a glow, not solid geometry. Brake state ramps opacity up.
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xff315c,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 8, 8),
+      haloMat
+    );
+    halo.position.set(side * shape.width * 0.26, tailY, -shape.length * 0.55);
+    group.add(halo);
+    tailHalos.push(haloMat);
   }
+  group.userData.tailHaloMats = tailHalos;
   group.userData.tailMats = tailLights;
 
   // Side air vents — angled slits behind front wheels.
