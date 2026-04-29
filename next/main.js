@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=68";
-import { buildScenery, tickAmbient } from "./scenery.js?v=68";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=68";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=68";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=68";
+import { buildTrack, getTrackList } from "./track.js?v=69";
+import { buildScenery, tickAmbient } from "./scenery.js?v=69";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=69";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=69";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=69";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=68";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=68";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=68";
-import { createReplay } from "./replay.js?v=68";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=68";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=68";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=68";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=68";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=68";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=68";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=68";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=69";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=69";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=69";
+import { createReplay } from "./replay.js?v=69";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=69";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=69";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=69";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=69";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=69";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=69";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=69";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=68";
+} from "./profile.js?v=69";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -575,19 +575,52 @@ function spawnSpark(x, y, z, side) {
 
 function spawnSmoke(x, y, z) {
   if (particles.length >= particleCap()) return;
-  const geo = new THREE.SphereGeometry(0.5, 6, 6);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xeaeef5, transparent: true, opacity: 0.4 });
+  // Larger initial puff + longer life, so smoke trails visibly behind the
+  // car instead of disappearing immediately.
+  const geo = new THREE.SphereGeometry(0.40, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xe4e8f0, transparent: true, opacity: 0.55 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(x, y, z);
   particlePool.add(mesh);
   particles.push({
     mesh, mat,
-    vx: (Math.random() - 0.5) * 2,
-    vy: 0.6 + Math.random() * 0.8,
-    vz: (Math.random() - 0.5) * 2,
-    life: 0.6,
+    vx: (Math.random() - 0.5) * 1.6,
+    vy: 0.8 + Math.random() * 1.0,
+    vz: (Math.random() - 0.5) * 1.6,
+    life: 1.6,
     type: "smoke"
   });
+}
+
+// 3D confetti burst — spawns N small flat squares around (x,y,z) that
+// fly outward + drift down. Used on race-finish for the victory celebration.
+function spawnConfettiBurst(x, y, z, count = 50) {
+  const cap = particleCap();
+  const colors = [0xff315c, 0x2ee9ff, 0xffd166, 0x3cff9b, 0xa66cff, 0xfbfdff];
+  const allowed = Math.min(count, Math.max(0, cap - particles.length));
+  for (let i = 0; i < allowed; i++) {
+    const geo = new THREE.PlaneGeometry(0.16, 0.10);
+    const mat = new THREE.MeshBasicMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      side: THREE.DoubleSide
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + (Math.random() - 0.5) * 0.4, y, z + (Math.random() - 0.5) * 0.4);
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    particlePool.add(mesh);
+    particles.push({
+      mesh, mat,
+      vx: (Math.random() - 0.5) * 8,
+      vy: 4 + Math.random() * 6,
+      vz: (Math.random() - 0.5) * 8,
+      // Random spin so confetti tumbles in flight.
+      rotX: (Math.random() - 0.5) * 6,
+      rotY: (Math.random() - 0.5) * 6,
+      rotZ: (Math.random() - 0.5) * 6,
+      life: 3.5 + Math.random() * 1.5,
+      type: "confetti"
+    });
+  }
 }
 
 function tickParticles(dt) {
@@ -598,8 +631,18 @@ function tickParticles(dt) {
     p.mesh.position.z += p.vz * dt;
     p.life -= dt;
     if (p.type === "smoke") {
-      p.mat.opacity = Math.max(0, p.life * 0.7);
-      p.mesh.scale.multiplyScalar(1 + dt * 1.4);
+      // Fade slower so the smoke billows have visible body before fading.
+      p.mat.opacity = Math.max(0, p.life * 0.42);
+      p.mesh.scale.multiplyScalar(1 + dt * 2.2);
+    }
+    if (p.type === "confetti") {
+      // Gravity + spin + air drag.
+      p.vy -= 9.0 * dt;       // fall
+      p.vx *= 0.985;
+      p.vz *= 0.985;
+      p.mesh.rotation.x += (p.rotX || 0) * dt;
+      p.mesh.rotation.y += (p.rotY || 0) * dt;
+      p.mesh.rotation.z += (p.rotZ || 0) * dt;
     }
     if (p.life <= 0) {
       particlePool.remove(p.mesh);
@@ -1105,6 +1148,19 @@ function tick(dt) {
 
   car.tick(dt, i, track);
 
+  // Spin the wheels visibly. Wheel radius 0.40m, so angular velocity =
+  // car speed / 0.40 rad/sec. Front wheels also yaw with steer input
+  // for a satisfying "the car is steering" cue.
+  const wheels = car.group.userData?.wheels;
+  if (wheels) {
+    const wheelRot = car.speed / 0.40;
+    const steerAngle = (car.steer ?? 0) * 0.45;
+    for (const w of wheels) {
+      w.rotation.x = (w.rotation.x || 0) + wheelRot * dt;
+      w.rotation.y = w.userData.isFront ? steerAngle : 0;
+    }
+  }
+
   // Draft tops up the slow-mo meter slowly — rewards staying in tow.
   if (running && draft > 0.4) {
     car.slowMeter = Math.min(1, (car.slowMeter || 0) + draft * 0.08 * dt);
@@ -1151,12 +1207,34 @@ function tick(dt) {
     sw.rotation.z = sw._cur;
   }
 
-  // Brake light intensity — bump when braking, fade otherwise.
+  // Brake light intensity — bump when braking, fade otherwise. The flare
+  // is dramatic (4.5x) so it reads even at 60mph in the chase camera.
   const tailMats = car.group?.userData?.tailMats;
   if (tailMats) {
-    const targetEm = i.brake ? 2.8 : 0.6;
+    const targetEm = i.brake ? 4.5 : (i.throttle ? 0.4 : 0.95);
     for (const m of tailMats) {
-      m.emissiveIntensity += (targetEm - m.emissiveIntensity) * Math.min(1, dt * 16);
+      m.emissiveIntensity += (targetEm - m.emissiveIntensity) * Math.min(1, dt * 22);
+    }
+  }
+
+  // Headlights — boost intensity at night/sunset, dim by day. Headlight
+  // emissive panels also get a brighter glow when lights are "on".
+  const headlights = car.group?.userData?.headlights;
+  const headLightMats = car.group?.userData?.headLightMats;
+  if (headlights || headLightMats) {
+    const tod = settings.time || "auto";
+    const isDark = tod === "night" || tod === "sunset" || tod === "auto" || tod === "dawn";
+    const lightOn = isDark ? 1.0 : 0.0;
+    if (headlights) {
+      for (const hl of headlights) {
+        hl.intensity += (lightOn * 2.4 - hl.intensity) * Math.min(1, dt * 4);
+      }
+    }
+    if (headLightMats) {
+      const target = isDark ? 3.2 : 1.0;
+      for (const m of headLightMats) {
+        m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 4);
+      }
     }
   }
 
@@ -1341,9 +1419,29 @@ function tick(dt) {
     if (comboTimer === 0) combo = 0;
   }
 
-  // Drift smoke on hard slip.
-  if (Math.abs(car.lateralV) > 8 && Math.random() < 0.6) {
-    spawnSmoke(car.group.position.x, 0.4, car.group.position.z);
+  // Drift smoke — spawn from BOTH rear wheels separately so the smoke
+  // trail visibly originates from the tires, not the car center. Spawn
+  // rate scales with slip magnitude.
+  const slipMag = Math.abs(car.lateralV);
+  if (slipMag > 6) {
+    const spawnRate = Math.min(0.92, 0.35 + (slipMag - 6) * 0.05);
+    if (Math.random() < spawnRate) {
+      const sin = Math.sin(car.heading);
+      const cos = Math.cos(car.heading);
+      const rearOffsetZ = -1.6;
+      const rearWorldX = car.group.position.x + sin * rearOffsetZ;
+      const rearWorldZ = car.group.position.z + cos * rearOffsetZ;
+      // Right vector for tire offset.
+      const rightX = cos;
+      const rightZ = -sin;
+      for (const side of [-1, 1]) {
+        if (Math.random() < 0.7) {
+          const tx = rearWorldX + rightX * side * 0.85;
+          const tz = rearWorldZ + rightZ * side * 0.85;
+          spawnSmoke(tx, 0.4, tz);
+        }
+      }
+    }
   }
 
   tickParticles(dt);
@@ -2037,6 +2135,9 @@ function showFinish(standings) {
   if (standings.place === 1) {
     document.body.classList.add("is-victory");
     setTimeout(() => document.body.classList.remove("is-victory"), 4000);
+    // 3D confetti burst around the player car — adds physical celebration
+    // in the world, not just UI overlay.
+    spawnConfettiBurst(car.group.position.x, car.group.position.y + 1.0, car.group.position.z, 60);
   }
   const best = bestLapPerTrack[track.id];
   let extra = "";
@@ -2850,7 +2951,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=68");
+  const mod = await import("./garagePreview.js?v=69");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

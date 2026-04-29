@@ -477,6 +477,10 @@ function buildBody(shape) {
   // (racing stripe removed — was visual noise on the new body shape)
 
   // Wheels with chrome hubs (color customizable via livery.accent).
+  // Each wheel is wrapped in a small group so we can rotate the wheel
+  // around its own X axis (driving rotation) while the group provides
+  // the chassis-mount anchor. We also tag the wheel with userData.spin
+  // so main.js can update visible rotation each tick.
   const wheelGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.30, 18);
   const wheelMat = pbr(0x0a0e18, 0.0, 0.9);
   const hubGeo = new THREE.CylinderGeometry(0.20, 0.20, 0.32, 14);
@@ -485,17 +489,40 @@ function buildBody(shape) {
   const wx = shape.width * 0.5 - 0.06;
   const wzF = shape.length * 0.36;
   const wzR = -shape.length * 0.36;
-  for (const [x, z] of [[-wx, wzF], [wx, wzF], [-wx, wzR], [wx, wzR]]) {
+  const wheelMeshes = [];
+  for (const [x, z, isFront] of [[-wx, wzF, true], [wx, wzF, true], [-wx, wzR, false], [wx, wzR, false]]) {
+    // Wheel wrapper group lets us rotate the entire wheel + hub together.
+    const wheelWrap = new THREE.Group();
+    wheelWrap.position.set(x, 0.40, z);
     const w = new THREE.Mesh(wheelGeo, wheelMat);
     w.rotation.z = Math.PI / 2;
-    w.position.set(x, 0.40, z);
     w.userData.shadowCast = true;
-    group.add(w);
+    wheelWrap.add(w);
     const hub = new THREE.Mesh(hubGeo, hubMat);
     hub.rotation.z = Math.PI / 2;
-    hub.position.set(x, 0.40, z);
-    group.add(hub);
+    wheelWrap.add(hub);
+    // Visible spoke pattern — 5 thin bars across the hub face — gives the
+    // wheel a clear rotation cue when it spins.
+    const spokeMat = pbr(shape.accent ?? 0xc8d4e6, 0.85, 0.20);
+    for (let s = 0; s < 5; s++) {
+      const ang = (s / 5) * Math.PI * 2;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.32, 0.04), spokeMat);
+      spoke.rotation.x = ang;
+      spoke.position.set(0, Math.cos(ang) * 0, Math.sin(ang) * 0);
+      // Each spoke is rotated around the wheel axis (Z after the cylinder rotation).
+      // Place spokes oriented around X axis (driving rotation).
+      const spokeWrap = new THREE.Group();
+      spokeWrap.rotation.x = ang;
+      const spokeBar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.30, 0.02), spokeMat);
+      spokeBar.position.y = 0;
+      spokeWrap.add(spokeBar);
+      wheelWrap.add(spokeWrap);
+    }
+    wheelWrap.userData.isFront = isFront;
+    group.add(wheelWrap);
+    wheelMeshes.push(wheelWrap);
   }
+  group.userData.wheels = wheelMeshes;
 
   // Front grille — single dark panel below the body line.
   const grilleMat = pbr(0x05070d, 0.3, 0.7);
@@ -525,6 +552,43 @@ function buildBody(shape) {
     exh.position.set(side * shape.width * 0.26, bodyH * 0.15, -shape.length * 0.52);
     group.add(exh);
   }
+
+  // Headlight emissive panels — small bright bars at the front of the car.
+  // Always slightly emissive so headlights are visible day or night.
+  const headLightMats = [];
+  for (const side of [-1, 1]) {
+    const hlMat = new THREE.MeshStandardMaterial({
+      color: 0xffeec4,
+      emissive: 0xffeec4,
+      emissiveIntensity: 1.6
+    });
+    const hl = new THREE.Mesh(
+      new THREE.BoxGeometry(shape.width * 0.28, 0.05, 0.04),
+      hlMat
+    );
+    hl.position.set(side * shape.width * 0.26, bodyH * 0.42, shape.length * 0.52);
+    group.add(hl);
+    headLightMats.push(hlMat);
+  }
+  group.userData.headLightMats = headLightMats;
+
+  // Headlight cones — actual SpotLights that project a beam onto the road
+  // ahead. Subtle by default; main.js can boost intensity at night.
+  const headlightLeft = new THREE.SpotLight(0xffeec4, 1.4, 60, Math.PI / 7, 0.4, 1.6);
+  headlightLeft.position.set(-shape.width * 0.26, bodyH * 0.42, shape.length * 0.52);
+  const targetL = new THREE.Object3D();
+  targetL.position.set(-shape.width * 0.26, -1.0, shape.length * 0.52 + 22);
+  group.add(targetL);
+  headlightLeft.target = targetL;
+  group.add(headlightLeft);
+  const headlightRight = headlightLeft.clone();
+  headlightRight.position.x = shape.width * 0.26;
+  const targetR = new THREE.Object3D();
+  targetR.position.set(shape.width * 0.26, -1.0, shape.length * 0.52 + 22);
+  group.add(targetR);
+  headlightRight.target = targetR;
+  group.add(headlightRight);
+  group.userData.headlights = [headlightLeft, headlightRight];
 
   // Hood detail (subtle).
   if (shape.spoiler === "wing" || shape.spoiler === "lip") {
