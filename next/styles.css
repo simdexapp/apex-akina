@@ -2707,8 +2707,23 @@ body.is-photo-mode.photo-fx-night #game { filter: grayscale(0.75) contrast(1.4) 
   font-weight: 800;
 }
 
-.trophy-records .trec span:last-child { color: var(--cyan); }
+.trophy-records .trec span:last-child { color: var(--cyan); display: inline-flex; align-items: center; gap: 6px; }
 .trophy-records .trec.empty span:last-child { color: var(--muted); }
+.trec-tier { font-size: 13px; line-height: 1; }
+.trec-drift {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 49, 92, 0.15);
+  border: 1px solid rgba(255, 49, 92, 0.40);
+  color: #ff8aa8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-width: 540px) {
   .trophy-list { grid-template-columns: 1fr; }

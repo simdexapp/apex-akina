@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=52";
-import { buildScenery, tickAmbient } from "./scenery.js?v=52";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=52";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=52";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=52";
+import { buildTrack, getTrackList } from "./track.js?v=53";
+import { buildScenery, tickAmbient } from "./scenery.js?v=53";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=53";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=53";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=53";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=52";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=52";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=52";
-import { createReplay } from "./replay.js?v=52";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=52";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=52";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=52";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=52";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=52";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=52";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=52";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=53";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=53";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=53";
+import { createReplay } from "./replay.js?v=53";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=53";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=53";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=53";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=53";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=53";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=53";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=53";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=52";
+} from "./profile.js?v=53";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2807,7 +2807,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=52");
+  const mod = await import("./garagePreview.js?v=53");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2850,12 +2850,20 @@ function renderTrophyRoom() {
 
   const recs = document.getElementById("trophy-records");
   if (recs) {
+    let diamonds = {};
+    try { diamonds = JSON.parse(localStorage.getItem("apex-akina-3d:diamond") || "{}"); } catch (_) {}
     let html = "";
     for (const t of TRACKS_LIST) {
       const time = bestLapPerTrack[t.id];
+      let tier = time ? getMasteryTier(t.id, time) : "none";
+      if (diamonds[t.id]) tier = "diamond";
+      const tierStyle = MASTERY_STYLE[tier];
       const cls = time ? "trec" : "trec empty";
       const display = time ? formatTime(time) : "—";
-      html += `<div class="${cls}"><span>${t.name}</span><span>${display}</span></div>`;
+      const dr = driftTrialBests[t.id];
+      const driftCol = dr ? `<span class="trec-drift">DT ${dr.toLocaleString()}</span>` : "";
+      const tierBadge = `<span class="trec-tier" style="color:${tierStyle.color}">${tierStyle.glyph}</span>`;
+      html += `<div class="${cls}"><span>${t.name}</span><span>${display} ${tierBadge}${driftCol}</span></div>`;
     }
     recs.innerHTML = html;
   }
