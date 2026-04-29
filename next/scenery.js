@@ -4,7 +4,7 @@
 // geometry+material, and per-track density is conservative.
 
 import * as THREE from "three";
-import { buildBuildingTexture } from "./textures.js?v=82";
+import { buildBuildingTexture } from "./textures.js?v=83";
 
 // Build the texture once, share across all building instances.
 let _BUILDING_TEX = null;
@@ -34,23 +34,26 @@ function trackBounds(track) {
 // MOUNTAIN_BUFFER so the player never drives into them. Uses ONE shared
 // material + geometry (re-using the same ConeGeometry for every peak with a
 // per-instance scale) so it's a small handful of draw calls.
-const MOUNTAIN_BUFFER = 320;          // metres beyond bbox radius
+// Mountains intersecting the playable area was a real bug at small tracks.
+// Buffer bumped from 320 -> 520; we also push them OUT by half their base
+// width so the inner edge of the mountain stays well clear of the road.
+const MOUNTAIN_BUFFER = 520;
 function buildMountains(track, { count = 36, color = 0x261a3a, rimColor = 0x6a3a8a } = {}) {
   const group = new THREE.Group();
   const bounds = trackBounds(track);
-  const ringR = bounds.radius + MOUNTAIN_BUFFER;
   const mat = new THREE.MeshStandardMaterial({
     color, metalness: 0.0, roughness: 1.0, emissive: rimColor, emissiveIntensity: 0.22, flatShading: true
   });
-  // Use a single InstancedMesh per "size class" for speed.
   const baseGeo = new THREE.ConeGeometry(1, 1, 5, 1, false);
   const inst = new THREE.InstancedMesh(baseGeo, mat, count);
   const dummy = new THREE.Object3D();
   for (let i = 0; i < count; i++) {
     const ang = (i / count) * Math.PI * 2 + Math.random() * 0.06;
-    const r = ringR + (Math.random() - 0.5) * 80;
     const h = 60 + Math.random() * 120;
     const w = 80 + Math.random() * 140;
+    // Push the mountain center out by half its base width so the inner
+    // edge sits behind MOUNTAIN_BUFFER, not on top of it.
+    const r = bounds.radius + MOUNTAIN_BUFFER + w * 0.5 + (Math.random() - 0.5) * 80;
     dummy.position.set(bounds.cx + Math.cos(ang) * r, -8 + h * 0.5, bounds.cz + Math.sin(ang) * r);
     dummy.rotation.y = Math.random() * Math.PI;
     dummy.scale.set(w, h, w);
