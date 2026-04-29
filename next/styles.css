@@ -982,6 +982,20 @@ button:hover { filter: brightness(1.08); }
   100% { transform: scale(1); }
 }
 
+/* Subtle always-on cinematic vignette — soft dark edges. Helps direct
+   attention to the road ahead and adds depth without overpowering the
+   art. Sits below the slow-mo overlay (z-index 1 vs 2). */
+.game-frame > canvas + * { /* keep selectors after canvas */ }
+.game-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.42) 100%);
+}
+
 /* Damage flash — red border + brief shake when player hits a barrier. */
 body.is-damaged .game-frame::before {
   content: "";
