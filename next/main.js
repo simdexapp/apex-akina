@@ -2,29 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=47";
-import { buildScenery, tickAmbient } from "./scenery.js?v=47";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=47";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=47";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=47";
+import { buildTrack, getTrackList } from "./track.js?v=48";
+import { buildScenery, tickAmbient } from "./scenery.js?v=48";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=48";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=48";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=48";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=47";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=47";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=47";
-import { createReplay } from "./replay.js?v=47";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=47";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=47";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=47";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=47";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=47";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=47";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=48";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=48";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=48";
+import { createReplay } from "./replay.js?v=48";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=48";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=48";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=48";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=48";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=48";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=48";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=48";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=47";
+} from "./profile.js?v=48";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -409,6 +410,14 @@ composer.addPass(new RenderPass(scene, camera));
 // Restrained bloom — keep the lights glowing but stop everything from looking neon-soaked.
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.55, 0.6, 0.85);
 composer.addPass(bloomPass);
+
+// Weather system — particle clouds + fog tweaks. Player can cycle modes
+// from the pause menu; persisted in localStorage.
+const weather = createWeather(scene, camera);
+const WEATHER_KEY = "apex-akina-3d:weather";
+let savedWeather = "clear";
+try { savedWeather = localStorage.getItem(WEATHER_KEY) || "clear"; } catch (_) {}
+weather.setMode(savedWeather, 0.85);
 
 function resize() {
   const rect = canvas.getBoundingClientRect();
@@ -1736,6 +1745,8 @@ function loop(now) {
       }
     }
   }
+  // Weather particles — follow camera, recycle.
+  weather.tick(dt);
 
   composer.render();
   requestAnimationFrame(loop);
@@ -2563,7 +2574,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=47");
+  const mod = await import("./garagePreview.js?v=48");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -2835,6 +2846,28 @@ document.getElementById("photo-exit-btn")?.addEventListener("click", () => setPh
 document.getElementById("pause-photo")?.addEventListener("click", () => {
   setPaused(false);
   setPhotoMode(true);
+});
+// Weather cycle — Clear → Rain → Snow → Fog → Clear …
+const WEATHER_LABELS = {
+  clear: "☀ Weather: Clear",
+  rain:  "🌧 Weather: Rain",
+  snow:  "❄ Weather: Snow",
+  fog:   "🌫 Weather: Fog"
+};
+function refreshWeatherButton() {
+  const btn = document.getElementById("pause-weather");
+  if (!btn) return;
+  btn.textContent = WEATHER_LABELS[weather.getMode().type] || WEATHER_LABELS.clear;
+}
+refreshWeatherButton();
+document.getElementById("pause-weather")?.addEventListener("click", () => {
+  const cur = weather.getMode().type;
+  const idx = WEATHER_TYPES.indexOf(cur);
+  const next = WEATHER_TYPES[(idx + 1) % WEATHER_TYPES.length];
+  weather.setMode(next, 0.85);
+  try { localStorage.setItem(WEATHER_KEY, next); } catch (_) {}
+  refreshWeatherButton();
+  flashCallout(WEATHER_LABELS[next], 1100);
 });
 document.getElementById("hud-toggle-btn")?.addEventListener("click", () => {
   document.body.classList.toggle("is-hud-min");
