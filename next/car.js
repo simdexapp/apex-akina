@@ -815,9 +815,17 @@ function stepLateral(car, dt) {
   // letting the rear rotate into the corner.
   const input = car._lastInput || {};
   const trailFactor = (input.brake && Math.abs(car.steer) > 0.18) ? (1 + TRAIL_BRAKE_BOOST) : 1;
-  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct;
+  // Tire load transfer — front grip increases under braking (more steering
+  // authority), decreases under throttle. Subtle but adds "fluid" feel.
+  let loadFactor = 1.0;
+  if (input.brake) loadFactor = 1.18;
+  else if (input.throttle) loadFactor = 0.94;
+  const sideKick = car.steer * STEER_AUTHORITY * trailFactor * car.stats.handling * speedPct * loadFactor;
   car.lateralV += sideKick * dt * (car.driftActive ? 11 : 4);
-  car.lateralV -= car.lateralV * Math.min(1, grip * dt);
+  // Grip damping — slightly stronger when not drifting so the car settles
+  // smoothly toward 0 lateral instead of feeling jittery on straights.
+  const dampMul = car.driftActive ? 1.0 : 1.18;
+  car.lateralV -= car.lateralV * Math.min(1, grip * dt * dampMul);
 }
 
 function stepIntegrate(car, dt) {
