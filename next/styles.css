@@ -593,8 +593,13 @@ button:hover { filter: brightness(1.08); }
   box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25) inset, 0 0 14px rgba(255, 209, 102, 0.18);
   transition: transform 200ms cubic-bezier(.2,.9,.2,1.1), box-shadow 200ms;
 }
-.combo-stack.is-bumping {
-  animation: pill-bump 0.32s ease-out;
+.combo-stack.is-bumping,
+.hud-stack.is-bumping {
+  animation: pill-bump 0.40s cubic-bezier(.2,.9,.2,1.1);
+}
+.hud-stack.is-bumping strong {
+  color: var(--gold);
+  text-shadow: 0 0 16px rgba(255, 209, 102, 0.85);
 }
 
 .combo-stack .label {
