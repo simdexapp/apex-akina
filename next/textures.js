@@ -13,11 +13,13 @@ export function buildAsphaltTexture() {
   c.width = 512; c.height = 512;
   const x = c.getContext("2d");
 
-  // Base gradient — slightly darker on edges to suggest crowning.
+  // Base gradient — medium gray asphalt (~#55-65). Was #22-2c which
+  // looked nearly black and blended completely with dark off-road ground.
+  // Real asphalt under streetlights is much lighter than midnight terrain.
   const grad = x.createLinearGradient(0, 0, c.width, 0);
-  grad.addColorStop(0,    "#22262f");
-  grad.addColorStop(0.5,  "#2c303a");
-  grad.addColorStop(1,    "#22262f");
+  grad.addColorStop(0,    "#4a4e58");
+  grad.addColorStop(0.5,  "#5a5e6a");
+  grad.addColorStop(1,    "#4a4e58");
   x.fillStyle = grad;
   x.fillRect(0, 0, c.width, c.height);
 
@@ -32,9 +34,10 @@ export function buildAsphaltTexture() {
   }
   x.putImageData(img, 0, 0);
 
-  // Tire wear streaks — vertical light bands at the wheel paths.
-  x.globalAlpha = 0.12;
-  x.strokeStyle = "#1a1c22";
+  // Tire wear streaks — slightly DARKER bands at wheel paths (real wear
+  // shows as polished darker tracks on lighter asphalt).
+  x.globalAlpha = 0.20;
+  x.strokeStyle = "#2a2d35";
   x.lineWidth = 22;
   for (const cx of [c.width * 0.34, c.width * 0.66]) {
     x.beginPath();

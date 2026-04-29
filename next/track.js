@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=72";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=73";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -37,10 +37,13 @@ export function buildTrack(trackId = "lakeside") {
   const indices = [];
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3();
-  // Vertex colors are now a subtle stripe modulation that multiplies on top
-  // of the asphalt texture, not a replacement for it.
-  const innerColor = new THREE.Color("#a8b0bc");
-  const altColor = new THREE.Color("#8c95a4");
+  // Vertex colors near WHITE so the asphalt texture map shows through at
+  // full brightness. Was #a8b0bc / #8c95a4 — those tinted the road BACK
+  // toward gray and combined with the dark texture to make the road
+  // invisible against the ground. Now ~#f0 / #dd: tiny stripe variation
+  // on top of full-bright texture sampling.
+  const innerColor = new THREE.Color("#f0f4fa");
+  const altColor = new THREE.Color("#dde2eb");
   // Accumulate arclength for V coordinate so the texture doesn't repeat per
   // segment — it tiles down the road naturally.
   let accLen = 0;
@@ -81,8 +84,10 @@ export function buildTrack(trackId = "lakeside") {
     normalScale: new THREE.Vector2(0.55, 0.55),
     metalness: 0.10,
     roughness: 0.78,
-    emissive: 0x080a10,
-    emissiveIntensity: 0.20
+    // Brighter emissive so the road self-illuminates slightly even in dark
+    // scenes — guarantees the road never blends into the ground completely.
+    emissive: 0x6a6e78,
+    emissiveIntensity: 0.18
   });
   const roadMesh = new THREE.Mesh(geo, mat);
   roadMesh.receiveShadow = true;
