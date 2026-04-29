@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=70";
-import { buildScenery, tickAmbient } from "./scenery.js?v=70";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=70";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=70";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=70";
+import { buildTrack, getTrackList } from "./track.js?v=71";
+import { buildScenery, tickAmbient } from "./scenery.js?v=71";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=71";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=71";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=71";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=70";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=70";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=70";
-import { createReplay } from "./replay.js?v=70";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=70";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=70";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=70";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=70";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=70";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=70";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=70";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=71";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=71";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=71";
+import { createReplay } from "./replay.js?v=71";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=71";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=71";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=71";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=71";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=71";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=71";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=71";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=70";
+} from "./profile.js?v=71";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -441,6 +441,7 @@ const BASE_FOV = 70;
 const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.5, 1500);
 let cameraShake = 0;       // current shake intensity, decays to 0
 let fovPunch = 0;          // current fov delta over base, decays to 0
+let finishCinematicUntil = 0;  // perf.now() timestamp until which finish slow-mo holds
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 // Restrained bloom — half-resolution internal buffers. Bloom is naturally
@@ -520,8 +521,16 @@ function updateCamera(dt) {
     cameraSmoothPos.lerp(cameraDesired, Math.min(1, dt * 6));
   }
   // Apply camera shake + FOV punch (decay).
-  if (cameraShake > 0) {
-    const shake = cameraShake * (typeof shakeMultiplier === "number" ? shakeMultiplier : 1);
+  // Add a subtle CONTINUOUS shake based on speed so you feel velocity even
+  // without crashing — kicks in past 60% max speed, peaks at top speed.
+  let speedShake = 0;
+  if (car && Number.isFinite(car.speed) && car.maxSpeed) {
+    const speedPct = Math.min(1, Math.abs(car.speed) / car.maxSpeed);
+    if (speedPct > 0.6) speedShake = (speedPct - 0.6) / 0.4 * 0.04;
+  }
+  const totalShake = cameraShake + speedShake;
+  if (totalShake > 0) {
+    const shake = totalShake * (typeof shakeMultiplier === "number" ? shakeMultiplier : 1);
     cameraSmoothPos.x += (Math.random() - 0.5) * shake;
     cameraSmoothPos.y += (Math.random() - 0.5) * shake * 0.5;
     cameraShake = Math.max(0, cameraShake - dt * 4);
@@ -536,15 +545,20 @@ function updateCamera(dt) {
   );
   camera.lookAt(cameraTarget);
 
-  // FOV punch — preserved for crashes, no longer fired by boost.
+  // FOV punch — preserved for crashes. Plus a continuous speed-based FOV
+  // widen: +6° at top speed, smoothly easing in past 50%. Sells the
+  // sense of velocity at high pace.
   const baseFov = settings.fov ?? BASE_FOV;
-  if (fovPunch > 0.01) {
-    camera.fov = baseFov + fovPunch;
+  let speedFovBonus = 0;
+  if (car && Number.isFinite(car.speed) && car.maxSpeed) {
+    const sp = Math.min(1, Math.abs(car.speed) / car.maxSpeed);
+    if (sp > 0.5) speedFovBonus = ((sp - 0.5) / 0.5) * 6;
+  }
+  const targetFov = baseFov + fovPunch + speedFovBonus;
+  if (Math.abs(camera.fov - targetFov) > 0.01) {
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 6);
     camera.updateProjectionMatrix();
     fovPunch = Math.max(0, fovPunch - dt * 22);
-  } else if (camera.fov !== baseFov) {
-    camera.fov = baseFov;
-    camera.updateProjectionMatrix();
   }
 }
 
@@ -1554,6 +1568,12 @@ function loop(now) {
       target = Math.min(target, 0.60);
       raceCtx.slowMoUsed = true;
     }
+    // Finish-line cinematic slow-mo — held for 1.4s after a 1st-place
+    // finish, before the overlay takes over. Even more dramatic than
+    // player-driven slow-mo because the race is OVER.
+    if (finishCinematicUntil > performance.now()) {
+      target = Math.min(target, 0.35);
+    }
     slowMoFactor += (target - slowMoFactor) * Math.min(1, dt * (target < 1 ? 8 : 4));
     acc += dt * slowMoFactor;
     while (acc >= FIXED_DT) {
@@ -1805,18 +1825,31 @@ function loop(now) {
   // Overtake detection — show callout when player's place changes.
   if (running && lastPlayerPlace !== standings.place) {
     if (lastPlayerPlace > standings.place) {
-      // Player moved up — find who they overtook.
+      // Player moved up — find who they overtook. Bigger callout if
+      // we just claimed P1.
       const overtaken = standings.entries[standings.place];   // 1 spot below now
       if (overtaken && !overtaken.isPlayer) {
-        flashCallout(`Overtook ${overtaken.name}`, 700);
+        if (standings.place === 1) {
+          flashCallout(`★ TOOK THE LEAD ★`, 1300);
+          cameraShake = Math.max(cameraShake, 0.20);
+        } else {
+          flashCallout(`Overtook ${overtaken.name} · P${standings.place}`, 800);
+        }
       }
     } else if (lastPlayerPlace > 0 && lastPlayerPlace < standings.place) {
       const passer = standings.entries[standings.place - 2];   // 1 spot above
       if (passer && !passer.isPlayer) {
-        flashCallout(`${passer.name} passed you`, 700);
+        flashCallout(`${passer.name} passed you · P${standings.place}`, 800);
       }
     }
     lastPlayerPlace = standings.place;
+  }
+
+  // Final-lap announcement — fires once when the player enters their
+  // last lap. Big visible callout.
+  if (running && lap === lapsTotal() && !raceCtx.finalLapAnnounced) {
+    raceCtx.finalLapAnnounced = true;
+    flashCallout("FINAL LAP", 1500);
   }
 
   if (running && lap > lapsTotal() && !finishShown) {
@@ -2139,6 +2172,9 @@ function showFinish(standings) {
     // 3D confetti burst around the player car — adds physical celebration
     // in the world, not just UI overlay.
     spawnConfettiBurst(car.group.position.x, car.group.position.y + 1.0, car.group.position.z, 60);
+    // Cinematic finish slow-mo — 1.4 sec at 0.35× world speed before
+    // overlay shows. This kicks in via the slowMoFactor animation in loop().
+    finishCinematicUntil = performance.now() + 1400;
   }
   const best = bestLapPerTrack[track.id];
   let extra = "";
@@ -2438,6 +2474,7 @@ function startRace() {
   raceCtx.kmDriven = 0;
   raceCtx.maxCombo = 0;
   raceCtx.slowMoUsed = false;
+  raceCtx.finalLapAnnounced = false;
   // Sector splits — show panel + reset.
   const sectorsEl = document.getElementById("sectors");
   if (sectorsEl) sectorsEl.hidden = false;
@@ -2952,7 +2989,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=70");
+  const mod = await import("./garagePreview.js?v=71");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
