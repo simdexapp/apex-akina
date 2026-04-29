@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=89";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=90";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -218,6 +218,7 @@ export function createRivals(track, count = 14, opts = {}) {
       bio: variant.bio || "",
       homeTrack: variant.homeTrack || null,
       mesh,
+      variant,                        // expose for HUD coloring
       personality,
       isBoss,
       s: gridS,
