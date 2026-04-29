@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=69";
-import { buildScenery, tickAmbient } from "./scenery.js?v=69";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=69";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=69";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=69";
+import { buildTrack, getTrackList } from "./track.js?v=70";
+import { buildScenery, tickAmbient } from "./scenery.js?v=70";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=70";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=70";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=70";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=69";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=69";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=69";
-import { createReplay } from "./replay.js?v=69";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=69";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=69";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=69";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=69";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=69";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=69";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=69";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=70";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=70";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=70";
+import { createReplay } from "./replay.js?v=70";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=70";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=70";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=70";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=70";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=70";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=70";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=70";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=69";
+} from "./profile.js?v=70";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -257,7 +257,7 @@ function swapCar(shapeId) {
   scene.add(car.group);
   applyShadows(car.group, { cast: true, receive: true });
   if (startPoint) {
-    car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
+    car.group.position.set(startPoint.x, startPoint.y + 0.4, startPoint.z);
     car.heading = startPoint.tangentAngle;
     car.group.rotation.set(0, car.heading, 0);
   }
@@ -342,7 +342,7 @@ function loadTrack(id) {
   }
   placeRivalsOnGrid(rivals, track);
   // Place player.
-  car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
+  car.group.position.set(startPoint.x, startPoint.y + 0.4, startPoint.z);
   car.heading = startPoint.tangentAngle;
   car.group.rotation.set(0, car.heading, 0);
   setupGhostFor(id, car.shape);
@@ -1148,13 +1148,13 @@ function tick(dt) {
 
   car.tick(dt, i, track);
 
-  // Spin the wheels visibly. Wheel radius 0.40m, so angular velocity =
-  // car speed / 0.40 rad/sec. Front wheels also yaw with steer input
-  // for a satisfying "the car is steering" cue.
+  // Spin the wheels visibly. Wheel radius 0.40m. Guarded so a NaN speed
+  // at race start can't accumulate garbage rotation. Front wheels also
+  // yaw with steer input.
   const wheels = car.group.userData?.wheels;
-  if (wheels) {
+  if (wheels && Number.isFinite(car.speed)) {
     const wheelRot = car.speed / 0.40;
-    const steerAngle = (car.steer ?? 0) * 0.45;
+    const steerAngle = Number.isFinite(car.steer) ? car.steer * 0.45 : 0;
     for (const w of wheels) {
       w.rotation.x = (w.rotation.x || 0) + wheelRot * dt;
       w.rotation.y = w.userData.isFront ? steerAngle : 0;
@@ -1217,21 +1217,22 @@ function tick(dt) {
     }
   }
 
-  // Headlights — boost intensity at night/sunset, dim by day. Headlight
-  // emissive panels also get a brighter glow when lights are "on".
+  // Headlights — only at explicit "night" mode. Auto/dawn/sunset rely on
+  // the env map sun for illumination; hard-on headlights during a sunset
+  // pass made the start feel chaotic. Tuned intensity down too (1.4 not
+  // 2.4) so the cone reads as a beam not a floodlight.
   const headlights = car.group?.userData?.headlights;
   const headLightMats = car.group?.userData?.headLightMats;
   if (headlights || headLightMats) {
     const tod = settings.time || "auto";
-    const isDark = tod === "night" || tod === "sunset" || tod === "auto" || tod === "dawn";
-    const lightOn = isDark ? 1.0 : 0.0;
+    const lightOn = tod === "night" ? 1.0 : 0.0;
     if (headlights) {
       for (const hl of headlights) {
-        hl.intensity += (lightOn * 2.4 - hl.intensity) * Math.min(1, dt * 4);
+        hl.intensity += (lightOn * 1.4 - hl.intensity) * Math.min(1, dt * 4);
       }
     }
     if (headLightMats) {
-      const target = isDark ? 3.2 : 1.0;
+      const target = lightOn > 0 ? 2.6 : 1.2;
       for (const m of headLightMats) {
         m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 4);
       }
@@ -2394,7 +2395,7 @@ function startRace() {
   } else {
     raceLapsOverride = null;
   }
-  car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
+  car.group.position.set(startPoint.x, startPoint.y + 0.4, startPoint.z);
   car.heading = startPoint.tangentAngle;
   car.group.rotation.set(0, car.heading, 0);
   car.pitch = 0;
@@ -2951,7 +2952,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=69");
+  const mod = await import("./garagePreview.js?v=70");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
