@@ -1014,6 +1014,21 @@ button:hover { filter: brightness(1.08); }
     radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.42) 100%);
 }
 
+/* Finish-overlay title styling per result tier. */
+#finish-title.is-win {
+  background: linear-gradient(135deg, var(--cyan), var(--gold), var(--hot));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 24px rgba(255, 209, 102, 0.55);
+  font-size: clamp(40px, 6vw, 72px);
+  letter-spacing: 0.05em;
+}
+#finish-title.is-podium {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 209, 102, 0.55);
+}
+
 /* Controls reminder strip — fades in at race start, holds 2.5s, fades out. */
 .controls-strip {
   position: absolute;
