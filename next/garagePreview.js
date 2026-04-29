@@ -3,7 +3,7 @@
 // car spinning on a turntable. Live-updates when liveries change.
 
 import * as THREE from "three";
-import { createCar, CAR_SHAPES } from "./car.js?v=100";
+import { createCar, CAR_SHAPES } from "./car.js?v=101";
 
 export function createGaragePreview(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -28,10 +28,12 @@ export function createGaragePreview(canvas) {
   const ambient = new THREE.AmbientLight(0x9bb6ff, 0.45);
   scene.add(ambient);
 
-  // Camera.
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-  camera.position.set(4.5, 1.6, 4.5);
-  camera.lookAt(0, 0.6, 0);
+  // Camera — lowered + closer so the car looks like a car, not a wedge from
+  // above. Was (4.5, 1.6, 4.5) looking at y=0.6; now (3.8, 1.0, 3.8) looking
+  // at y=0.5 — eye-level three-quarter view of the body.
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(3.8, 1.0, 3.8);
+  camera.lookAt(0, 0.5, 0);
 
   // Turntable disk under the car.
   const disk = new THREE.Mesh(
