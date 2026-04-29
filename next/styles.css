@@ -1918,6 +1918,18 @@ body.is-photo-mode.photo-fx-night #game { filter: grayscale(0.75) contrast(1.4) 
   background: rgba(74, 223, 128, 0.20);
   color: #4adf80;
 }
+.dc-status.is-bronze {
+  background: rgba(205, 127, 50, 0.22);
+  color: #cd7f32;
+}
+.dc-status.is-silver {
+  background: rgba(192, 192, 192, 0.22);
+  color: #d8d8d8;
+}
+.dc-status.is-gold {
+  background: rgba(255, 209, 102, 0.25);
+  color: #ffd166;
+}
 
 /* Pre-race rotating tip */
 .race-tip {

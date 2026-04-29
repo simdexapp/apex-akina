@@ -82,21 +82,55 @@ export function checkPlaylistEntry(ctx) {
   return null;
 }
 
+// `tiers` is an optional [bronzeThreshold, silverThreshold, goldThreshold].
+// For binary win-style challenges there's no tier — completion is just bronze.
+// `tier(ctx)` returns 0 (none), 1 (bronze), 2 (silver), 3 (gold).
+function tieredNumeric(getter, thresholds) {
+  return (ctx) => {
+    const v = getter(ctx);
+    if (!Number.isFinite(v)) return 0;
+    if (v >= thresholds[2]) return 3;
+    if (v >= thresholds[1]) return 2;
+    if (v >= thresholds[0]) return 1;
+    return 0;
+  };
+}
+function tieredNumericLT(getter, thresholds) {
+  // For "lower is better" (e.g., lap times). thresholds[2] = hardest (lowest).
+  return (ctx) => {
+    const v = getter(ctx);
+    if (!Number.isFinite(v)) return 0;
+    if (v <= thresholds[2]) return 3;
+    if (v <= thresholds[1]) return 2;
+    if (v <= thresholds[0]) return 1;
+    return 0;
+  };
+}
 const POOL = [
-  { id: "win-lakeside",    text: "Win a race on Lakeside.",                        check: (ctx) => ctx.won && ctx.trackId === "lakeside" },
-  { id: "win-akagi",       text: "Win a race on Akagi Pass.",                      check: (ctx) => ctx.won && ctx.trackId === "mountainpass" },
-  { id: "drift-3s",        text: "Hold a drift for 3+ seconds.",                   check: (ctx) => (ctx.driftDuration ?? 0) >= 3 },
-  { id: "topspeed-200",    text: "Hit 200 km/h.",                                  check: (ctx) => (ctx.topSpeedKmh ?? 0) >= 200 },
-  { id: "podium-hard",     text: "Podium on Hard difficulty.",                     check: (ctx) => ctx.place <= 3 && ctx.difficulty === "hard" },
-  { id: "no-boost",        text: "Win without using boost.",                       check: (ctx) => ctx.won && ctx.boostUsed === false },
-  { id: "near-misses-5",   text: "Pull off 5 near-misses in one race.",            check: (ctx) => (ctx.nearMisses ?? 0) >= 5 },
-  { id: "win-neon",        text: "Win on Neon Highway.",                           check: (ctx) => ctx.won && ctx.trackId === "neon" },
-  { id: "win-kei",         text: "Win a race in the Kei Sport.",                   check: (ctx) => ctx.won && ctx.car === "kei" },
-  { id: "win-muscle",      text: "Win a race in the Hyper GT.",                    check: (ctx) => ctx.won && ctx.car === "muscle" },
-  { id: "lap-29",          text: "Set a sub-29-second lap on any track.",          check: (ctx) => (ctx.lapTime ?? Infinity) < 29 },
-  { id: "drift-king",      text: "Earn a 5+ combo from drifts and near-misses.",   check: (ctx) => (ctx.maxCombo ?? 0) >= 5 },
-  { id: "career-round",    text: "Finish a career round in the top 3.",            check: (ctx) => ctx.mode === "career" && ctx.place <= 3 },
-  { id: "drift-court-win", text: "Win on the Daikoku Drift Court.",                check: (ctx) => ctx.won && ctx.trackId === "drift" }
+  { id: "win-lakeside",    text: "Win a race on Lakeside.",                  tier: (ctx) => (ctx.won && ctx.trackId === "lakeside") ? 1 : 0 },
+  { id: "win-akagi",       text: "Win a race on Akagi Pass.",                tier: (ctx) => (ctx.won && ctx.trackId === "mountainpass") ? 1 : 0 },
+  { id: "drift-3s",        text: "Drift hold: bronze 3s · silver 5s · gold 8s.",
+                                                                             tier: tieredNumeric((c) => c.driftDuration ?? 0, [3, 5, 8]),
+                                                                             tiers: [3, 5, 8] },
+  { id: "topspeed-200",    text: "Top speed: bronze 200 · silver 230 · gold 260 km/h.",
+                                                                             tier: tieredNumeric((c) => c.topSpeedKmh ?? 0, [200, 230, 260]),
+                                                                             tiers: [200, 230, 260] },
+  { id: "podium-hard",     text: "Podium on Hard difficulty.",               tier: (ctx) => (ctx.place <= 3 && ctx.difficulty === "hard") ? 1 : 0 },
+  { id: "no-boost",        text: "Win without using boost.",                 tier: (ctx) => (ctx.won && ctx.boostUsed === false) ? 1 : 0 },
+  { id: "near-misses",     text: "Near misses in one race: bronze 3 · silver 5 · gold 8.",
+                                                                             tier: tieredNumeric((c) => c.nearMisses ?? 0, [3, 5, 8]),
+                                                                             tiers: [3, 5, 8] },
+  { id: "win-neon",        text: "Win on Neon Highway.",                     tier: (ctx) => (ctx.won && ctx.trackId === "neon") ? 1 : 0 },
+  { id: "win-kei",         text: "Win a race in the Kei Sport.",             tier: (ctx) => (ctx.won && ctx.car === "kei") ? 1 : 0 },
+  { id: "win-muscle",      text: "Win a race in the Hyper GT.",              tier: (ctx) => (ctx.won && ctx.car === "muscle") ? 1 : 0 },
+  { id: "lap-time",        text: "Lap time: bronze <32s · silver <30s · gold <28s.",
+                                                                             tier: tieredNumericLT((c) => c.lapTime ?? Infinity, [32, 30, 28]),
+                                                                             tiers: [32, 30, 28] },
+  { id: "drift-king",      text: "Combo chain: bronze 3 · silver 5 · gold 8.",
+                                                                             tier: tieredNumeric((c) => c.maxCombo ?? 0, [3, 5, 8]),
+                                                                             tiers: [3, 5, 8] },
+  { id: "career-round",    text: "Finish a career round in the top 3.",      tier: (ctx) => (ctx.mode === "career" && ctx.place <= 3) ? 1 : 0 },
+  { id: "drift-court-win", text: "Win on the Daikoku Drift Court.",          tier: (ctx) => (ctx.won && ctx.trackId === "drift") ? 1 : 0 }
 ];
 
 function todayKey() {
@@ -127,31 +161,48 @@ function save() {
   try { localStorage.setItem(CHALLENGE_KEY, JSON.stringify(state)); } catch (_) {}
 }
 
+export const MEDAL_NAMES = ["—", "Bronze", "Silver", "Gold"];
+
 export function getTodaysChallenge() {
   const today = todayKey();
   const s = load();
   const idx = pickIndex(today);
   const pick = POOL[idx];
+  // Tier earned today (0..3). Backward-compat: legacy true → 1, false/missing → 0.
+  let earnedTier = 0;
+  const stored = s[today];
+  if (stored && typeof stored === "object") {
+    earnedTier = Math.min(3, Math.max(0, stored.tier || 0));
+  } else if (stored === pick.id) {
+    earnedTier = 1;
+  }
   return {
     id: pick.id,
     text: pick.text,
-    completed: s[today] === pick.id
+    tiers: pick.tiers,                  // optional [b, s, g]
+    earnedTier,
+    medal: MEDAL_NAMES[earnedTier]
   };
 }
 
-// Call after each race. Marks today's challenge complete if ctx satisfies it.
+// Call after each race. Updates today's earned tier if higher than before.
+// Returns the challenge object iff the tier improved.
 export function checkDailyChallenge(ctx) {
   const today = todayKey();
   const s = load();
-  if (s[today]) return null;       // already claimed today
   const idx = pickIndex(today);
   const pick = POOL[idx];
-  try {
-    if (pick.check(ctx)) {
-      s[today] = pick.id;
-      save();
-      return pick;
-    }
-  } catch (_) {}
+  let prev = 0;
+  const stored = s[today];
+  if (stored && typeof stored === "object") prev = stored.tier || 0;
+  else if (stored === pick.id) prev = 1;
+  if (prev >= 3) return null;          // already gold
+  let earned = 0;
+  try { earned = pick.tier ? pick.tier(ctx) : 0; } catch (_) { earned = 0; }
+  if (earned > prev) {
+    s[today] = { id: pick.id, tier: earned };
+    save();
+    return { id: pick.id, text: pick.text, tier: earned, medal: MEDAL_NAMES[earned] };
+  }
   return null;
 }

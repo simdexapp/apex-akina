@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=51";
-import { buildScenery, tickAmbient } from "./scenery.js?v=51";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=51";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=51";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=51";
+import { buildTrack, getTrackList } from "./track.js?v=52";
+import { buildScenery, tickAmbient } from "./scenery.js?v=52";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=52";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=52";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=52";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=51";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=51";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=51";
-import { createReplay } from "./replay.js?v=51";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=51";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=51";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=51";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=51";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=51";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=51";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=51";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=52";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=52";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=52";
+import { createReplay } from "./replay.js?v=52";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=52";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=52";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=52";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=52";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=52";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=52";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=52";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=51";
+} from "./profile.js?v=52";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -729,8 +729,19 @@ function renderDailyChallenge() {
   const today = getTodaysChallenge();
   card.hidden = false;
   text.textContent = today.text;
-  status.textContent = today.completed ? "✓ Done" : "Pending";
-  status.classList.toggle("is-done", today.completed);
+  // Tiered medal display.
+  const tierGlyph = ["—", "🥉", "🥈", "🥇"][today.earnedTier || 0];
+  if (today.earnedTier && today.earnedTier > 0) {
+    status.textContent = `${tierGlyph} ${today.medal}`;
+    status.classList.add("is-done");
+    status.classList.remove("is-bronze", "is-silver", "is-gold");
+    if (today.earnedTier === 1) status.classList.add("is-bronze");
+    else if (today.earnedTier === 2) status.classList.add("is-silver");
+    else if (today.earnedTier === 3) status.classList.add("is-gold");
+  } else {
+    status.textContent = "Pending";
+    status.classList.remove("is-done", "is-bronze", "is-silver", "is-gold");
+  }
 }
 renderDailyChallenge();
 
@@ -1776,19 +1787,21 @@ function loop(now) {
       renderPlaylist();
       renderRank();
     }
-    // Daily challenge check.
+    // Daily challenge check — now tiered (Bronze / Silver / Gold).
     const dc = checkDailyChallenge(ctx);
     if (dc) {
-      flashCallout("Challenge complete!", 1400);
+      const glyph = ["", "🥉", "🥈", "🥇"][dc.tier] || "✓";
+      flashCallout(`${glyph} ${dc.medal} medal!`, 1500);
       // Toast with daily-challenge styling.
       const stack = document.getElementById("toast-stack");
       if (stack) {
         const el = document.createElement("div");
         el.className = "toast";
-        el.style.borderColor = "var(--gold)";
-        el.innerHTML = `<span class="label">Daily Challenge</span><strong>Complete!</strong><small>${dc.text}</small>`;
+        const color = dc.tier === 3 ? "#ffd166" : dc.tier === 2 ? "#c0c0c0" : "#cd7f32";
+        el.style.borderColor = color;
+        el.innerHTML = `<span class="label" style="color:${color}">Daily Challenge · ${glyph} ${dc.medal}</span><strong>Tier earned!</strong><small>${dc.text}</small>`;
         stack.appendChild(el);
-        setTimeout(() => el.remove(), 5000);
+        setTimeout(() => el.remove(), 5500);
       }
     }
     renderDailyChallenge();
@@ -2794,7 +2807,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=51");
+  const mod = await import("./garagePreview.js?v=52");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
