@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=115";
-import { buildScenery, tickAmbient } from "./scenery.js?v=115";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=115";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=115";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=115";
+import { buildTrack, getTrackList } from "./track.js?v=116";
+import { buildScenery, tickAmbient } from "./scenery.js?v=116";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=116";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=116";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=116";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=115";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=115";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=115";
-import { createReplay } from "./replay.js?v=115";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=115";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=115";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=115";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=115";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=115";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=115";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=115";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=116";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=116";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=116";
+import { createReplay } from "./replay.js?v=116";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=116";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=116";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=116";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=116";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=116";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=116";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=116";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=115";
+} from "./profile.js?v=116";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -752,6 +752,44 @@ function spawnDriftSpark(x, y, z, side) {
     life: 0.55 + Math.random() * 0.25,
     type: "spark"
   });
+}
+
+// AI radio chatter — quote banks per situation, picked randomly. Throttled
+// so we don't spam during back-and-forth overtakes.
+const RIVAL_CHATTER = {
+  "overtaking": [
+    "Stay back!",
+    "Catch me if you can.",
+    "Took the line.",
+    "Out of my way.",
+    "Predictable."
+  ],
+  "passed-by": [
+    "Damn, nice line.",
+    "I'll get you back.",
+    "Next corner.",
+    "Lucky pass.",
+    "Not for long."
+  ]
+};
+let _aiChatterCooldown = 0;
+function showRivalChatter(rivalName, situation) {
+  if (_aiChatterCooldown > 0) return;
+  const bank = RIVAL_CHATTER[situation];
+  if (!bank || !bank.length) return;
+  const quote = bank[Math.floor(Math.random() * bank.length)];
+  const stack = document.getElementById("toast-stack");
+  if (!stack) return;
+  const el = document.createElement("div");
+  el.className = "toast rival-chatter";
+  el.innerHTML = `<span class="label">${rivalName} · radio</span><strong>"${quote}"</strong>`;
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+  _aiChatterCooldown = 1.5;   // 1.5s before next chatter line allowed
+}
+// Decay cooldown each frame.
+function tickAiChatter(dt) {
+  if (_aiChatterCooldown > 0) _aiChatterCooldown = Math.max(0, _aiChatterCooldown - dt);
 }
 
 // Floating score popup — emits a "+N" text element. Tones: gold/hot/cyan/green.
@@ -2160,6 +2198,9 @@ function loop(now) {
     if (_aiCalloutCooldown > 0) _aiCalloutCooldown -= dt;
   }
 
+  // Decay AI chatter cooldown.
+  tickAiChatter(dt);
+
   // Overtake detection — show callout when player's place changes.
   if (running && lastPlayerPlace !== standings.place) {
     if (lastPlayerPlace > standings.place) {
@@ -2173,11 +2214,13 @@ function loop(now) {
         } else {
           flashCallout(`Overtook ${overtaken.name} · P${standings.place}`, 800);
         }
+        showRivalChatter(overtaken.name, "passed-by");
       }
     } else if (lastPlayerPlace > 0 && lastPlayerPlace < standings.place) {
       const passer = standings.entries[standings.place - 2];   // 1 spot above
       if (passer && !passer.isPlayer) {
         flashCallout(`${passer.name} passed you · P${standings.place}`, 800);
+        showRivalChatter(passer.name, "overtaking");
       }
     }
     lastPlayerPlace = standings.place;
@@ -3405,7 +3448,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=115");
+  const mod = await import("./garagePreview.js?v=116");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

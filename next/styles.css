@@ -1014,6 +1014,38 @@ button:hover { filter: brightness(1.08); }
     radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.42) 100%);
 }
 
+/* AI radio chatter toast — short rival quote with name + speech. */
+.toast.rival-chatter {
+  background: rgba(8, 13, 22, 0.92);
+  border: 1px solid rgba(46, 233, 255, 0.40);
+  box-shadow: 0 0 18px rgba(46, 233, 255, 0.20);
+  padding: 8px 14px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: chatter-fade 2.4s ease-out forwards;
+}
+.toast.rival-chatter .label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.toast.rival-chatter strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  font-style: italic;
+}
+@keyframes chatter-fade {
+  0%   { opacity: 0; transform: translateX(-16px); }
+  10%  { opacity: 1; transform: translateX(0); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-8px); }
+}
+
 /* Track name banner — slides in from the left at race start. */
 .track-banner {
   position: absolute;
