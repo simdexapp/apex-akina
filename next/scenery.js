@@ -4,6 +4,13 @@
 // geometry+material, and per-track density is conservative.
 
 import * as THREE from "three";
+import { buildBuildingTexture } from "./textures.js?v=76";
+
+// Build the texture once, share across all building instances.
+let _BUILDING_TEX = null;
+function getBuildingTex() {
+  return _BUILDING_TEX || (_BUILDING_TEX = buildBuildingTexture());
+}
 
 // Compute the axis-aligned bbox of a track's centerline points. Used to push
 // mountains and far scenery outside any drivable region.
@@ -111,7 +118,20 @@ function flushTreeInstances(group, meshes) {
 
 // Building: one InstancedMesh for body + one for window grid (random subset).
 function buildBuildingInstances(count) {
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x080812, roughness: 0.7, metalness: 0.4 });
+  // Apply the procedural window-grid texture so dark blocks now read as
+  // lit-up office buildings at night.
+  const tex = getBuildingTex();
+  // Repeat horizontally per face — keeps window scale roughly constant
+  // regardless of building width.
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: tex,
+    roughness: 0.6,
+    metalness: 0.2,
+    emissive: 0xffffff,
+    emissiveMap: tex,
+    emissiveIntensity: 0.55
+  });
   const bodyGeo = new THREE.BoxGeometry(1, 1, 1);
   return new THREE.InstancedMesh(bodyGeo, bodyMat, count);
 }

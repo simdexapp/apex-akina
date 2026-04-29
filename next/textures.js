@@ -100,6 +100,50 @@ export function buildAsphaltNormal() {
   return tex;
 }
 
+// Render a building facade texture — dark wall with a grid of randomly-lit
+// window squares. Used for cityscape scenery to give the dark blocks
+// actual character at night.
+export function buildBuildingTexture() {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 512;
+  const x = c.getContext("2d");
+  // Dark base.
+  x.fillStyle = "#0a0d18";
+  x.fillRect(0, 0, c.width, c.height);
+  // Window grid.
+  const colsX = 8, rowsY = 22;
+  const wW = c.width / colsX;
+  const wH = c.height / rowsY;
+  const pad = 2;
+  const winColors = ["#ffd166", "#ffe88a", "#fbfdff", "#a8d8ff", "#e9d8ff"];
+  for (let r = 0; r < rowsY; r++) {
+    for (let cc = 0; cc < colsX; cc++) {
+      // Most windows OFF (dark interior).
+      const lit = Math.random();
+      if (lit > 0.30) {
+        x.fillStyle = "#1a1f2c";
+      } else {
+        // Lit window — pick a warm or cool tone.
+        x.fillStyle = winColors[Math.floor(Math.random() * winColors.length)];
+      }
+      x.fillRect(cc * wW + pad, r * wH + pad, wW - pad * 2, wH - pad * 2);
+    }
+  }
+  // Slight column shading down the building so it doesn't read as flat.
+  x.globalAlpha = 0.30;
+  const shadeGrad = x.createLinearGradient(0, 0, c.width, 0);
+  shadeGrad.addColorStop(0, "#000000");
+  shadeGrad.addColorStop(0.5, "rgba(0,0,0,0)");
+  shadeGrad.addColorStop(1, "#000000");
+  x.fillStyle = shadeGrad;
+  x.fillRect(0, 0, c.width, c.height);
+  x.globalAlpha = 1.0;
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // Render a ground (off-track) texture — varied dirt/grass with patches.
 // `palette.ground` is the base hex color. We sample around it for variety.
 export function buildGroundTexture(baseColorHex = 0x182d3a) {
