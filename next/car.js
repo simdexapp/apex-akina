@@ -951,16 +951,15 @@ function stepDrift(car, input, dt) {
 
   if (driftEligible && !car.driftActive) {
     // Enter drift — lock the slide into the direction the player kicked it.
-    // Player presses RIGHT (input.steer = +1) → driftDir = +1 → lateralV +ve
-    // (which moves the car +X, i.e. its right side in world space — correct).
     car.driftActive = true;
     car.driftDuration = 0;
     car.driftCharge = 0;
     car.driftDir = inputSign || 1;
-    // Stronger initial kick so the back end actually breaks loose.
-    car.lateralV += car.driftDir * 8.5;
+    // Stronger initial kick (8.5 -> 12) so the rear breaks loose with a
+    // satisfying flick instead of just gradually drifting.
+    car.lateralV += car.driftDir * 12;
     // Mild speed dip on entry — like a Scandinavian flick.
-    car.speed *= 0.97;
+    car.speed *= 0.96;
   } else if (car.driftActive) {
     // While drifting, modulate the slide based on raw input direction.
     const counterFlick = inputSign && inputSign !== car.driftDir && Math.abs(inputSteer) > 0.55;
