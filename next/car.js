@@ -29,7 +29,6 @@ const STEER_RATE = 2.5;          // rad/s lock rate (slightly slower for weighty
 const STEER_MAX = 0.7;
 const GRIP = 12;
 const DRIFT_GRIP = 4.5;
-const BOOST_MUL = 1.25;
 const STEER_AUTHORITY = 1.85;
 
 // Engine heat.
@@ -400,97 +399,36 @@ function buildBody(shape) {
     hub.rotation.z = Math.PI / 2;
     hub.position.set(x, 0.40, z);
     group.add(hub);
-    // Lug detail — small chrome dots around the hub face on the outer side.
-    const outX = x + (x < 0 ? -0.16 : 0.16);
-    for (let i = 0; i < 5; i++) {
-      const ang = (i / 5) * Math.PI * 2;
-      const lug = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), lugMat);
-      lug.position.set(outX, 0.40 + Math.cos(ang) * 0.13, z + Math.sin(ang) * 0.13);
-      group.add(lug);
-    }
   }
 
-  // Rounded nose wedge — wraps the front bumper down toward a thin lip.
-  const noseMat = pbr(shape.body, 0.4, 0.5);
-  const noseGeo = buildNoseWedge(shape.width * 0.96, shape.height * 0.55, shape.length * 0.22);
-  const nose = new THREE.Mesh(noseGeo, noseMat);
-  nose.position.set(0, shape.height * 0.40, shape.length * 0.40);
-  group.add(nose);
-
-  // Front splitter — thin lip below the nose, sticks slightly forward.
-  const splitter = new THREE.Mesh(
-    new THREE.BoxGeometry(shape.width * 0.94, 0.04, 0.20),
-    pbr(0x0a0d18, 0.4, 0.6)
-  );
-  splitter.position.set(0, shape.height * 0.16, shape.length * 0.50);
-  group.add(splitter);
-
-  // Side skirts — flat strakes along the lower edge, just above ground.
-  const skirtMat = pbr(0x0a0d18, 0.3, 0.6);
-  for (const side of [-1, 1]) {
-    const skirt = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.10, shape.length * 0.62),
-      skirtMat
-    );
-    skirt.position.set(side * shape.width * 0.50, shape.height * 0.20, 0);
-    group.add(skirt);
-  }
-
-  // Fender flares — subtle bulges over each wheel for a wide-body look.
-  const flareMat = pbr(shape.body, 0.4, 0.5);
-  const flareGeo = new THREE.BoxGeometry(0.18, shape.height * 0.45, 0.66);
-  const wxFlare = shape.width * 0.50;
-  for (const z of [shape.length * 0.35, -shape.length * 0.36]) {
-    for (const side of [-1, 1]) {
-      const flare = new THREE.Mesh(flareGeo, flareMat);
-      flare.position.set(side * wxFlare, shape.height * 0.55, z);
-      group.add(flare);
-    }
-  }
-
-  // Rear diffuser — angled fins under the rear bumper.
-  const diffMat = pbr(0x0a0d18, 0.3, 0.6);
-  for (let i = 0; i < 4; i++) {
-    const xOff = (i - 1.5) * 0.30;
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.40), diffMat);
-    fin.position.set(xOff, shape.height * 0.20, -shape.length * 0.46);
-    group.add(fin);
-  }
-
-  // Hood vents — on aggressive cars (drift, super, muscle, kei), small slits.
-  if (["drift", "super", "muscle", "kei"].includes(shape.label?.toLowerCase()?.split(" ")[0] || "") || true) {
-    const ventMat = pbr(0x05070d, 0.4, 0.7);
-    for (const side of [-1, 1]) {
-      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.04, 0.22), ventMat);
-      vent.position.set(side * 0.30, shape.height * 0.85 + shape.height * 0.55, shape.length * 0.20);
-      group.add(vent);
-    }
-  }
-
-  // Exhaust tips — twin chrome cylinders at the rear.
-  const exhaustMat = pbr(0xc8d4e6, 0.85, 0.18);
-  for (const side of [-1, 1]) {
-    const exh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.18, 10), exhaustMat);
-    exh.rotation.x = Math.PI / 2;
-    exh.position.set(side * shape.width * 0.30, shape.height * 0.32, -shape.length * 0.51);
-    group.add(exh);
-  }
-
-  // Front grille — dark panel under the headlights.
+  // Front grille — single dark panel below the body line.
   const grilleMat = pbr(0x05070d, 0.3, 0.7);
-  const grille = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.55, shape.height * 0.22, 0.04), grilleMat);
+  const grille = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.width * 0.66, shape.height * 0.22, 0.04),
+    grilleMat
+  );
   grille.position.set(0, shape.height * 0.38, shape.length * 0.51);
   group.add(grille);
-  // Two small intake slits on either side of the grille.
-  for (const side of [-1, 1]) {
-    const intake = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.04), grilleMat);
-    intake.position.set(side * shape.width * 0.42, shape.height * 0.30, shape.length * 0.51);
-    group.add(intake);
-  }
-  // Rear bumper indent — dark strip across the back.
-  const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(shape.width * 0.82, shape.height * 0.18, 0.04), grilleMat);
-  rearBumper.position.set(0, shape.height * 0.32, -shape.length * 0.51);
+
+  // Rear bumper panel — dark band across the back.
+  const rearBumper = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.width * 0.86, shape.height * 0.20, 0.04),
+    grilleMat
+  );
+  rearBumper.position.set(0, shape.height * 0.34, -shape.length * 0.51);
   group.add(rearBumper);
+
+  // Twin exhaust tips — small chrome rings, integrated into the bumper.
+  const exhaustMat = pbr(0xc8d4e6, 0.85, 0.18);
+  for (const side of [-1, 1]) {
+    const exh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 0.10, 10),
+      exhaustMat
+    );
+    exh.rotation.x = Math.PI / 2;
+    exh.position.set(side * shape.width * 0.26, shape.height * 0.30, -shape.length * 0.52);
+    group.add(exh);
+  }
 
   // Hood detail (subtle).
   if (shape.spoiler === "wing" || shape.spoiler === "lip") {
@@ -544,33 +482,24 @@ function buildBody(shape) {
     lens.position.set(side * shape.width * 0.32, 0.55, shape.length * 0.50);
     group.add(lens);
   }
-  // Tail lights — modern full-width LED bar across the back. Two side blocks
-  // PLUS a thin connecting strip read like a 2020s GT taillight.
+  // Tail lights — slim, integrated at body height (matches the upper edge
+  // of the rear bumper so they read as part of the body panel, not stuck on).
   const tailLights = [];
+  const tailY = shape.height * 0.48;
   for (const side of [-1, 1]) {
     const tailMat = new THREE.MeshStandardMaterial({
       color: 0xff315c,
       emissive: 0xff315c,
-      emissiveIntensity: 0.8
+      emissiveIntensity: 0.95
     });
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.10), tailMat);
-    tail.position.set(side * shape.width * 0.32, 0.62, -shape.length * 0.50);
+    const tail = new THREE.Mesh(
+      new THREE.BoxGeometry(shape.width * 0.32, 0.05, 0.04),
+      tailMat
+    );
+    tail.position.set(side * shape.width * 0.28, tailY, -shape.length * 0.52);
     group.add(tail);
     tailLights.push(tailMat);
   }
-  // Center connecting LED bar.
-  const ledBarMat = new THREE.MeshStandardMaterial({
-    color: 0xff315c,
-    emissive: 0xff315c,
-    emissiveIntensity: 0.6
-  });
-  const ledBar = new THREE.Mesh(
-    new THREE.BoxGeometry(shape.width * 0.55, 0.05, 0.06),
-    ledBarMat
-  );
-  ledBar.position.set(0, 0.62, -shape.length * 0.50);
-  group.add(ledBar);
-  tailLights.push(ledBarMat);
   group.userData.tailMats = tailLights;
 
   // Side air vents — angled slits behind front wheels.
@@ -695,29 +624,21 @@ function stepDrivetrain(car, input, dt) {
   // surge. main.js sets car.raceLiveTime each tick after lights-out.
   if (input.throttle && car.raceLiveTime != null && car.raceLiveTime < PERFECT_LAUNCH_WINDOW && !car._launchUsed && car.speed < 8) {
     car.speed += PERFECT_LAUNCH_BONUS * car.maxSpeed;
-    car.boostMeter = Math.min(1, (car.boostMeter || 0) + 0.35);
-    car.boostT = 0.6;
     car._launchUsed = true;
     car.launchEvent = true;
   }
 
-  // Boost (refractory + meter + activation surge).
-  car.boostCooldown = Math.max(0, car.boostCooldown - dt);
-  const canBoost = input.boost && car.boostMeter > 0.05 && car.boostCooldown <= 0 && Math.abs(car.speed) > 12;
-  car.boostJustFired = false;
-  if (canBoost) {
-    if (!car._wasBoosting) {
-      const surge = car.maxSpeed * 0.18;
-      car.speed = Math.min(car.maxSpeed * BOOST_MUL, car.speed + surge);
-      car.boostJustFired = true;
-    }
-    car.speed += ACCEL * 1.05 * dt;
-    car.boostT = 0.5;
-    car.boostMeter = Math.max(0, car.boostMeter - 0.45 * dt);
-    if (car.boostMeter <= 0.001) car.boostCooldown = 0.7;
+  // Slow-mo replaces boost. main.js owns the time-scale; this module just
+  // tracks input + the slow-mo meter. Drains while held, refills slowly.
+  const SLOW_DRAIN = 0.42;     // full meter lasts ~2.4s at peak
+  const SLOW_REFILL = 0.18;    // ~5.5s to refill from empty
+  if (input.boost && car.slowMeter > 0.01) {
+    car.slowMeter = Math.max(0, car.slowMeter - SLOW_DRAIN * dt);
+    car.slowActive = true;
+  } else {
+    car.slowMeter = Math.min(1, car.slowMeter + SLOW_REFILL * dt);
+    car.slowActive = false;
   }
-  car._wasBoosting = canBoost;
-  car.boostT = Math.max(0, car.boostT - dt);
 
   // Engine heat.
   const speedFraction = Math.abs(car.speed) / car.maxSpeed;
@@ -736,7 +657,7 @@ function stepDrivetrain(car, input, dt) {
 
   // Apply ceiling.
   const heatCap = car.overheating ? HEAT_CAP_MUL : 1.0;
-  const ceiling = car.maxSpeed * heatCap * draftMul * (car.boostT > 0 ? BOOST_MUL : 1);
+  const ceiling = car.maxSpeed * heatCap * draftMul;
   car.speed = Math.max(-car.maxSpeed * 0.5, Math.min(ceiling, car.speed));
 }
 
@@ -783,12 +704,12 @@ function stepDrift(car, input, dt) {
     // While drifting, modulate the slide based on raw input direction.
     const counterFlick = inputSign && inputSign !== car.driftDir && Math.abs(inputSteer) > 0.55;
     if (!input.drift || counterFlick) {
-      // Exit — counter-flick or release. Reward scales with duration.
+      // Exit — counter-flick or release. Drift duration tops up the
+      // slow-mo meter as a reward for clean slides.
       const minDur = 0.35;
       if (car.driftDuration > minDur) {
         const reward = Math.min(0.45, car.driftCharge * 0.55);
-        car.boostMeter = Math.min(1, car.boostMeter + reward);
-        car.boostT = 0.5;
+        car.slowMeter = Math.min(1, (car.slowMeter || 0) + reward);
         car.driftExitReward = reward;        // main.js reads + clears for popup
       }
       car.driftActive = false;
@@ -933,10 +854,9 @@ export function createCar(shapeId = "gt", livery = null) {
     lateralV: 0,
     heading: 0,
     steer: 0,
-    // Boost state.
-    boostT: 0,
-    boostMeter: 0.5,
-    boostCooldown: 0,
+    // Slow-mo state.
+    slowActive: false,
+    slowMeter: 1.0,
     // Drift state machine.
     driftActive: false,
     driftDuration: 0,

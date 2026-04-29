@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=61";
-import { buildScenery, tickAmbient } from "./scenery.js?v=61";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=61";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=61";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=61";
+import { buildTrack, getTrackList } from "./track.js?v=62";
+import { buildScenery, tickAmbient } from "./scenery.js?v=62";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=62";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=62";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=62";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=61";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=61";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=61";
-import { createReplay } from "./replay.js?v=61";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=61";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=61";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=61";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=61";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=61";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=61";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=61";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=62";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=62";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=62";
+import { createReplay } from "./replay.js?v=62";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=62";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=62";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=62";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=62";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=62";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=62";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=62";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=61";
+} from "./profile.js?v=62";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -247,18 +247,15 @@ let boostFlame = null;
 let car = createCar(initialCarShape, getCarLivery(initialCarShape));
 scene.add(car.group);
 applyShadows(car.group, { cast: true, receive: true });
-attachBoostFlame();
 
 function swapCar(shapeId) {
   if (!CAR_SHAPES[shapeId]) return;
   if (car) {
     scene.remove(car.group);
-    if (boostFlame) car.group.remove(boostFlame);
   }
   car = createCar(shapeId, getCarLivery(shapeId));
   scene.add(car.group);
   applyShadows(car.group, { cast: true, receive: true });
-  attachBoostFlame();
   if (startPoint) {
     car.group.position.set(startPoint.x, startPoint.y + 0.8, startPoint.z);
     car.heading = startPoint.tangentAngle;
@@ -268,31 +265,8 @@ function swapCar(shapeId) {
   try { localStorage.setItem(CAR_KEY, shapeId); } catch (_) {}
 }
 
-// Boost flame: an emissive cone (or two) behind the rear bumper, pulsing on boost.
-function attachBoostFlame() {
-  const flame1 = new THREE.Mesh(
-    new THREE.ConeGeometry(0.30, 1.6, 12, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.0 })
-  );
-  flame1.rotation.x = Math.PI / 2;
-  flame1.position.set(-0.6, 0.5, -2.3);
-  const flame2 = flame1.clone();
-  flame2.material = flame2.material.clone();
-  flame2.position.x = 0.6;
-  const inner1 = new THREE.Mesh(
-    new THREE.ConeGeometry(0.16, 1.0, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x2ee9ff, transparent: true, opacity: 0.0 })
-  );
-  inner1.rotation.x = Math.PI / 2;
-  inner1.position.set(-0.6, 0.5, -2.0);
-  const inner2 = inner1.clone();
-  inner2.material = inner2.material.clone();
-  inner2.position.x = 0.6;
-  boostFlame = new THREE.Group();
-  boostFlame.add(flame1, flame2, inner1, inner2);
-  car.group.add(boostFlame);
-  boostFlame.userData = { flame1, flame2, inner1, inner2 };
-}
+// Slow-mo replaces the old boost flame — no rear-of-car visual.
+function attachBoostFlame() { /* removed: boost replaced with slow-mo */ }
 
 let rivals = [];
 
@@ -562,7 +536,7 @@ function updateCamera(dt) {
   );
   camera.lookAt(cameraTarget);
 
-  // FOV punch — subtle widen on boost activation, decays back to base.
+  // FOV punch — preserved for crashes, no longer fired by boost.
   const baseFov = settings.fov ?? BASE_FOV;
   if (fovPunch > 0.01) {
     camera.fov = baseFov + fovPunch;
@@ -711,7 +685,7 @@ function bumpCombo(amount, label) {
   comboTimer = COMBO_DECAY;
   if (combo > (raceCtx.maxCombo || 0)) raceCtx.maxCombo = combo;
   if (Math.floor(combo / 5) > Math.floor(before / 5)) {
-    if (car) car.boostMeter = Math.min(1, car.boostMeter + 0.25);
+    if (car) car.slowMeter = Math.min(1, (car.slowMeter || 0) + 0.25);
     flashCallout(`x${Math.floor(combo / 5) * 5}!`, 1100);
   } else if (label) {
     flashCallout(label, 700);
@@ -1131,13 +1105,9 @@ function tick(dt) {
 
   car.tick(dt, i, track);
 
-  // Boost mechanic — passive regen happens here while not boosting/drifting.
-  if (running && !i.boost && !car.driftActive) {
-    car.boostMeter = Math.min(1, car.boostMeter + 0.06 * dt);
-  }
-  // Draft also tops up boost meter slowly — rewards staying in tow.
+  // Draft tops up the slow-mo meter slowly — rewards staying in tow.
   if (running && draft > 0.4) {
-    car.boostMeter = Math.min(1, car.boostMeter + draft * 0.10 * dt);
+    car.slowMeter = Math.min(1, (car.slowMeter || 0) + draft * 0.08 * dt);
   }
   // Shift audio cue — rising edge.
   if (car.shiftEvent) {
@@ -1153,15 +1123,6 @@ function tick(dt) {
     car.launchEvent = false;
   }
 
-  // Boost activation kick.
-  if (car.boostJustFired) {
-    cameraShake = Math.max(cameraShake, 0.30);
-    fovPunch = Math.max(fovPunch, 9);
-    flashCallout("BOOST", 380);
-    playTurboWhoosh();
-    vibrate(0.6, 0.4, 200);
-    raceCtx.boostUsed = true;
-  }
   // Brake hiss on first brake-press at speed.
   if (i.brake && !car._wasBraking && Math.abs(car.speed) > 30) {
     playBrakeHiss();
@@ -1170,15 +1131,15 @@ function tick(dt) {
   }
   // First draft tip.
   if (running && car.draftAmount > 0.55 && !i.brake) {
-    maybeTutHint("draft", "Slipstream", `You're drafting. Stay tucked behind to gain ~10% top speed and refill boost.`);
+    maybeTutHint("draft", "Slipstream", `You're drafting. Stay tucked behind to gain ~10% top speed.`);
   }
   // First drift tip.
   if (running && car.driftActive && car.driftDuration > 1.0) {
     maybeTutHint("drift", "Drift", `Hold <kbd>Space</kbd> + steer same direction to extend slip. Counter-flick to exit clean.`);
   }
-  // First boost tip — when boost meter > 50%.
-  if (running && (car.boostMeter || 0) > 0.5 && !i.boost) {
-    maybeTutHint("boost", "Boost ready", `Hit <kbd>Shift</kbd> to fire boost. Costs the meter but pushes top speed +25%.`);
+  // First slow-mo tip.
+  if (running && (car.slowMeter || 0) > 0.4 && !i.boost) {
+    maybeTutHint("slow", "Slow-Mo Ready", `Hold <kbd>Shift</kbd> to slow time — line up overtakes and apex entries. Drains the meter; refills automatically.`);
   }
   car._wasBraking = i.brake;
 
@@ -1353,8 +1314,8 @@ function tick(dt) {
       if (prevDot > 0 && forwardDot <= 0 && nearMissArmed.get(r)) {
         const proximity = 1 - (dist - NEAR_MISS_INNER) / (NEAR_MISS_OUTER - NEAR_MISS_INNER);
         const intensity = Math.max(0.4, Math.min(1, proximity));
-        car.speed = Math.min(car.maxSpeed * 1.3, car.speed + 4 * intensity);
-        car.boostMeter = Math.min(1, car.boostMeter + 0.12 * intensity);
+        car.speed = Math.min(car.maxSpeed, car.speed + 4 * intensity);
+        car.slowMeter = Math.min(1, (car.slowMeter || 0) + 0.12 * intensity);
         bumpCombo(intensity > 0.7 ? 2 : 1, intensity > 0.7 ? "INCH" : "Close");
         raceCtx.nearMisses++;
         nearMissArmed.set(r, false);
@@ -1475,16 +1436,20 @@ function loop(now) {
   const dt = Math.min(0.25, (now - lastTime) / 1000);
   lastTime = now;
   if (running && !paused) {
-    // Final-lap slow-mo: when on the last lap and past the start of sector 3,
-    // ramp slowMoFactor toward 0.55 for cinematic finish.
+    // Time scale combines two sources:
+    //   1. Final-lap slow-mo (cinematic finish, automatic)
+    //   2. Player-driven slow-mo (Shift held, drains slowMeter)
+    let target = 1.0;
     if (running && lap === lapsTotal() && track) {
       const proj = track.project(car.group.position);
       const finalZone = proj.s >= track.length * 0.88;
-      const target = finalZone ? 0.55 : 1.0;
-      slowMoFactor += (target - slowMoFactor) * Math.min(1, dt * 4);
-    } else {
-      slowMoFactor += (1.0 - slowMoFactor) * Math.min(1, dt * 6);
+      if (finalZone) target = Math.min(target, 0.55);
     }
+    if (car && car.slowActive) {
+      target = Math.min(target, 0.40);   // slow-mo when player holds Shift
+      raceCtx.slowMoUsed = true;
+    }
+    slowMoFactor += (target - slowMoFactor) * Math.min(1, dt * (target < 1 ? 8 : 4));
     acc += dt * slowMoFactor;
     while (acc >= FIXED_DT) {
       tick(FIXED_DT);
@@ -1585,16 +1550,7 @@ function loop(now) {
   });
   updateWind(Math.abs(car.speed) / car.maxSpeed);
 
-  // Boost flame opacity reflects boost state.
-  if (boostFlame) {
-    const boostOn = car.boostT > 0;
-    const flicker = 0.7 + Math.sin(performance.now() * 0.03) * 0.25 + Math.random() * 0.1;
-    const target = boostOn ? flicker : 0;
-    boostFlame.userData.flame1.material.opacity += (target * 0.78 - boostFlame.userData.flame1.material.opacity) * Math.min(1, dt * 18);
-    boostFlame.userData.flame2.material.opacity = boostFlame.userData.flame1.material.opacity;
-    boostFlame.userData.inner1.material.opacity = boostFlame.userData.flame1.material.opacity * 0.85;
-    boostFlame.userData.inner2.material.opacity = boostFlame.userData.flame1.material.opacity * 0.85;
-  }
+  // (boost flame removed — no rear-of-car visual for slow-mo)
 
   // HUD.
   const standings = computeStandings();
@@ -1618,13 +1574,14 @@ function loop(now) {
   // Show ghost best in time trial (per car), generic best in race mode.
   const bestSeconds = gameMode === "timeTrial" ? bestLapDisplay : bestLapPerTrack[track.id];
   document.getElementById("best").textContent = bestSeconds ? formatTime(bestSeconds) : "—";
-  document.getElementById("boost-bar").style.width = `${Math.round(readBoost() * 100)}%`;
+  // Slow-mo meter shares the old boost-bar element + label says "SLO-MO" now.
+  document.getElementById("boost-bar").style.width = `${Math.round((car.slowMeter || 0) * 100)}%`;
 
   // Speedometer arc fill — pathLength=100, dasharray "<fill> 100".
   const fillEl = document.getElementById("speedo-fill");
   if (fillEl) {
     const speedKmh = Math.round(Math.abs(car.speed) * 3.6);
-    const ceilingKmh = Math.round(car.maxSpeed * 1.25 * 3.6); // boost-able ceiling
+    const ceilingKmh = Math.round(car.maxSpeed * 3.6);
     const fillPct = Math.min(100, Math.round((speedKmh / ceilingKmh) * 100));
     fillEl.setAttribute("stroke-dasharray", `${fillPct} 100`);
     document.getElementById("speedo-num").textContent = speedKmh;
@@ -1640,10 +1597,11 @@ function loop(now) {
     const rpmEl = document.getElementById("rpm-readout");
     if (rpmEl) rpmEl.textContent = (Math.round(car.rpm || 0) | 0) + " rpm";
   }
-  // Boost FX overlay.
+  // Slow-mo FX overlay (cyan vignette + saturation pull) — same hook the
+  // boost-fx CSS class uses, so existing styles light up automatically.
   const boostFxEl = document.getElementById("boost-fx");
   if (boostFxEl) {
-    boostFxEl.classList.toggle("is-active", car.boostT > 0 && running);
+    boostFxEl.classList.toggle("is-active", car.slowActive && running);
   }
   // Draft HUD.
   const draftStack = document.getElementById("draft-stack");
@@ -1836,7 +1794,7 @@ function loop(now) {
       mode: gameMode,
       difficulty: settings.difficulty || "normal",
       maxCombo: raceCtx.maxCombo || 0,
-      boostUsed: raceCtx.boostUsed === true
+      slowMoUsed: raceCtx.slowMoUsed === true
     };
     checkAchievements(profile, ctx);
     // Daily playlist check.
@@ -2371,7 +2329,7 @@ function startRace() {
   raceCtx.longestDrift = 0;
   raceCtx.kmDriven = 0;
   raceCtx.maxCombo = 0;
-  raceCtx.boostUsed = false;
+  raceCtx.slowMoUsed = false;
   // Sector splits — show panel + reset.
   const sectorsEl = document.getElementById("sectors");
   if (sectorsEl) sectorsEl.hidden = false;
@@ -2382,7 +2340,7 @@ function startRace() {
   // Hide rivals in time trial / drift trial / hot lap.
   for (const r of rivals) r.mesh.visible = (gameMode === "race" || gameMode === "career" || gameMode === "endurance");
   if (car) {
-    car.boostMeter = 0.5;
+    car.slowMeter = 1.0;
     car.gear = 1;
     car.rpm = 900;
     car.shiftCooldown = 0;
@@ -2886,7 +2844,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=61");
+  const mod = await import("./garagePreview.js?v=62");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

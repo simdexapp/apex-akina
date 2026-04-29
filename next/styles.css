@@ -963,16 +963,17 @@ body.is-drafting .game-frame::after {
   to   { opacity: 1.0; }
 }
 
-/* ---- Boost FX overlay ---- */
+/* ---- Slow-Mo FX overlay (cyan vignette + chromatic edge) ---- */
 .boost-fx {
   position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 120ms linear;
+  transition: opacity 220ms ease-out;
   z-index: 2;
   background:
-    radial-gradient(ellipse at center, transparent 35%, rgba(255, 49, 92, 0.18) 75%, rgba(255, 49, 92, 0.42) 100%);
+    radial-gradient(ellipse at center, transparent 38%, rgba(46, 233, 255, 0.18) 72%, rgba(46, 233, 255, 0.55) 100%);
+  mix-blend-mode: screen;
 }
 
 .boost-fx.is-active { opacity: 1; }

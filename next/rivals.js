@@ -79,38 +79,16 @@ function makeRivalMesh(variant) {
   glass.position.copy(cabin.position);
   glass.position.y += 0.02;
   group.add(glass);
-  // Nose wedge
-  const nose = new THREE.Mesh(buildNoseWedge(w * 0.96, h * 0.55, l * 0.22), bodyMat);
-  nose.position.set(0, h * 0.40, l * 0.40);
-  group.add(nose);
-  // Front splitter
-  const splitter = new THREE.Mesh(
-    new THREE.BoxGeometry(w * 0.94, 0.04, 0.16),
-    new THREE.MeshStandardMaterial({ color: 0x0a0d18, metalness: 0.4, roughness: 0.6 })
-  );
-  splitter.position.set(0, h * 0.16, l * 0.50);
-  group.add(splitter);
-  // Side skirts
-  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x0a0d18, metalness: 0.3, roughness: 0.6 });
-  for (const side of [-1, 1]) {
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, l * 0.62), skirtMat);
-    skirt.position.set(side * w * 0.50, h * 0.20, 0);
-    group.add(skirt);
-  }
-  // Side mirrors (smaller, pulled in)
-  for (const side of [-1, 1]) {
-    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.10), bodyMat);
-    mirror.position.set(side * (cabinW * 0.5 + 0.05), cabin.position.y + cabinH * 0.45, -l * 0.04 + cabinL * 0.32);
-    group.add(mirror);
-  }
-  // Stripe
+  // Stripe — center racing stripe, simple band.
   const stripeMat = new THREE.MeshStandardMaterial({ color: variant.stripe, metalness: 0.1, roughness: 0.4 });
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, h + 0.02, l + 0.02), stripeMat);
   stripe.position.y = h * 0.85;
   group.add(stripe);
-  // Wheels
+  // Wheels — black tire + simple chrome hub.
   const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12);
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0e18, roughness: 0.9 });
+  const hubGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.30, 10);
+  const hubMat = new THREE.MeshStandardMaterial({ color: 0xc8d4e6, metalness: 0.85, roughness: 0.18 });
   const wx = w * 0.5 - 0.06;
   const wzF = l * 0.36;
   const wzR = -l * 0.36;
@@ -120,7 +98,26 @@ function makeRivalMesh(variant) {
     wheel.position.set(px, 0.36, pz);
     wheel.userData.shadowCast = true;
     group.add(wheel);
+    const hub = new THREE.Mesh(hubGeo, hubMat);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(px, 0.36, pz);
+    group.add(hub);
   }
+  // Front grille panel.
+  const grilleMat = new THREE.MeshStandardMaterial({ color: 0x05070d, metalness: 0.3, roughness: 0.7 });
+  const grille = new THREE.Mesh(
+    new THREE.BoxGeometry(w * 0.66, h * 0.22, 0.04),
+    grilleMat
+  );
+  grille.position.set(0, h * 0.38, l * 0.51);
+  group.add(grille);
+  // Rear bumper panel.
+  const rearBumper = new THREE.Mesh(
+    new THREE.BoxGeometry(w * 0.86, h * 0.20, 0.04),
+    grilleMat
+  );
+  rearBumper.position.set(0, h * 0.34, -l * 0.51);
+  group.add(rearBumper);
   // Spoiler per variant.
   if (variant.spoiler === "wing") {
     const wingMat = new THREE.MeshStandardMaterial({ color: 0x10131e });
@@ -148,16 +145,18 @@ function makeRivalMesh(variant) {
     lip.position.set(0, h * 0.18, -l * 0.44);
     group.add(lip);
   }
-  // Tail lights — match player's full-width LED bar look.
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff315c });
+  // Tail lights — slim emissive bars at body height (matches player car).
+  const tailMat = new THREE.MeshStandardMaterial({
+    color: 0xff315c,
+    emissive: 0xff315c,
+    emissiveIntensity: 0.95
+  });
+  const tailY = h * 0.48;
   for (const side of [-1, 1]) {
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.08), tailMat);
-    tail.position.set(side * w * 0.30, 0.62, -l * 0.50);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(w * 0.32, 0.05, 0.04), tailMat);
+    tail.position.set(side * w * 0.28, tailY, -l * 0.52);
     group.add(tail);
   }
-  const ledBar = new THREE.Mesh(new THREE.BoxGeometry(w * 0.55, 0.04, 0.05), tailMat);
-  ledBar.position.set(0, 0.62, -l * 0.50);
-  group.add(ledBar);
 
   // HP bar — small backing + foreground that scales with HP. Hidden when
   // HP is full (>= 80). Stored in userData so tickRivals can update it.
@@ -223,13 +222,14 @@ export function createRivals(track, count = 14, opts = {}) {
       s: gridS,
       lane: gridLane,
       homeLane,
-      // Baseline pace tuned for smooth motion — too fast and the corner
-      // brake-urgency stutters constantly. Front pack ~84 m/s; mid 78;
-      // back of the field 71. Difficulty multiplier scales these later.
-      targetSpeed: isBoss ? variant.basePace + Math.random() * 5
-                  : i < 4 ? 84 + Math.random() * 5
-                  : i < 9 ? 78 + Math.random() * 5
-                  : 71 + Math.random() * 5,
+      // Rivals match player top speed (player BASE_MAX_SPEED = 78 m/s).
+      // Front pack runs at the player's max — no handicap. Bosses and
+      // mid-pack get small spreads so the field has natural variation
+      // but every rival can keep up on a straight.
+      targetSpeed: isBoss ? variant.basePace + Math.random() * 4
+                  : i < 5 ? 78 + Math.random() * 2
+                  : i < 10 ? 76 + Math.random() * 3
+                  : 73 + Math.random() * 3,
       baseTargetSpeed: 0,
       speed: 0,
       laps: 0,
