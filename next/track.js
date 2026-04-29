@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=116";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=117";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -196,6 +196,66 @@ export function buildTrack(trackId = "lakeside") {
     instA.count = aIdx;
     instB.count = bIdx;
     kerbGroup.add(instA, instB);
+  }
+
+  // Corner apex markers — tall thin glowing pylons at high-curvature
+  // samples. Read like braking-zone neon markers at real circuits.
+  const apexGroup = new THREE.Group();
+  {
+    // Compute curvature at each sample as the angle between consecutive tangents.
+    const curvature = new Array(SAMPLES);
+    for (let i = 0; i < SAMPLES; i++) {
+      const t1 = tangents[i];
+      const t2 = tangents[(i + 1) % SAMPLES];
+      const dot = Math.max(-1, Math.min(1, t1.x * t2.x + t1.z * t2.z));
+      curvature[i] = Math.acos(dot);
+    }
+    // Pick local maxima — samples where curvature is greater than both
+    // neighbors and above a threshold. Spaced apart so we don't cluster.
+    const minSep = 12;          // at least 12 samples apart
+    const apexSlots = [];
+    for (let i = 0; i < SAMPLES; i++) {
+      const prev = curvature[(i - 1 + SAMPLES) % SAMPLES];
+      const next = curvature[(i + 1) % SAMPLES];
+      if (curvature[i] > 0.018 && curvature[i] >= prev && curvature[i] >= next) {
+        // Check spacing.
+        let tooClose = false;
+        for (const s of apexSlots) {
+          const d = Math.min((i - s + SAMPLES) % SAMPLES, (s - i + SAMPLES) % SAMPLES);
+          if (d < minSep) { tooClose = true; break; }
+        }
+        if (!tooClose) apexSlots.push(i);
+      }
+    }
+    // Build instanced pylons — tall thin cones with emissive cyan.
+    if (apexSlots.length > 0) {
+      const pylonGeo = new THREE.CylinderGeometry(0.06, 0.10, 2.4, 6);
+      const pylonMat = new THREE.MeshStandardMaterial({
+        color: 0xff315c,
+        emissive: 0xff315c,
+        emissiveIntensity: 1.6,
+        roughness: 0.4
+      });
+      const inst = new THREE.InstancedMesh(pylonGeo, pylonMat, apexSlots.length * 2);
+      const dummy = new THREE.Object3D();
+      let placed = 0;
+      for (const i of apexSlots) {
+        const p = points[i];
+        const t = tangents[i];
+        right.crossVectors(t, up).normalize();
+        // One pylon on each side of the road, ~1m past the kerb.
+        for (const side of [-1, 1]) {
+          const offset = side * (ROAD_HALF_WIDTH + SHOULDER + 1.2);
+          dummy.position.set(p.x + right.x * offset, p.y + 1.2, p.z + right.z * offset);
+          dummy.rotation.set(0, 0, 0);
+          dummy.updateMatrix();
+          inst.setMatrixAt(placed++, dummy.matrix);
+        }
+      }
+      inst.count = placed;
+      inst.instanceMatrix.needsUpdate = true;
+      apexGroup.add(inst);
+    }
   }
 
   // Ground plane below the track — DARKER than the road by design so
@@ -455,6 +515,7 @@ export function buildTrack(trackId = "lakeside") {
   group.add(roadMesh);
   group.add(laneGroup);
   group.add(kerbGroup);
+  group.add(apexGroup);
   group.add(barrierGroup);
   group.add(postGroup);
   group.add(distantGroup);
