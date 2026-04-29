@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=87";
-import { buildScenery, tickAmbient } from "./scenery.js?v=87";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=87";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=87";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=87";
+import { buildTrack, getTrackList } from "./track.js?v=88";
+import { buildScenery, tickAmbient } from "./scenery.js?v=88";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=88";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=88";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=88";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=87";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=87";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=87";
-import { createReplay } from "./replay.js?v=87";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=87";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=87";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=87";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=87";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=87";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=87";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=87";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=88";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=88";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=88";
+import { createReplay } from "./replay.js?v=88";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=88";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=88";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=88";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=88";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=88";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=88";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=88";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=87";
+} from "./profile.js?v=88";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1764,7 +1764,16 @@ function loop(now) {
     racing: running,
     gear: car.gear,
     gearCount: car._gearProfile?.count || 6,
-    rpm: car.rpm
+    rpm: car.rpm,
+    // Music intensity: full crescendo on the final lap, light bump in the
+    // final 25% of any race. Boss races get full intensity throughout.
+    musicIntensity: (function() {
+      if (!running) return 0;
+      const total = lapsTotal();
+      if (lap === total) return 1.0;
+      if (total > 1 && lap === total - 1) return 0.4;
+      return 0.0;
+    })()
   });
   updateWind(Math.abs(car.speed) / car.maxSpeed);
 
@@ -3117,7 +3126,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=87");
+  const mod = await import("./garagePreview.js?v=88");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

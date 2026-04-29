@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=87";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=88";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.

@@ -404,7 +404,7 @@ function startMusic() {
   }, 60);
 }
 
-export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, racing, gear, gearCount, rpm }) {
+export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, racing, gear, gearCount, rpm, musicIntensity = 0 }) {
   if (!ctx) return;
   const sp = Math.max(0, Math.min(1, Math.abs(speed) / maxSpeed));
   const onThrottle = !!throttle;
@@ -453,9 +453,14 @@ export function updateAudio({ speed, maxSpeed, lateralSlip, throttle, brake, rac
   tireGain.gain.setTargetAtTime(screechBase * skrrrt, ctx.currentTime, 0.025);
   tireBandpass.frequency.setTargetAtTime(1500 + slipMag * 700, ctx.currentTime, 0.04);
 
-  // Music level — quieter on the menu, fuller during the race.
+  // Music level — quieter on the menu, fuller during the race. Accepts a
+  // `musicIntensity` [0..1] for final-lap / boss-race crescendo. 0 = base,
+  // 1 = +35%.
   if (musicGain) {
-    musicGain.gain.setTargetAtTime((racing ? 0.30 : 0.10) * musicVolume, ctx.currentTime, 0.4);
+    const intensity = Math.max(0, Math.min(1, musicIntensity));
+    const base = racing ? 0.30 : 0.10;
+    const target = base * (1 + intensity * 0.35) * musicVolume;
+    musicGain.gain.setTargetAtTime(target, ctx.currentTime, 0.4);
   }
 }
 
