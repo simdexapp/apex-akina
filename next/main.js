@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=53";
-import { buildScenery, tickAmbient } from "./scenery.js?v=53";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=53";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=53";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=53";
+import { buildTrack, getTrackList } from "./track.js?v=54";
+import { buildScenery, tickAmbient } from "./scenery.js?v=54";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=54";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=54";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=54";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=53";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=53";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=53";
-import { createReplay } from "./replay.js?v=53";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=53";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=53";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=53";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=53";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=53";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=53";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=53";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=54";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=54";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=54";
+import { createReplay } from "./replay.js?v=54";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=54";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=54";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=54";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=54";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=54";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=54";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=54";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=53";
+} from "./profile.js?v=54";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2807,7 +2807,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=53");
+  const mod = await import("./garagePreview.js?v=54");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
@@ -3308,6 +3308,29 @@ if (muteBtn) {
 }
 
 // Hide splash now that the engine has booted + first frame is queued.
+const SPLASH_MESSAGES = [
+  "Compiling shaders…",
+  "Warming up tires…",
+  "Calibrating downforce…",
+  "Spinning the turbo…",
+  "Mapping the apex…",
+  "Tuning the suspension…",
+  "Loading rival driver bios…",
+  "Plotting the racing line…",
+  "Running brake-bias check…",
+  "Aligning the toe-out…",
+  "Filling the boost reservoir…",
+  "Heating the brake rotors…",
+  "Setting the diff lock…",
+  "Mixing the fuel ratio…"
+];
+{
+  const splashStatus = document.getElementById("splash-status");
+  if (splashStatus) {
+    const msg = SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)];
+    splashStatus.textContent = msg;
+  }
+}
 requestAnimationFrame(() => {
   const splash = document.getElementById("splash");
   if (splash) {
