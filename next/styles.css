@@ -354,36 +354,38 @@ button:hover { filter: brightness(1.08); }
 
 .leaderboard {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
-  width: 152px;
-  padding: 8px 10px;
+  right: 18px;
+  bottom: 18px;
+  width: 180px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--panel);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   z-index: 3;
 }
 
 .leaderboard ol {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .leaderboard li {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 13px;
   font-weight: 800;
   color: #dce6f4;
   background: rgba(255, 255, 255, 0.05);
+  transition: background 200ms;
 }
+.leaderboard li:hover { background: rgba(46, 233, 255, 0.10); }
 
 .leaderboard li.is-player {
   color: #05070c;
@@ -810,13 +812,13 @@ button:hover { filter: brightness(1.08); }
 /* ---- Speedometer cluster (bottom-left) ---- */
 .speedo {
   position: absolute;
-  left: 14px;
-  bottom: 14px;
-  width: 168px;
-  height: 110px;
+  left: 18px;
+  bottom: 18px;
+  width: 220px;          /* up from 168 */
+  height: 140px;         /* up from 110 */
   z-index: 3;
   pointer-events: none;
-  filter: drop-shadow(0 4px 18px rgba(46, 233, 255, 0.18));
+  filter: drop-shadow(0 4px 26px rgba(46, 233, 255, 0.30));
 }
 
 .speedo svg { display: block; }
@@ -828,41 +830,42 @@ button:hover { filter: brightness(1.08); }
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
   pointer-events: none;
 }
 
 .speedo-readout strong {
-  font-size: 24px;
+  font-size: 38px;       /* up from 24 — readable at speed */
   font-weight: 900;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   line-height: 1;
   color: var(--ink);
-  text-shadow: 0 0 14px rgba(46, 233, 255, 0.35);
+  text-shadow: 0 0 18px rgba(46, 233, 255, 0.55);
+  font-variant-numeric: tabular-nums;
 }
 
 .speedo-readout .unit {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .gear-pill {
   position: absolute;
-  bottom: 0;
-  right: 6px;
-  min-width: 22px;
+  bottom: 4px;
+  right: 8px;
+  min-width: 30px;
   text-align: center;
-  padding: 3px 7px;
-  font-size: 12px;
+  padding: 5px 10px;
+  font-size: 16px;
   font-weight: 900;
-  border-radius: 5px;
+  border-radius: 7px;
   background: linear-gradient(135deg, var(--cyan), var(--gold));
   color: #05070c;
-  box-shadow: 0 0 12px rgba(46, 233, 255, 0.45);
+  box-shadow: 0 0 16px rgba(46, 233, 255, 0.55);
 }
 
 .speedo-meters {
@@ -895,13 +898,13 @@ button:hover { filter: brightness(1.08); }
 
 .rpm-readout {
   position: absolute;
-  bottom: 22px;
-  right: 8px;
-  font-size: 9px;
+  bottom: 28px;
+  right: 10px;
+  font-size: 11px;
   font-family: ui-monospace, monospace;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0.06em;
+  color: var(--cyan);
 }
 
 @keyframes shift-pulse {
@@ -1110,8 +1113,8 @@ body.is-drafting .game-frame::after {
   .hud-pills { top: 8px; }
   .hud-stack { padding: 3px 8px; min-width: 48px; }
   .hud strong { font-size: 14px; }
-  .speedo { left: 8px; bottom: 8px; width: 144px; height: 96px; }
-  .speedo-readout strong { font-size: 20px; }
+  .speedo { left: 8px; bottom: 8px; width: 180px; height: 116px; }
+  .speedo-readout strong { font-size: 30px; }
   .gear-pill { font-size: 11px; padding: 2px 6px; }
   .speedo-meters { bottom: -32px; }
   .leaderboard { right: 8px; bottom: 8px; width: 132px; padding: 6px 8px; }
