@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=105";
+import { buildSlopedCabin, buildNoseWedge, buildSleekBody, buildExtrudedCarBody, buildExtrudedGlass } from "./car.js?v=106";
 
 // Lightweight 3D rival cars. Each rival follows the track at a target speed,
 // holds a small lateral lane offset, and dodges nearby rivals + the player.
@@ -437,10 +437,14 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
       }
     }
     // If there's traffic ahead, plan overtake: pick the side with more room
-    // and commit hard. Aggressive personalities dive deeper.
-    if (blockerLane != null && blockerDist < 28) {
+    // and commit hard. Aggressive AI start setup earlier, wait less.
+    const overtakeRange = (r.personality?.id === "aggressive") ? 36
+                        : (r.personality?.id === "wildcard") ? 32
+                        : (r.personality?.id === "smooth") ? 22
+                        : 28;
+    if (blockerLane != null && blockerDist < overtakeRange) {
       const overtakeSide = blockerLane >= 0 ? -1 : 1;
-      const commit = Math.max(0.45, 1.0 - blockerDist / 28);
+      const commit = Math.max(0.45, 1.0 - blockerDist / overtakeRange);
       const aggression = (r.personality?.attackBoldness ?? 1.0);
       dodge = overtakeSide * 4.2 * commit * aggression;
     }

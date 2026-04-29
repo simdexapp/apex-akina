@@ -866,7 +866,13 @@ function stepDrivetrain(car, input, dt) {
     car.speed -= BRAKE * dt;
     car._accelInput = -1;
   } else if (input.throttle) {
-    car.speed += ACCEL * stats.accel * throttleAuthority * dt;
+    // Real torque curve: peak accel low + mid speed, falls off near top.
+    // sp = 0 -> 1.6× ACCEL (punch off the line)
+    // sp = 0.5 -> 1.2× (still strong mid-range)
+    // sp = 1.0 -> 0.55× (asymptote near top speed)
+    const sp = Math.max(0, Math.min(1, Math.abs(car.speed) / car.maxSpeed));
+    const torqueCurve = 1.6 - sp * 1.05;
+    car.speed += ACCEL * stats.accel * throttleAuthority * torqueCurve * dt;
     car._accelInput = 1;
   } else {
     car.speed -= Math.sign(car.speed) * DRAG * dt;
