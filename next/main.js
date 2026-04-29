@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=99";
-import { buildScenery, tickAmbient } from "./scenery.js?v=99";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=99";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=99";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=99";
+import { buildTrack, getTrackList } from "./track.js?v=100";
+import { buildScenery, tickAmbient } from "./scenery.js?v=100";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=100";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=100";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=100";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=99";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=99";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=99";
-import { createReplay } from "./replay.js?v=99";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=99";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=99";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=99";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=99";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=99";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=99";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=99";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=100";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=100";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=100";
+import { createReplay } from "./replay.js?v=100";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=100";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=100";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=100";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=100";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=100";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=100";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=100";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=99";
+} from "./profile.js?v=100";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -330,6 +330,21 @@ function loadTrack(id) {
   skyUniforms.midColor.value.set(track.palette.sky.mid);
   skyUniforms.bottomColor.value.set(track.palette.sky.bottom);
   scene.fog.color.setHex(track.palette.fog);
+  // Per-track fog distance — denser on rural / mountainpass for atmosphere,
+  // looser on the high-speed neon highway so distant cars stay visible.
+  const FOG_RANGES = {
+    lakeside: [120, 480],
+    bayside:  [180, 620],
+    highway:  [200, 700],
+    neon:     [180, 620],
+    mountainpass: [80, 360],
+    city:     [160, 500],
+    rural:    [100, 380],
+    drift:    [140, 460]
+  };
+  const range = FOG_RANGES[id] || FOG_RANGES.lakeside;
+  scene.fog.near = range[0];
+  scene.fog.far = range[1];
   moonLight.color.setHex(track.palette.moonLight);
   fillRed.color.setHex(track.palette.fillRed);
   fillCyan.color.setHex(track.palette.fillCyan);
@@ -3182,7 +3197,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=99");
+  const mod = await import("./garagePreview.js?v=100");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
