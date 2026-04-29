@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=114";
-import { buildScenery, tickAmbient } from "./scenery.js?v=114";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=114";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=114";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=114";
+import { buildTrack, getTrackList } from "./track.js?v=115";
+import { buildScenery, tickAmbient } from "./scenery.js?v=115";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=115";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=115";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=115";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=114";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=114";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=114";
-import { createReplay } from "./replay.js?v=114";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=114";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=114";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=114";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=114";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=114";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=114";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=114";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=115";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=115";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=115";
+import { createReplay } from "./replay.js?v=115";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=115";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=115";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=115";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=115";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=115";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=115";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=115";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=114";
+} from "./profile.js?v=115";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -474,6 +474,8 @@ const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.5, 1500);
 let cameraShake = 0;       // current shake intensity, decays to 0
 let fovPunch = 0;          // current fov delta over base, decays to 0
 let finishCinematicUntil = 0;  // perf.now() timestamp until which finish slow-mo holds
+let finishOrbitUntil = 0;     // perf.now() timestamp until which post-finish camera orbit holds
+let finishOrbitT = 0;         // accumulating phase for the orbit camera
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 // Restrained bloom — half-resolution internal buffers. Bloom is naturally
@@ -1816,6 +1818,22 @@ let slowMoFactor = 1.0;
 // Title-screen cinematic camera — orbits the player car when the title
 // overlay is open, for production-trailer feel.
 let titleCinemaT = 0;
+// Post-finish orbit — slow cinematic sweep around the player car for
+// 2.4-3.0s before the overlay drops. Camera arcs from low-rear to
+// high-side while pulling slightly closer.
+function tickFinishOrbit(dt) {
+  finishOrbitT += dt;
+  const t = finishOrbitT;
+  // Sweep from chase position → low-side hero shot.
+  const angle = -Math.PI * 0.20 + t * 0.65;     // start 0.2π behind, sweep right
+  const dist = 8.5 - Math.min(2.5, t * 1.0);    // pull in slowly
+  const height = 1.6 + Math.sin(t * 0.9) * 0.6;
+  const cx = car.group.position.x + Math.sin(car.heading + angle) * dist;
+  const cz = car.group.position.z + Math.cos(car.heading + angle) * dist;
+  camera.position.set(cx, car.group.position.y + height, cz);
+  camera.lookAt(car.group.position.x, car.group.position.y + 0.9, car.group.position.z);
+}
+
 function tickTitleCinema(dt) {
   if (overlay.hidden) return;
   if (introActive || photoMode || spectatorMode || replayPlaying) return;
@@ -1867,7 +1885,15 @@ function loop(now) {
     }
   }
   if (!introActive && !spectatorMode && !photoMode && !replayPlaying) {
-    if (!overlay.hidden && !running) {
+    if (finishOrbitUntil > performance.now() && car) {
+      // Post-finish cinematic orbit — slow camera sweep around the player.
+      tickFinishOrbit(dt);
+    } else if (finishOrbitUntil > 0 && finishOrbitUntil <= performance.now()) {
+      // Orbit just finished — drop the overlay in.
+      finishOrbitUntil = 0;
+      const fov = document.getElementById("finish-overlay");
+      if (fov) fov.hidden = false;
+    } else if (!overlay.hidden && !running) {
       // Title overlay open + race not started → cinematic orbit.
       tickTitleCinema(dt);
     } else {
@@ -2167,6 +2193,10 @@ function loop(now) {
   if (running && lap > lapsTotal() && !finishShown) {
     finishShown = true;
     running = false;
+    // Before the overlay drops, hold the camera in an orbital sweep for
+    // 2.4s. Race winners get 3.0s. Pure cinematic moment.
+    finishOrbitUntil = performance.now() + (standings.place === 1 ? 3000 : 2400);
+    finishOrbitT = 0;
     showFinish(standings);
     // Bump profile stats — race counted, podium / win flag, lap count.
     if (gameMode === "race" || gameMode === "career") {
@@ -2611,7 +2641,9 @@ function showFinish(standings) {
     const head = document.getElementById("finish-lb-online-head");
     if (head) head.hidden = true;
   }
-  overlay.hidden = false;
+  // Defer overlay reveal until the orbit cinematic finishes — the loop
+  // will flip overlay.hidden = false once finishOrbitUntil expires.
+  overlay.hidden = true;
   // Stop replay recording at finish so playback shows just the race.
   replay.stop();
   // Hide sector splits.
@@ -3373,7 +3405,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=114");
+  const mod = await import("./garagePreview.js?v=115");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
