@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TRACKS } from "./tracks-data.js";
-import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=91";
+import { buildAsphaltTexture, buildAsphaltNormal, buildGroundTexture } from "./textures.js?v=92";
 
 const ROAD_HALF_WIDTH = 7;
 const SHOULDER = 1.0;
@@ -371,8 +371,10 @@ export function buildTrack(trackId = "lakeside") {
     const lineWidth = 1.4;
     const TILES = 10;
     const tileGeo = new THREE.PlaneGeometry((ROAD_HALF_WIDTH * 2) / TILES, lineWidth);
-    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xfbfdff });
-    const blackMat = new THREE.MeshBasicMaterial({ color: 0x05070d });
+    // Start tiles dimmed slightly — was full-bright #fbfdff which dominated
+    // the foreground. Now #d4dae4: still clearly readable, doesn't burn.
+    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xd4dae4 });
+    const blackMat = new THREE.MeshBasicMaterial({ color: 0x10141c });
     for (let i = 0; i < TILES; i++) {
       const t = (i / TILES - 0.5) * (ROAD_HALF_WIDTH * 2) + (ROAD_HALF_WIDTH * 2) / TILES * 0.5;
       const tile = new THREE.Mesh(tileGeo, i % 2 === 0 ? whiteMat : blackMat);
