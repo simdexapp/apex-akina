@@ -233,7 +233,14 @@ export function createRivals(track, count = 14, opts = {}) {
       heading: 0,
       hp: isBoss ? 140 : 100,    // bosses take more hits to kill
       crashedT: 0,
-      crashSpinV: 0
+      crashSpinV: 0,
+      // Mistake state — bosses + smooth drivers rarely err; aggressive +
+      // wildcards make occasional mistakes (overshoot a corner, brake too
+      // late). Mistake duration counts down; while mistake > 0, pace drops.
+      mistakeT: 0,
+      // Cooldown until next eligible mistake — randomized per rival so
+      // they don't all err at the same time.
+      mistakeCooldown: 8 + Math.random() * 14
     });
   }
   // Cache the base targetSpeed for rubber-band scaling later.
@@ -431,8 +438,31 @@ export function tickRivals(rivals, dt, track, playerCar, playerTotal = 0, diffic
     const targetLane = Math.max(-halfW, Math.min(halfW, racingLine + dodge + defenderUrge));
     r.lane += (targetLane - r.lane) * Math.min(1, dt * 2.4);
 
+    // ---- Mistakes ----
+    // Aggressive + wildcard drivers occasionally overshoot a corner or
+    // brake too late, dropping pace for ~1.5 sec. Adds drama: AI sometimes
+    // gives the player a chance to pass without artificial rubber-banding.
+    if (r.crashedT <= 0) {
+      r.mistakeCooldown -= dt;
+      if (r.mistakeT > 0) r.mistakeT -= dt;
+      else if (r.mistakeCooldown <= 0) {
+        // Roll for mistake on every entry into a sharp corner.
+        const cornerSharp = curveSeverity > 0.020;
+        const baseChance = (r.personality?.id === "smooth") ? 0.04
+                         : (r.personality?.id === "aggressive") ? 0.16
+                         : (r.personality?.id === "wildcard") ? 0.20 : 0.10;
+        // Bosses make far fewer mistakes.
+        const mistakeChance = (r.isBoss ? baseChance * 0.30 : baseChance) * dt;
+        if (cornerSharp && Math.random() < mistakeChance) {
+          r.mistakeT = 1.0 + Math.random() * 0.8;
+          r.mistakeCooldown = 12 + Math.random() * 18;
+        }
+      }
+    }
+    const mistakeFactor = r.mistakeT > 0 ? 0.62 : 1.0;
+
     // ---- Pace ----
-    let pace = r.targetSpeed * (1 - cornerDrag) * attackBoost;
+    let pace = r.targetSpeed * (1 - cornerDrag) * attackBoost * mistakeFactor;
     // If blocker is significantly slower AND we can't easily pass (no room),
     // tuck in their slipstream — slow to 96% of their speed for a draft setup.
     if (blockerSpeed != null && blockerSpeed < r.targetSpeed * 0.95 && Math.abs(dodge) < 1.0) {

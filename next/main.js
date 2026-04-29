@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=58";
-import { buildScenery, tickAmbient } from "./scenery.js?v=58";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=58";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=58";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=58";
+import { buildTrack, getTrackList } from "./track.js?v=59";
+import { buildScenery, tickAmbient } from "./scenery.js?v=59";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=59";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=59";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=59";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=58";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=58";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=58";
-import { createReplay } from "./replay.js?v=58";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=58";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=58";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=58";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=58";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=58";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=58";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=58";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=59";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=59";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=59";
+import { createReplay } from "./replay.js?v=59";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=59";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=59";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=59";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=59";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=59";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=59";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=59";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=58";
+} from "./profile.js?v=59";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -619,24 +619,26 @@ const skidGroup = new THREE.Group();
 scene.add(skidGroup);
 const SKID_MAX = 360;
 const skidQueue = [];
+// Shared resources — hoisted so we allocate ONCE per session instead of
+// one geometry + one material per spawned skid quad. The opacity tween
+// happens via per-skid material clones.
+const _SKID_GEO = new THREE.PlaneGeometry(0.20, 1.2);
+const _SKID_BASE_MAT = new THREE.MeshBasicMaterial({ color: 0x05060c, transparent: true, opacity: 0.55 });
 
 function spawnSkidPair() {
   // Two short black quads behind the rear wheels.
   const sin = Math.sin(car.heading);
   const cos = Math.cos(car.heading);
-  // Local rear-axle position offset.
   const rearOffsetZ = -1.6;
   const rearWorldX = car.group.position.x + sin * rearOffsetZ;
   const rearWorldZ = car.group.position.z + cos * rearOffsetZ;
-  // Right vector (perpendicular to heading) for tire offset.
   const rightX = cos;
   const rightZ = -sin;
   for (const side of [-1, 1]) {
     const tireX = rearWorldX + rightX * side * 0.85;
     const tireZ = rearWorldZ + rightZ * side * 0.85;
-    const geo = new THREE.PlaneGeometry(0.20, 1.2);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x05060c, transparent: true, opacity: 0.55 });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mat = _SKID_BASE_MAT.clone();
+    const mesh = new THREE.Mesh(_SKID_GEO, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.rotation.z = car.heading;
     mesh.position.set(tireX, 0.06, tireZ);
@@ -645,8 +647,8 @@ function spawnSkidPair() {
     while (skidQueue.length > SKID_MAX) {
       const old = skidQueue.shift();
       skidGroup.remove(old.mesh);
-      old.mesh.geometry.dispose();
-      old.mat.dispose();
+      old.mat.dispose();   // material is a clone — safe to dispose
+      // shared geometry is NOT disposed
     }
   }
 }
@@ -658,7 +660,6 @@ function tickSkids(dt) {
     s.mat.opacity = Math.max(0, s.life * 0.14);
     if (s.life <= 0) {
       skidGroup.remove(s.mesh);
-      s.mesh.geometry.dispose();
       s.mat.dispose();
       skidQueue.splice(i, 1);
     }
@@ -669,7 +670,6 @@ function clearSkids() {
   while (skidQueue.length) {
     const s = skidQueue.shift();
     skidGroup.remove(s.mesh);
-    s.mesh.geometry.dispose();
     s.mat.dispose();
   }
 }
@@ -2857,7 +2857,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=58");
+  const mod = await import("./garagePreview.js?v=59");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
