@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=54";
-import { buildScenery, tickAmbient } from "./scenery.js?v=54";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=54";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=54";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=54";
+import { buildTrack, getTrackList } from "./track.js?v=55";
+import { buildScenery, tickAmbient } from "./scenery.js?v=55";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=55";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=55";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=55";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=54";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=54";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=54";
-import { createReplay } from "./replay.js?v=54";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=54";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=54";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=54";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=54";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=54";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=54";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=54";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=55";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=55";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=55";
+import { createReplay } from "./replay.js?v=55";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=55";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=55";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=55";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=55";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=55";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=55";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=55";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=54";
+} from "./profile.js?v=55";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -1491,7 +1491,11 @@ function loop(now) {
         }
       }
     }
-    lap = Math.min(lapsTotal(), lap + 1);
+    // CRITICAL: do not clamp lap here — the finish trigger at the
+    // running-tick site checks `lap > lapsTotal()`, so capping prevents
+    // races from ever ending. The HUD already clamps display via
+    // Math.min(lap, lapsTotal()) wherever it's rendered.
+    lap = lap + 1;
     lapStartTime = raceTime;
     lapStartedAt = performance.now() / 1000;
     if (ghost) ghost.startLap(lapStartedAt);
@@ -2807,7 +2811,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=54");
+  const mod = await import("./garagePreview.js?v=55");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
