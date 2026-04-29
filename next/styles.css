@@ -1929,6 +1929,44 @@ body.is-photo-mode.photo-fx-night #game { filter: grayscale(0.75) contrast(1.4) 
   transition: width 80ms linear;
 }
 
+/* Drift Trial HUD — score + countdown */
+.drift-hud {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(8, 11, 18, 0.78);
+  border: 1px solid rgba(46, 233, 255, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 0 24px rgba(46, 233, 255, 0.2);
+  z-index: 5;
+}
+.drift-hud[hidden] { display: none !important; }
+.drift-hud .drift-hud-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 80px;
+}
+.drift-hud .label {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.drift-hud strong {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(46, 233, 255, 0.4);
+}
+
 /* Lap delta indicator (vs personal best) */
 .lap-delta {
   position: absolute;

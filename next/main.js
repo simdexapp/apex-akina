@@ -2,30 +2,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=48";
-import { buildScenery, tickAmbient } from "./scenery.js?v=48";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=48";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=48";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=48";
+import { buildTrack, getTrackList } from "./track.js?v=49";
+import { buildScenery, tickAmbient } from "./scenery.js?v=49";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=49";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=49";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=49";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=48";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=48";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=48";
-import { createReplay } from "./replay.js?v=48";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=48";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=48";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=48";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=48";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=48";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=48";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=48";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=49";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=49";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=49";
+import { createReplay } from "./replay.js?v=49";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=49";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=49";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=49";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=49";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=49";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=49";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=49";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=48";
+} from "./profile.js?v=49";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -819,7 +819,7 @@ function renderPlaylist() {
   for (const li of list.querySelectorAll("li")) {
     li.addEventListener("click", () => {
       const t = li.dataset.track, c = li.dataset.car, m = li.dataset.mode;
-      if (["race", "timeTrial", "career", "hotlap"].includes(m)) {
+      if (["race", "timeTrial", "career", "hotlap", "drift", "endurance"].includes(m)) {
         gameMode = m;
         try { localStorage.setItem(MODE_KEY, gameMode); } catch (_) {}
         renderModePicker();
@@ -948,6 +948,21 @@ let lastTrackS = 0;
 let raceTime = 0;
 let lapStartTime = 0;
 let bestLapPerTrack = loadBestLaps();
+
+// Drift Trial — accumulate a single number representing drift skill.
+const DRIFT_TRIAL_DURATION = 90;     // seconds
+const DRIFT_TRIAL_KEY = "apex-akina-3d:driftTrial";
+const driftTrialState = { score: 0, timer: DRIFT_TRIAL_DURATION, maxAngle: 0, bestEvent: 0 };
+function loadDriftTrialBests() {
+  try { return JSON.parse(localStorage.getItem(DRIFT_TRIAL_KEY) || "{}"); } catch (_) { return {}; }
+}
+function saveDriftTrialBests(map) {
+  try { localStorage.setItem(DRIFT_TRIAL_KEY, JSON.stringify(map)); } catch (_) {}
+}
+let driftTrialBests = loadDriftTrialBests();
+
+// Endurance — 10-lap race, weather rotates each lap.
+const ENDURANCE_WEATHER_CYCLE = ["clear", "fog", "rain", "clear", "snow", "rain", "fog", "clear", "rain", "clear"];
 
 function loadBestLaps() {
   try { return JSON.parse(localStorage.getItem("apex-akina-3d:bestLap") || "{}"); } catch (_) { return {}; }
@@ -1095,6 +1110,39 @@ function tick(dt) {
   if (speedKmh > raceCtx.topSpeedKmh) raceCtx.topSpeedKmh = speedKmh;
   if (car.driftActive && car.driftDuration > raceCtx.longestDrift) {
     raceCtx.longestDrift = car.driftDuration;
+  }
+  // Drift Trial scoring — accumulate score every tick the car is drifting.
+  // Score per second = speed (m/s) * angle factor * duration multiplier.
+  if (gameMode === "drift" && running && car.driftActive) {
+    const angleFactor = Math.min(1.5, 0.4 + Math.abs(car.lateralV || 0) * 0.05);
+    const durationBoost = 1 + Math.min(2, car.driftDuration * 0.4);
+    const tickScore = speedKmh * 0.18 * angleFactor * durationBoost * dt;
+    driftTrialState.score += tickScore;
+    if (Math.abs(car.lateralV || 0) > driftTrialState.maxAngle) {
+      driftTrialState.maxAngle = Math.abs(car.lateralV || 0);
+    }
+    if (tickScore * 60 > driftTrialState.bestEvent) {
+      driftTrialState.bestEvent = tickScore * 60;
+    }
+  }
+  // Drift Trial timer.
+  if (gameMode === "drift" && running) {
+    driftTrialState.timer -= dt;
+    if (driftTrialState.timer <= 0) {
+      driftTrialState.timer = 0;
+      // Force finish via the regular finish flow with a synthetic standings.
+      if (!finishShown) {
+        showDriftFinish();
+      }
+    }
+  }
+  // Endurance — rotate weather per lap.
+  if (gameMode === "endurance" && running && weather) {
+    const idx = Math.min(ENDURANCE_WEATHER_CYCLE.length - 1, lap - 1);
+    const wantWeather = ENDURANCE_WEATHER_CYCLE[idx];
+    if (weather.getMode().type !== wantWeather) {
+      weather.setMode(wantWeather, 0.85);
+    }
   }
 
   // Player's total race distance for rubber-band scaling.
@@ -1437,6 +1485,19 @@ function loop(now) {
   document.getElementById("lap").textContent = `${Math.min(lap, lapsTotal())}/${lapsTotal()}`;
   document.getElementById("time").textContent = formatTime(raceTime);
   document.getElementById("place").textContent = ordinal(standings.place);
+  // Drift Trial HUD.
+  const driftHud = document.getElementById("drift-hud");
+  if (driftHud) {
+    if (gameMode === "drift" && running) {
+      driftHud.hidden = false;
+      const scoreEl = document.getElementById("drift-score");
+      const timerEl = document.getElementById("drift-timer");
+      if (scoreEl) scoreEl.textContent = Math.round(driftTrialState.score).toLocaleString();
+      if (timerEl) timerEl.textContent = driftTrialState.timer.toFixed(1);
+    } else {
+      driftHud.hidden = true;
+    }
+  }
   // Show ghost best in time trial (per car), generic best in race mode.
   const bestSeconds = gameMode === "timeTrial" ? bestLapDisplay : bestLapPerTrack[track.id];
   document.getElementById("best").textContent = bestSeconds ? formatTime(bestSeconds) : "—";
@@ -1848,6 +1909,38 @@ function drawMinimap() {
 }
 
 let finishShown = false;
+// Drift Trial finish — separate flow from regular race finish since there's
+// no place / standings.
+function showDriftFinish() {
+  finishShown = true;
+  running = false;
+  const overlay = document.getElementById("finish-overlay");
+  const score = Math.round(driftTrialState.score);
+  const prevBest = driftTrialBests[track.id] || 0;
+  const isPB = score > prevBest;
+  if (isPB) {
+    driftTrialBests[track.id] = score;
+    saveDriftTrialBests(driftTrialBests);
+  }
+  document.getElementById("finish-title").textContent = isPB ? "Drift PB!" : "Drift Trial Complete";
+  document.getElementById("finish-stats").textContent =
+    `Score: ${score.toLocaleString()} · Best peak event: ${Math.round(driftTrialState.bestEvent)} · Track best: ${(isPB ? score : prevBest).toLocaleString()}`;
+  // Hide leaderboards from previous TT/hotlap render.
+  const lbEl = document.getElementById("finish-lb");
+  if (lbEl) lbEl.hidden = true;
+  const onEl = document.getElementById("finish-lb-online");
+  if (onEl) onEl.hidden = true;
+  const head = document.getElementById("finish-lb-online-head");
+  if (head) head.hidden = true;
+  overlay.hidden = false;
+  replay.stop();
+  const sectorsEl = document.getElementById("sectors");
+  if (sectorsEl) sectorsEl.hidden = true;
+  if (isPB) {
+    document.body.classList.add("is-victory");
+    setTimeout(() => document.body.classList.remove("is-victory"), 4000);
+  }
+}
 function showFinish(standings) {
   const overlay = document.getElementById("finish-overlay");
   document.getElementById("finish-title").textContent = standings.place === 1 ? "Victory" : "Race Complete";
@@ -2057,6 +2150,19 @@ function startRace() {
   if (gameMode === "hotlap") {
     raceLapsOverride = 1;
   }
+  // Drift Trial — solo, 90 seconds, lap counter unused. 1 lap so the win
+  // condition is timer-based (handled below).
+  if (gameMode === "drift") {
+    raceLapsOverride = 1;
+    driftTrialState.score = 0;
+    driftTrialState.timer = DRIFT_TRIAL_DURATION;
+    driftTrialState.maxAngle = 0;
+    driftTrialState.bestEvent = 0;
+  }
+  // Endurance — 10 laps, weather rotates per lap.
+  if (gameMode === "endurance") {
+    raceLapsOverride = 10;
+  }
   // If career mode is active, force the round's track + laps.
   if (gameMode === "career") {
     const round = currentRound();
@@ -2121,8 +2227,8 @@ function startRace() {
   lastPlayerPlace = 15;
   _aiLastOrder = [];
   _aiCalloutCooldown = 0;
-  // Hide rivals in time trial.
-  for (const r of rivals) r.mesh.visible = (gameMode === "race" || gameMode === "career");
+  // Hide rivals in time trial / drift trial / hot lap.
+  for (const r of rivals) r.mesh.visible = (gameMode === "race" || gameMode === "career" || gameMode === "endurance");
   if (car) {
     car.boostMeter = 0.5;
     car.gear = 1;
@@ -2400,7 +2506,7 @@ function renderModePicker() {
   if (gameMode === "career") renderCareerPanel();
 }
 
-const VALID_MODES = ["race", "timeTrial", "career", "hotlap"];
+const VALID_MODES = ["race", "timeTrial", "career", "hotlap", "drift", "endurance"];
 const modePickerEl = document.getElementById("mode-picker");
 if (modePickerEl) {
   for (const card of modePickerEl.querySelectorAll(".mode-card")) {
@@ -2574,7 +2680,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=48");
+  const mod = await import("./garagePreview.js?v=49");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);

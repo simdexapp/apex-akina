@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=48">
+    <link rel="stylesheet" href="styles.css?v=49">
     <script type="importmap">
       {
         "imports": {
@@ -143,6 +143,12 @@
           <strong id="lap-delta-value">+0.00</strong>
         </div>
 
+        <!-- Drift Trial score + countdown — only shown in drift mode -->
+        <div class="drift-hud" id="drift-hud" hidden>
+          <div class="drift-hud-row"><span class="label">Score</span><strong id="drift-score">0</strong></div>
+          <div class="drift-hud-row"><span class="label">Time</span><strong id="drift-timer">90.0</strong></div>
+        </div>
+
         <!-- Sector split panel — shows S1 / S2 / S3 elapsed + delta -->
         <div class="sectors" id="sectors" hidden>
           <div class="sector-row" data-sector="1"><span class="sector-label">S1</span><span class="sector-time" id="sector-1">—</span><span class="sector-delta" id="sector-1-delta"></span></div>
@@ -191,6 +197,14 @@
               <button type="button" class="mode-card" role="radio" data-mode="hotlap" aria-checked="false">
                 <span class="name">Hot Lap</span>
                 <p class="desc">Single flying lap. Pure pace, instant retry.</p>
+              </button>
+              <button type="button" class="mode-card" role="radio" data-mode="drift" aria-checked="false">
+                <span class="name">Drift Trial</span>
+                <p class="desc">90 seconds, solo. Score earned through angle, speed, duration.</p>
+              </button>
+              <button type="button" class="mode-card" role="radio" data-mode="endurance" aria-checked="false">
+                <span class="name">Endurance</span>
+                <p class="desc">10 laps. Weather rotates between laps. Stamina test.</p>
               </button>
             </div>
             <div class="career-panel" id="career-panel" hidden>
@@ -468,6 +482,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=48"></script>
+    <script type="module" src="main.js?v=49"></script>
   </body>
 </html>
