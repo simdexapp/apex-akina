@@ -398,6 +398,19 @@ button:hover { filter: brightness(1.08); }
   background: linear-gradient(135deg, var(--cyan), var(--gold));
 }
 .leaderboard li .name { flex: 1; text-align: right; }
+.leaderboard li .gap {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+.leaderboard li .gap.leader {
+  color: var(--gold);
+  letter-spacing: 0.06em;
+}
+.leaderboard li.is-player .gap { color: #05070c; }
 .leaderboard li:hover { background: rgba(46, 233, 255, 0.10); }
 .leaderboard li.is-player .rank { color: #05070c; }
 .leaderboard li.is-player .rival-dot { box-shadow: 0 0 8px rgba(255, 255, 255, 0.7); }
