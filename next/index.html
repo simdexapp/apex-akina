@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=118">
+    <link rel="stylesheet" href="styles.css?v=119">
     <script type="importmap">
       {
         "imports": {
@@ -139,6 +139,19 @@
           <span class="tb-eyebrow">RACE · 3 LAPS</span>
           <span class="tb-name">LAKESIDE</span>
           <span class="tb-bar"></span>
+        </div>
+
+        <!-- Controls reminder strip — fades in for 2.5s at race start. -->
+        <div class="controls-strip" id="controls-strip" aria-hidden="true">
+          <span class="cs-item"><kbd>WASD</kbd> drive</span>
+          <span class="cs-sep">·</span>
+          <span class="cs-item"><kbd>Shift</kbd> slow-mo</span>
+          <span class="cs-sep">·</span>
+          <span class="cs-item"><kbd>Space</kbd> drift</span>
+          <span class="cs-sep">·</span>
+          <span class="cs-item"><kbd>R</kbd> restart</span>
+          <span class="cs-sep">·</span>
+          <span class="cs-item"><kbd>Esc</kbd> pause</span>
         </div>
 
         <!-- Tire grip indicator (small bar, color-coded) -->
@@ -360,10 +373,15 @@
             <h1 id="finish-title">Finished</h1>
             <p id="finish-stats"></p>
             <div class="prerace-actions">
-              <button id="restart" type="button">Run It Back</button>
+              <button id="restart" type="button">Run It Back ↻</button>
+              <button id="next-track" type="button" class="ghost-btn">Next Track →</button>
+              <button id="back-to-menu" type="button" class="ghost-btn">Back to Menu</button>
               <button id="watch-replay" type="button" class="ghost-btn">Watch Replay</button>
               <button id="share-ghost" type="button" class="ghost-btn">Share Ghost</button>
             </div>
+            <p class="small" style="margin-top: 14px; color: var(--muted);">
+              Press <kbd style="border:1px solid var(--cyan); border-radius:3px; padding:1px 5px; color:var(--cyan)">R</kbd> for instant restart
+            </p>
           </div>
         </div>
 
@@ -530,6 +548,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=118"></script>
+    <script type="module" src="main.js?v=119"></script>
   </body>
 </html>

@@ -1014,6 +1014,49 @@ button:hover { filter: brightness(1.08); }
     radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.42) 100%);
 }
 
+/* Controls reminder strip — fades in at race start, holds 2.5s, fades out. */
+.controls-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid rgba(46, 233, 255, 0.30);
+  border-radius: 999px;
+  background: rgba(5, 8, 15, 0.72);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--ink);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 4;
+}
+.controls-strip.is-show {
+  animation: cs-show 3.5s ease-out forwards;
+}
+.controls-strip kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  margin-right: 4px;
+  border: 1px solid rgba(46, 233, 255, 0.50);
+  border-radius: 4px;
+  background: rgba(46, 233, 255, 0.10);
+  color: var(--cyan);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+.controls-strip .cs-sep { color: var(--muted); margin: 0 2px; }
+@keyframes cs-show {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  10%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* AI radio chatter toast — short rival quote with name + speech. */
 .toast.rival-chatter {
   background: rgba(8, 13, 22, 0.92);

@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=118";
-import { buildScenery, tickAmbient } from "./scenery.js?v=118";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=118";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=118";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=118";
+import { buildTrack, getTrackList } from "./track.js?v=119";
+import { buildScenery, tickAmbient } from "./scenery.js?v=119";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=119";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=119";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=119";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=118";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=118";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=118";
-import { createReplay } from "./replay.js?v=118";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=118";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=118";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=118";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=118";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=118";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=118";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=118";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=119";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=119";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=119";
+import { createReplay } from "./replay.js?v=119";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=119";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=119";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=119";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=119";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=119";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=119";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=119";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=118";
+} from "./profile.js?v=119";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2856,6 +2856,15 @@ function startRace() {
       setTimeout(() => banner.classList.remove("is-show"), 2800);
     }
   }
+  // Controls reminder strip — fades in for 3.5s at race start. Players
+  // who already know the controls can ignore; first-timers see them.
+  const cstrip = document.getElementById("controls-strip");
+  if (cstrip) {
+    cstrip.classList.remove("is-show");
+    void cstrip.offsetWidth;
+    cstrip.classList.add("is-show");
+    setTimeout(() => cstrip.classList.remove("is-show"), 3600);
+  }
   // Hot lap — 1 lap, no rivals.
   if (gameMode === "hotlap") {
     raceLapsOverride = 1;
@@ -3062,6 +3071,36 @@ function runStartLights() {
 
 document.getElementById("start").addEventListener("click", startRace);
 document.getElementById("restart").addEventListener("click", startRace);
+
+// Next track — pick a different random track and restart.
+document.getElementById("next-track")?.addEventListener("click", () => {
+  const pool = TRACKS_LIST.filter((t) => t.id !== track?.id);
+  const pick = pool[Math.floor(Math.random() * pool.length)] || TRACKS_LIST[0];
+  if (pick && pick.id) {
+    loadTrack(pick.id);
+    renderTrackPicker();
+  }
+  startRace();
+});
+
+// Back to menu — reopen the title overlay (pre-race screen).
+document.getElementById("back-to-menu")?.addEventListener("click", () => {
+  finishOverlay.hidden = true;
+  finishShown = false;
+  running = false;
+  finishOrbitUntil = 0;
+  overlay.hidden = false;
+  // Reset car state.
+  if (car && startPoint) {
+    car.group.position.set(startPoint.x, startPoint.y + 0.4, startPoint.z);
+    car.heading = startPoint.tangentAngle;
+    car.group.rotation.set(0, car.heading, 0);
+    car.speed = 0;
+    car.lateralV = 0;
+  }
+  lap = 1;
+  raceTime = 0;
+});
 document.getElementById("watch-replay")?.addEventListener("click", startReplay);
 
 // Share Ghost — copies a self-contained URL to the clipboard. Opening the
@@ -3451,7 +3490,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=118");
+  const mod = await import("./garagePreview.js?v=119");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
