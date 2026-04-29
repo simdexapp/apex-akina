@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Apex Akina — 3D</title>
-    <link rel="stylesheet" href="styles.css?v=103">
+    <link rel="stylesheet" href="styles.css?v=104">
     <script type="importmap">
       {
         "imports": {
@@ -133,6 +133,13 @@
 
         <!-- Floating score popups: +125 drift, +50 near-miss, etc. -->
         <div class="score-popups" id="score-popups" aria-hidden="true"></div>
+
+        <!-- Track-name banner — stylish "AKINA PASS" card at race start. -->
+        <div class="track-banner" id="track-banner" aria-hidden="true">
+          <span class="tb-eyebrow">RACE · 3 LAPS</span>
+          <span class="tb-name">LAKESIDE</span>
+          <span class="tb-bar"></span>
+        </div>
 
         <!-- Tire grip indicator (small bar, color-coded) -->
         <div class="grip-bar" id="grip-bar" hidden>
@@ -523,6 +530,6 @@
         </div>
       </section>
     </main>
-    <script type="module" src="main.js?v=103"></script>
+    <script type="module" src="main.js?v=104"></script>
   </body>
 </html>

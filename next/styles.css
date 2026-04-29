@@ -996,6 +996,51 @@ button:hover { filter: brightness(1.08); }
     radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.42) 100%);
 }
 
+/* Track name banner — slides in from the left at race start. */
+.track-banner {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  transform: translate(-50%, -50%) translateY(-30px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 4;
+}
+.track-banner.is-show {
+  animation: tb-show 2.6s cubic-bezier(.2,.9,.2,1.0) forwards;
+}
+.tb-eyebrow {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.30em;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(46, 233, 255, 0.65);
+}
+.tb-name {
+  font-size: clamp(36px, 6vw, 78px);
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-shadow: 0 0 22px rgba(46, 233, 255, 0.40), 0 6px 20px rgba(0, 0, 0, 0.7);
+}
+.tb-bar {
+  width: 220px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, var(--cyan) 30%, var(--gold) 70%, transparent 100%);
+  border-radius: 2px;
+  box-shadow: 0 0 18px rgba(46, 233, 255, 0.55);
+}
+@keyframes tb-show {
+  0%   { opacity: 0; transform: translate(-50%, -50%) translateY(-50px); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
+  85%  { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(20px); }
+}
+
 /* Launch flash — bright cyan border + screen flash on perfect launch. */
 body.is-launch-flash .game-frame::after {
   content: "";
