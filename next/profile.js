@@ -33,7 +33,9 @@ function defaultProfile() {
       streak: 0,
       bestStreak: 0,
       sessions: 0,        // unique browser sessions launched
-      longestRaceMs: 0    // longest single race time (any mode)
+      longestRaceMs: 0,   // longest single race time (any mode)
+      skillRating: 1000,  // Elo-style; updated by applySkillDelta
+      peakSkillRating: 1000
     },
     bestLaps: {}
   };
@@ -69,6 +71,8 @@ export function loadProfile() {
     if (parsed.stats.bestStreak === undefined) parsed.stats.bestStreak = 0;
     if (parsed.stats.sessions === undefined) parsed.stats.sessions = 0;
     if (parsed.stats.longestRaceMs === undefined) parsed.stats.longestRaceMs = 0;
+    if (parsed.stats.skillRating === undefined) parsed.stats.skillRating = 1000;
+    if (parsed.stats.peakSkillRating === undefined) parsed.stats.peakSkillRating = parsed.stats.skillRating || 1000;
     cache = parsed;
     return cache;
   } catch (_) {
@@ -133,6 +137,30 @@ export function bumpCarStats(carShape, delta) {
     p.cars[carShape][k] = (p.cars[carShape][k] || 0) + delta[k];
   }
   saveProfile();
+}
+
+// Apply an Elo-style skill rating delta. Place is 1-based; total is field
+// size including the player. Returns { before, after, delta }.
+//
+// The expected score for a "median" finish is 0.5; player's actual score is
+// 1.0 for 1st down to 0.0 for last, scaled linearly. K factor is 24.
+export function applySkillDelta(place, total) {
+  const p = loadProfile();
+  if (!p.stats.skillRating) p.stats.skillRating = 1000;
+  if (!p.stats.peakSkillRating) p.stats.peakSkillRating = p.stats.skillRating;
+  const before = p.stats.skillRating;
+  if (!Number.isFinite(place) || !Number.isFinite(total) || total <= 1) {
+    return { before, after: before, delta: 0 };
+  }
+  const score = (total - place) / (total - 1);  // 1 for 1st, 0 for last
+  const expected = 0.5;                          // average expectation
+  const K = 24;
+  const delta = Math.round(K * (score - expected) * 2);  // amplify for fewer rivals
+  const after = Math.max(100, Math.min(5000, before + delta));
+  p.stats.skillRating = after;
+  if (after > p.stats.peakSkillRating) p.stats.peakSkillRating = after;
+  saveProfile();
+  return { before, after, delta };
 }
 
 // Record a race result for streak tracking. `won` is true if 1st place.

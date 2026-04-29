@@ -2,27 +2,29 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=46";
-import { buildScenery, tickAmbient } from "./scenery.js?v=46";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=46";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=46";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=46";
+import { buildTrack, getTrackList } from "./track.js?v=47";
+import { buildScenery, tickAmbient } from "./scenery.js?v=47";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=47";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=47";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=47";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=46";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=46";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=46";
-import { createReplay } from "./replay.js?v=46";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=46";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=46";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=46";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=46";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=46";
+  playTurboWhoosh, playBrakeHiss } from "./audio.js?v=47";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=47";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=47";
+import { createReplay } from "./replay.js?v=47";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=47";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=47";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=47";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=47";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=47";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=47";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
-  getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap, hex, parseHex
-} from "./profile.js?v=46";
+  getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
+  applySkillDelta, hex, parseHex
+} from "./profile.js?v=47";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -743,6 +745,13 @@ function renderRank() {
       next.textContent = "Top tier reached — drive forever";
     }
   }
+  // Skill rating display (separate from rank tier).
+  const srEl = document.getElementById("rank-sr");
+  if (srEl) {
+    const sr = profile.stats.skillRating || 1000;
+    const peak = profile.stats.peakSkillRating || sr;
+    srEl.innerHTML = `<span class="sr-label">SR</span><span class="sr-num">${sr}</span><span class="sr-peak">peak ${peak}</span>`;
+  }
 }
 renderRank();
 
@@ -1340,6 +1349,13 @@ function loop(now) {
       if (!prev || lapTime < prev) {
         bestLapPerTrack[track.id] = lapTime;
         saveBestLaps();
+        // Mastery tier upgrade callout.
+        const oldTier = prev ? getMasteryTier(track.id, prev) : "none";
+        const newTier = getMasteryTier(track.id, lapTime);
+        if (compareTiers(newTier, oldTier) > 0 && newTier !== "none") {
+          const style = MASTERY_STYLE[newTier];
+          flashCallout(`${style.glyph} ${style.label} mastery!`, 2000);
+        }
       }
       // Final sector record at lap end.
       recordSector(3, nowS - sectorState.lapStart);
@@ -1354,6 +1370,18 @@ function loop(now) {
           submitLap(track.id, car.shape, lapTime).then((r) => {
             if (r && r.rank) {
               flashCallout(`Online rank #${r.rank} of ${r.total}`, 1800);
+              if (diamondFromRank(r.rank)) {
+                // Diamond tier — top 3 in the world for this track + car.
+                try {
+                  const key = "apex-akina-3d:diamond";
+                  const cur = JSON.parse(localStorage.getItem(key) || "{}");
+                  if (!cur[track.id]) {
+                    cur[track.id] = { rank: r.rank, ts: Date.now() };
+                    localStorage.setItem(key, JSON.stringify(cur));
+                    setTimeout(() => flashCallout("♦ DIAMOND mastery — World Top 3!", 2400), 1900);
+                  }
+                } catch (_) {}
+              }
             }
           }).catch(() => {});
         }
@@ -1572,6 +1600,14 @@ function loop(now) {
       // Streak.
       const newStreak = recordRaceResult(isWin);
       if (isWin && newStreak >= 3) flashCallout(`${newStreak}-race streak`, 1400);
+      // Skill rating — Elo-style, computed from finishing position vs field.
+      if (gameMode === "race" || gameMode === "career") {
+        const sr = applySkillDelta(standings.place, standings.entries.length);
+        if (sr.delta !== 0) {
+          const sign = sr.delta > 0 ? "+" : "";
+          flashCallout(`SR ${sign}${sr.delta} → ${sr.after}`, 1500);
+        }
+      }
     } else {
       bumpStats({ laps: lapsTotal() });
     }
@@ -2260,30 +2296,41 @@ function trackPreviewSvg(trackId) {
 function renderTrackPicker() {
   const wrap = document.getElementById("track-picker");
   if (!wrap) return;
-  if (wrap.children.length !== TRACKS_LIST.length) {
-    wrap.innerHTML = "";
-    for (const t of TRACKS_LIST) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "track-card";
-      btn.setAttribute("role", "radio");
-      btn.dataset.track = t.id;
-      btn.innerHTML = `
-        <span class="name">${t.name}</span>
-        <p class="desc">${t.description}</p>
-        ${trackPreviewSvg(t.id)}
-        <div class="swatch" aria-hidden="true">
-          <span style="background:${t.palette.sky.top}"></span>
-          <span style="background:${t.palette.sky.mid}"></span>
-          <span style="background:${t.palette.sky.bottom}"></span>
-          <span style="background:#${t.palette.kerbA.toString(16).padStart(6, "0")}"></span>
-        </div>`;
-      btn.addEventListener("click", () => {
-        loadTrack(t.id);
-        renderTrackPicker();
-      });
-      wrap.appendChild(btn);
-    }
+  // Always rebuild — mastery badge can change after a race.
+  wrap.innerHTML = "";
+  let diamonds = {};
+  try { diamonds = JSON.parse(localStorage.getItem("apex-akina-3d:diamond") || "{}"); } catch (_) {}
+  for (const t of TRACKS_LIST) {
+    const best = bestLapPerTrack[t.id];
+    let tier = best ? getMasteryTier(t.id, best) : "none";
+    if (diamonds[t.id]) tier = "diamond";
+    const style = MASTERY_STYLE[tier];
+    const masteryBadge = `
+      <span class="mastery-badge tier-${tier}" title="${style.label} mastery">
+        <span class="mb-glyph" style="color:${style.color}">${style.glyph}</span>
+        <span class="mb-label">${style.label}</span>
+      </span>`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "track-card";
+    btn.setAttribute("role", "radio");
+    btn.dataset.track = t.id;
+    btn.innerHTML = `
+      <span class="name">${t.name}</span>
+      <p class="desc">${t.description}</p>
+      ${trackPreviewSvg(t.id)}
+      ${masteryBadge}
+      <div class="swatch" aria-hidden="true">
+        <span style="background:${t.palette.sky.top}"></span>
+        <span style="background:${t.palette.sky.mid}"></span>
+        <span style="background:${t.palette.sky.bottom}"></span>
+        <span style="background:#${t.palette.kerbA.toString(16).padStart(6, "0")}"></span>
+      </div>`;
+    btn.addEventListener("click", () => {
+      loadTrack(t.id);
+      renderTrackPicker();
+    });
+    wrap.appendChild(btn);
   }
   for (const card of wrap.querySelectorAll(".track-card")) {
     card.setAttribute("aria-checked", card.dataset.track === track.id ? "true" : "false");
@@ -2430,6 +2477,8 @@ function renderGarage() {
     <div><span class="label">Best Streak</span><span class="value">${profile.stats.bestStreak || 0}</span></div>
     <div><span class="label">Sessions</span><span class="value">${profile.stats.sessions || 0}</span></div>
     <div><span class="label">Longest Race</span><span class="value">${longest > 0 ? formatTime(longest) : "—"}</span></div>
+    <div><span class="label">Skill Rating</span><span class="value">${profile.stats.skillRating || 1000}</span></div>
+    <div><span class="label">Peak SR</span><span class="value">${profile.stats.peakSkillRating || profile.stats.skillRating || 1000}</span></div>
   `;
   // Achievements grid.
   const achWrap = document.getElementById("garage-achievements");
@@ -2514,7 +2563,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=46");
+  const mod = await import("./garagePreview.js?v=47");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
