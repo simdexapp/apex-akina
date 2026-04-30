@@ -3,30 +3,30 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { buildTrack, getTrackList } from "./track.js?v=122";
-import { buildScenery, tickAmbient, tickBillboards } from "./scenery.js?v=122";
-import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=122";
-import { createInput, initTouchControls, vibrate } from "./input.js?v=122";
-import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=122";
+import { buildTrack, getTrackList } from "./track.js?v=123";
+import { buildScenery, tickAmbient, tickBillboards } from "./scenery.js?v=123";
+import { createCar, CAR_SHAPES, SPOILER_OPTIONS } from "./car.js?v=123";
+import { createInput, initTouchControls, vibrate } from "./input.js?v=123";
+import { createRivals, tickRivals, placeRivalsOnGrid } from "./rivals.js?v=123";
 import { ensureAudio, updateAudio, setAudioMuted, isAudioMuted,
   setMasterVolume, setMusicVolume, setSfxVolume,
   updateWind, playCountdownBeep, playShift, setMusicProfile,
-  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=122";
-import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=122";
-import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=122";
-import { createReplay } from "./replay.js?v=122";
-import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=122";
-import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=122";
-import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=122";
-import { computeRank, detectRankUp, TIERS } from "./rank.js?v=122";
-import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=122";
-import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=122";
-import { createWeather, WEATHER_TYPES } from "./weather.js?v=122";
+  playTurboWhoosh, playBrakeHiss, playBrakeSqueal, playEnginePop } from "./audio.js?v=123";
+import { MUSIC_PROFILES, TRACKS } from "./tracks-data.js?v=123";
+import { createGhost, createGhostMesh, encodeGhost, importGhost } from "./ghost.js?v=123";
+import { createReplay } from "./replay.js?v=123";
+import { CHAMPIONSHIPS, getCareerState, startChampionship, currentRound, recordRound, isComplete, reset as resetCareer } from "./career.js?v=123";
+import { checkAchievements, onToast as onAchievementToast, ACHIEVEMENTS, isEarned as isAchEarned } from "./achievements.js?v=123";
+import { getTodaysChallenge, checkDailyChallenge, getDailyPlaylist, checkPlaylistEntry } from "./challenge.js?v=123";
+import { computeRank, detectRankUp, TIERS } from "./rank.js?v=123";
+import { submitLap, fetchBoard, getLeaderboardUrl, setLeaderboardUrl, getHandle, setHandle } from "./leaderboard.js?v=123";
+import { getMasteryTier, compareTiers, TIER_STYLE as MASTERY_STYLE, MASTERY_TARGETS, diamondFromRank } from "./mastery.js?v=123";
+import { createWeather, WEATHER_TYPES } from "./weather.js?v=123";
 import {
   loadProfile, saveProfile, setName, setCarColors, setCarAccent, setCarSpoiler,
   getCarLivery, bumpStats, bumpCarStats, recordRaceResult, recordBestLap,
   applySkillDelta, hex, parseHex
-} from "./profile.js?v=122";
+} from "./profile.js?v=123";
 
 // ---- Renderer / scene setup ----
 const canvas = document.getElementById("game");
@@ -2841,6 +2841,40 @@ function tickReplay(dt) {
   car.group.rotation.set(0, pose.heading, 0);
   car.heading = pose.heading;
   car.speed = pose.speed;
+  // Cinematic camera angles cycle every 3s. AAA replay-theater feel:
+  // 0: low-rear chase, 1: overhead, 2: side track, 3: front-side hero.
+  const angleIdx = Math.floor(elapsed / 3.0) % 4;
+  const angleT = (elapsed % 3.0) / 3.0;
+  const cx = pose.x, cy = pose.y, cz = pose.z, h = pose.heading;
+  const sin = Math.sin(h), cos = Math.cos(h);
+  let camX, camY, camZ, lookX = cx, lookY = cy + 0.6, lookZ = cz;
+  if (angleIdx === 0) {
+    // Low rear chase, pulled back.
+    camX = cx - sin * 7;
+    camY = cy + 1.2;
+    camZ = cz - cos * 7;
+  } else if (angleIdx === 1) {
+    // Overhead — high above looking down + slight forward of car.
+    camX = cx + sin * 4;
+    camY = cy + 12;
+    camZ = cz + cos * 4;
+    lookY = cy;
+  } else if (angleIdx === 2) {
+    // Side tracking — fixed offset 9m to the right of the car heading.
+    const sideX = cos * 9, sideZ = -sin * 9;
+    camX = cx + sideX;
+    camY = cy + 1.6;
+    camZ = cz + sideZ;
+  } else {
+    // Front-side hero — 30° off-axis ahead.
+    const ang = h + Math.PI * 0.85;
+    camX = cx + Math.sin(ang) * 6;
+    camY = cy + 1.0;
+    camZ = cz + Math.cos(ang) * 6;
+  }
+  camera.position.set(camX, camY, camZ);
+  camera.lookAt(lookX, lookY, lookZ);
+  camera.rotation.z = 0;   // straighten any roll the live cam left behind
   if (t >= 1) stopReplay();
 }
 
@@ -3510,7 +3544,7 @@ function renderGarage() {
 let _garagePreview = null;
 async function ensureGaragePreview() {
   if (_garagePreview) return _garagePreview;
-  const mod = await import("./garagePreview.js?v=122");
+  const mod = await import("./garagePreview.js?v=123");
   const cv = document.getElementById("garage-preview");
   if (!cv) return null;
   _garagePreview = mod.createGaragePreview(cv);
