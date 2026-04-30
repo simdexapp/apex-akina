@@ -4,7 +4,7 @@
 // geometry+material, and per-track density is conservative.
 
 import * as THREE from "three";
-import { buildBuildingTexture } from "./textures.js?v=120";
+import { buildBuildingTexture } from "./textures.js?v=121";
 
 // Build the texture once, share across all building instances.
 let _BUILDING_TEX = null;
@@ -139,8 +139,11 @@ function buildBuildingInstances(count) {
   return new THREE.InstancedMesh(bodyGeo, bodyMat, count);
 }
 
-// Billboard: pole + panel as one merged mesh per placement (cheap enough).
-function makeBillboard(color) {
+// Billboard: pole + animated neon panel. Panel uses a custom shader that
+// shifts color over time + gradient strips so each one looks alive.
+// Adds a thick glowing border too for that cyberpunk neon-sign feel.
+const _BILLBOARD_PANELS = [];   // collected so updateBillboards can tick them
+function makeBillboard(seedColor) {
   const group = new THREE.Group();
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.7 });
   for (const side of [-1, 1]) {
@@ -148,11 +151,52 @@ function makeBillboard(color) {
     pole.position.set(side * 1.6, 3, 0);
     group.add(pole);
   }
-  const panelMat = new THREE.MeshBasicMaterial({ color });
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 0.2), panelMat);
+  // Animated panel — ShaderMaterial with shifting hue stripes.
+  const seed = Math.random() * Math.PI * 2;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uSeed: { value: seed },
+      uColor: { value: new THREE.Color(seedColor) }
+    },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uSeed;
+      uniform vec3 uColor;
+      varying vec2 vUv;
+      vec3 hueShift(vec3 c, float h) {
+        const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+        float cosA = cos(h);
+        return c * cosA + cross(k, c) * sin(h) + k * dot(k, c) * (1.0 - cosA);
+      }
+      void main() {
+        // Vertical stripes shifting over time.
+        float strip = sin(vUv.y * 8.0 + uTime * 1.4 + uSeed) * 0.5 + 0.5;
+        float pulse = sin(uTime * 0.8 + uSeed) * 0.5 + 0.5;
+        vec3 col = hueShift(uColor, uTime * 0.3 + uSeed);
+        col *= 0.6 + 0.4 * strip;
+        col += pulse * 0.15;
+        // Edge glow — brighter near borders.
+        float edge = 1.0 - smoothstep(0.85, 1.0, max(abs(vUv.x - 0.5) * 2.0, abs(vUv.y - 0.5) * 2.0));
+        col += (1.0 - edge) * 0.5;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 0.2), mat);
   panel.position.set(0, 5.2, 0);
+  panel.userData.bbMat = mat;
   group.add(panel);
+  _BILLBOARD_PANELS.push(mat);
   return group;
+}
+
+// Update all billboard shaders' uTime so the colors shift.
+export function tickBillboards(time) {
+  for (const m of _BILLBOARD_PANELS) {
+    if (m.uniforms && m.uniforms.uTime) m.uniforms.uTime.value = time;
+  }
 }
 
 // ============================================================
